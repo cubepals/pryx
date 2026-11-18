@@ -457,14 +457,26 @@ test('code-template versions retain their owned completed snapshot', async () =>
 test('hostname egress refuses tiers without host enforcement', async () => {
   const ctx = await publicContext()
   try {
-    for (const isolation of ['process', 'wasm']) {
-      const response = await ctx.request('/sandboxes', 'POST', {
-        isolation,
-        egress: { allow: ['example.com'] },
-      })
-      expect(response.status).toBe(StatusCodes.NOT_IMPLEMENTED)
-      expect(JSON.stringify(await response.json())).toContain(isolation)
-    }
+    const wasm = await ctx.request('/sandboxes', 'POST', {
+      isolation: 'wasm',
+      egress: { allow: ['example.com'] },
+    })
+    expect(wasm.status).toBe(StatusCodes.NOT_IMPLEMENTED)
+    expect(JSON.stringify(await wasm.json())).toContain('wasm')
+    // A process node enforces it only where it announces kernel network policy; none here does,
+    // and a request that requires the guarantee is refused naming it.
+    const process = await ctx.request('/sandboxes', 'POST', {
+      isolation: 'process',
+      egress: { allow: ['example.com'] },
+    })
+    expect(process.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    expect(JSON.stringify(await process.json())).toContain('process')
+    const required = await ctx.request('/sandboxes', 'POST', {
+      isolation: 'process',
+      require: ['host-firewall'],
+    })
+    expect(required.ok).toBe(false)
+    expect(JSON.stringify(await required.json())).toContain('host-firewall')
   } finally {
     await ctx.close()
   }

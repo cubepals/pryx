@@ -67,6 +67,8 @@ pub struct ContainerSpec {
     pub(crate) workdir: Option<String>,
     #[serde(default)]
     pub(crate) egress: Option<crate::protocol::EgressPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress_addresses: Option<crate::protocol::AddressPolicy>,
     /// Environment, secrets included. Never logged (see `Debug` below).
     pub env: Vec<(String, String)>,
     pub labels: BTreeMap<String, String>,
@@ -259,6 +261,9 @@ pub struct RuntimeInfo {
     /// The OCI runtimes the engine has registered, by name (Engine API `/info` `Runtimes`).
     #[serde(default)]
     pub(crate) runtimes: Vec<String>,
+    /// The runtime the engine starts a container with when it names none (`/info` `DefaultRuntime`).
+    #[serde(default)]
+    pub(crate) default_runtime: Option<String>,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,
@@ -365,6 +370,18 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn uses_remote_data(&self) -> bool {
         false
     }
+    /// The identity of the memory a workload sleeps with outside it (a VM's memory image), which a
+    /// fork can take; none for a backend whose sleep keeps memory in place, or a workload awake.
+    async fn memory_image(&self, _name: &str) -> Result<Option<String>, RuntimeError> {
+        Ok(None)
+    }
+    /// Makes `target`, created and never started, a fork of `source` while it sleeps with the
+    /// memory `image` names: `source`'s disk and that memory, which the target's first start
+    /// resumes under its own identity. Refused when `source` no longer sleeps with it, when the
+    /// target's spec differs from what that memory holds, or when the backend has no such fork.
+    async fn fork_memory(&self, _source: &str, _target: &str, _image: &str) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Unavailable("This backend has no fork with memory".into()))
+    }
     async fn data_service(&self, _request: files::Request) -> Result<files::Service, RuntimeError> {
         Err(RuntimeError::Other("This backend has no remote file service".into()))
     }
@@ -407,6 +424,19 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     }
     fn supports_network_policy(&self) -> bool {
         false
+    }
+    /// Whether this backend enforces a workload's address rules (`egressAddresses`).
+    fn supports_egress_addresses(&self) -> bool {
+        false
+    }
+    /// The kernel network policy this backend's sandboxes get, as the host document reports it.
+    fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
+        None
+    }
+    /// Why a request's address rules (`egressAddresses`) can't be enforced here as given, asked
+    /// before anything is made; a backend that takes none says nothing.
+    fn check_egress_addresses(&self, _spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        Ok(())
     }
     async fn ensure_internal_network(
         &self,

@@ -86,10 +86,17 @@ There is no image daemon. pryxd runs `pryx-vm-image`, a separate helper from the
 
 1. It pulls the manifest and layers with [oci-client](https://crates.io/crates/oci-client),
    anonymously, and checks each layer against its digest and its uncompressed `diff_id`.
-   Layers are gzip or plain tar, at most 128 of them.
+   Layers are gzip or plain tar, at most 13 of them: each is a disk of the guest, and the
+   monitor has interrupts for no more. An image with more is refused before it is fetched.
 2. `mkfs.erofs --tar` turns each layer into a read-only EROFS file, keeping its owners,
    modes and times. Files are cached by layer digest and shared by every sandbox that uses
-   them. A cached layer counts only once its file is complete and its record written.
+   them. A cached layer counts only once its file is complete and its record written. No
+   layer is fetched, expanded or converted past the host's free-space floor
+   (`min_free_disk_mb`); short of room, the layers that no VM on the node needs go first, and
+   the preparation is tried once more. A VM, asleep or stopped included, keeps every layer of
+   the manifest it was first started on, and a starting VM the image it is preparing, so a
+   fork whose parent is gone still boots on its own. A local snapshot alone keeps none: forked
+   or restored once its layers went, it fetches that image again, as on another node.
 3. The sandbox gets `vm.ext4`, a sparse file the size of its storage, made by `mke2fs`. It
    holds the overlay's writable layer and the data directory.
 
@@ -141,11 +148,16 @@ The trusted init installs the guest rules before any image code runs. The worklo
 non-root user with no capabilities, so it cannot change them, and every process it starts is
 refused new vsock sockets, so it cannot reach the packet transport around them. The packet
 helper itself runs under the launcher's Landlock and seccomp policy: it may open outbound
-Internet sockets, and no listeners or Unix sockets.
+Internet sockets and routing netlink sockets, which only read how the host routes, and no
+listeners, other netlink families or Unix sockets.
 
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
-metadata, private, multicast and broadcast destinations. pryxd passes every guest's egress
+metadata, private, multicast and broadcast destinations, and any address the host itself would
+receive. It dials from the host's own network, so it asks the kernel how each new flow's
+destination is routed when the flow asks, and refuses one the kernel would deliver locally: the
+host's own addresses on every interface, public ones included, as the container tier's firewall
+refuses a workload's connections to its host. pryxd passes every guest's egress
 policy, and the helper refuses to start without one, so it also reaches the gateway address only
 at the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
 otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
@@ -180,8 +192,10 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
 - **Sleep with memory**, for an ordinary user's tier. At start, pryxd sleeps and wakes a
   file-only guest on a scratch disk; once that passes, the tier reports `memory-sleep` and
   control's sleep suspends instead of stopping. A suspend asks the guest's init, with a request
-  signed for that boot, to flush its disk and hold a connection to the host; the monitor is then
-  paused, writes a full snapshot of its state and memory, and exits. The two files go into
+  signed for that boot, to freeze its workload's cgroup, flush its disk and hold a connection to
+  the host; the monitor is then paused, writes a full snapshot of its state and memory, and exits.
+  The workload runs again only once a resume has stepped the clock, reseeded it and brought its
+  network back, or once the host gives the sleep up. The two files go into
   pryxd's private state for the VM tier, owned by pryxd's user and readable by no one else, as
   the disk is; they never go into a snapshot, an export, a rest or a transfer.
 - **Wake with memory** restores that snapshot on the same node, when the host's class still
@@ -189,24 +203,33 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   recorded at sleep, and the disk is the very file the sleep left. Processes, terminals and
   `/tmp` carry on. The monitor's vsock reset ends init's held connection; init then takes a
   signed resume from the host, steps the wall clock to the host's, mixes host entropy into its
-  pool, starts its network helper again and reopens its sleep listener. Open TCP connections
-  don't survive. A host of another class, a changed disk or a restore that fails is never
+  pool, points its redirects at the gateways this wake listens on (their ports are new, and the
+  resume names them), starts its network helper again and reopens its sleep listener. Open TCP
+  connections don't survive. A host of another class, a changed disk or a restore that fails is never
   retried: the memory is discarded, the guest boots from its disk with everything written before
   the sleep, and the start answers `resumed: false`. Memory never leaves its node, so a wake
   anywhere else is a cold boot.
 - **Sleep** without memory (root's VM worker, or before the start test passes) stops the guest
   and keeps its disk. **Wake** boots it again from that disk, on an API call or a held edge
   connection. A suspend request is refused, and control takes the stop path without asking.
-- A file session, a copy or a cold boot of a guest asleep with memory discards that memory
-  first; stopping it ends the memory as a kill would. Differential snapshots are not used: their
+- A file session or a cold boot of a guest asleep with memory discards that memory first;
+  stopping it ends the memory as a kill would. A snapshot or an export of it copies its disk as
+  the sleep flushed it, unrepaired (a boot of the copy checks it first), and leaves it asleep
+  with its memory. Removing a sandbox removes its memory, and
+  pryxd's start removes any memory file no sandbox's record names. Differential snapshots are not used: their
   upstream calls them a preview.
 - **Fork with memory**, on one node: a guest asleep with its memory gives a new sandbox a copy of
   its disk and the same memory file, and the fork wakes running the source's processes under its
   own sandbox, agent key, boot nonce and hostname, which its resume hands it before its agent
   serves anything. Its init then has the kernel rekey its random generator from host entropy, so
   each fork draws random bytes of its own (the pinned kernel has no VM generation ID driver). A
-  fork keeps the source's image, sizes, mounts, user and network. Across nodes a fork copies the
-  disk, as before.
+  fork keeps everything of its source's spec the memory holds: image, sizes, mounts, user,
+  network, variables, secrets and ports. Through the APIs it is a fork from a snapshot: control
+  snapshots a sleeping VM sandbox without waking it (the snapshot names the memory), places a fork
+  from that snapshot on the node that holds it when that node has room, and the node's restore
+  (`fork`, feature `local-forks`) takes the memory too while the source still sleeps with it and
+  the fork's spec differs only in what is each sandbox's own; the fork's first start then resumes
+  (`resumed: true`). Any other fork, and every fork on another node, copies the disk and boots it.
 - **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
   Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
   whole grace before killing what remains, remounts its disks read-only and flushes them, then
@@ -239,9 +262,12 @@ lifetime lease and then confines it:
 - It is not dumpable, and the kernel kills it when pryxd exits. Its one-shot bootstrap socket
   hands the guest's secrets only to a peer with the monitor's own PID.
 
-As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
-that the host chooses and a workload never can, in a chroot holding only its staged inputs,
-under the same lease and signal bounds, inside the root worker above.
+As root, the monitor runs under Firecracker's unchanged jailer, as a non-root uid and gid of its
+own: each VM takes the lowest free pair of a range the host reserves (`[vm] monitor_uid`,
+`monitor_gid` and `monitor_ids`, 1024 pairs from 60001 by default), keeps it across boots and
+lets it go when it is removed, so no two VMs share one and no workload chooses one. Its TAP and
+its root packet stack are that pair's too. It runs in a chroot holding only its staged inputs, under
+the same lease and signal bounds, inside the root worker above.
 
 The filesystem programs (`mke2fs`, `e2fsck`, `mkfs.erofs`) read disks a guest wrote and layers
 a tenant chose, so the same launcher confines them too, as root or not: Landlock reads of their
@@ -254,7 +280,8 @@ output's admitted size.
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
 - Root nodes serve the tier only through the VM worker.
 - Memory sleep is for an ordinary user's tier, restored only on the same node and host class.
-  Snapshots and exports of a running VM restart it, and fork copies the disk, not memory.
+  Snapshots and exports of a running VM restart it. A fork copies the disk, and takes the memory
+  too only from a snapshot of a VM asleep with it, on that VM's node.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.
 - Memory is whole MiB, the guest's RAM. The monitor's own memory on the host is outside it.

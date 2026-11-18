@@ -15,9 +15,12 @@ python3 -m http.server 9876 --bind 127.0.0.1 --directory "$PWD/host-artifacts" >
 pryx_native_http=$!
 pryx_vm_memory=
 pryx_vm_socket=
+pryx_vm_public=
+pryx_vm_address="$PWD/deploy/vm-host-public-address.sh"
 cleanup() {
   result=$?
   trap - EXIT
+  if [ -n "$pryx_vm_public" ]; then bash "$pryx_vm_address" down || result=1; fi
   if sudo test -f /home/pryxtools/native-process-measurements.json; then
     sudo cp /home/pryxtools/native-process-measurements.json "$RUNNER_TEMP/native-process-measurements.json" || result=1
     sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/native-process-measurements.json" || result=1
@@ -46,6 +49,7 @@ if [ "${PRYX_NATIVE_VM:-off}" = on ]; then
   sudo modprobe kvm
   test -c /dev/kvm
   sudo chown pryxtools:pryxtools /dev/kvm
+  pryx_vm_public=$(bash "$pryx_vm_address" up)
 fi
 pryx_native_fixture=$(mktemp -d /tmp/pryx-native-acceptance.XXXXXX)
 chmod 755 "$pryx_native_fixture"
@@ -88,6 +92,6 @@ cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
   PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
   PRYX_VM_MEMORY_SOCKET="$pryx_vm_socket" PRYX_VM_MEASUREMENTS=/home/pryxtools/vm-installed-measurements.json \
-  PRYX_VM_SOURCE="${PRYX_VM_SOURCE:-}" PRYX_VM_CI_URL="${PRYX_VM_CI_URL:-}" \
+  PRYX_VM_SOURCE="${PRYX_VM_SOURCE:-}" PRYX_VM_CI_URL="${PRYX_VM_CI_URL:-}" PRYX_VM_HOST_PUBLIC_ADDRESS="$pryx_vm_public" \
   PRYX_NATIVE_BROWSER=on PRYX_NATIVE_VM="${PRYX_NATIVE_VM:-off}" PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"

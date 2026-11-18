@@ -11,8 +11,9 @@ async fn repeated_normal_exit_inspections_do_not_wait_for_future_events() {
 
     let dep = deployment();
     let _cleanup = Cleanup(dep.clone());
+    let directory = tempfile::tempdir().unwrap();
     let socket = DockerConfig::default().socket;
-    let runtime = gvisor::engine_runtime(&socket);
+    let runtime = gvisor::engine_runtime(&socket).with_oom_journal(directory.path());
     runtime.info().await.unwrap();
     let image = "alpine:3.22";
     runtime.ensure_image(image, Duration::from_secs(120)).await.unwrap();
@@ -40,9 +41,19 @@ async fn repeated_normal_exit_inspections_do_not_wait_for_future_events() {
         )
         .await
         .unwrap();
-    engine.start_container(&made.id, None).await.unwrap();
+    runtime.start(&made.id).await.unwrap();
     let exit = engine.wait_container(&made.id, None).next().await.unwrap().unwrap();
     assert_eq!(exit.status_code, 0);
+    {
+        let path = directory.path().join("docker-oom").join(format!("{}.json", made.id));
+        let receipt: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert!(receipt["pending"].is_null(), "the real normal start must be confirmed");
+        assert_eq!(receipt["bound"]["invocation"].as_str().unwrap().len(), 32);
+        assert!(
+            receipt["bound"]["started"].is_string(),
+            "the timed inspections must read the bound journal generation"
+        );
+    }
     // Four future-second history reads take at least three seconds even for one unchanged
     // normal exit. This budget covers ordinary local API work without waiting on that timer.
     let observed = tokio::time::timeout(Duration::from_secs(2), async {
@@ -55,6 +66,7 @@ async fn repeated_normal_exit_inspections_do_not_wait_for_future_events() {
         }
     })
     .await;
+    runtime.remove(&made.id).await.unwrap();
     assert!(observed.is_ok(), "normal-exit inspection waited for future event cutoffs");
 }
 
@@ -100,11 +112,11 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
                     view.exit
                 );
                 assert_eq!(view.exit.unwrap().code, pryxd::runtime::exit_by(libc::SIGKILL));
-                // A fresh backend has no live event cache: Docker's retained event must recover
-                // the same result across daemon restart, even if inspect lost its OOM flag.
-                let runtime = gvisor::engine_runtime(&DockerConfig::default().socket);
-                runtime.info().await.unwrap();
-                let recovered = runtime.inspect(&view.locate.container_id.unwrap()).await.unwrap().unwrap();
+                // A fresh backend has no live event cache. Reopen the same private state
+                // context to recover the bound host receipt across daemon restart.
+                // Erase the real owner's Docker flag/history on both tiers. This assertion can
+                // pass only through production journal evidence for this physical OOM.
+                let recovered = fresh_without_engine_oom(dir.path(), &view.locate.container_id.unwrap()).await;
                 assert_eq!(serde_json::to_value(recovered).unwrap()["oom_killed"], true, "fresh backend trial {trial}");
                 break;
             }
@@ -112,6 +124,48 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
         }
         cleanup(&m, &[&name]).await;
     }
+}
+
+#[tokio::test]
+#[ignore = "needs Docker"]
+async fn a_real_sigkill_without_memory_pressure_is_not_reported_as_oom() {
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let manager = daemon(dir.path(), &dep);
+    manager.reconcile(Records::FromDisk).await;
+    let mut spec = shell("exec sleep 300", 64);
+    spec.restart.max_retries = 0;
+    manager.ensure(id("killed"), spec, Precondition::None, None).await.unwrap();
+    manager.start(id("killed"), None).await.unwrap();
+    let container = manager.view(&id("killed")).unwrap().locate.container_id.unwrap();
+    let runtime = gvisor::engine_runtime(&DockerConfig::default().socket).with_oom_journal(dir.path());
+    runtime.kill(&container).await.unwrap();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        manager.stats(&id("killed")).await.ok();
+        let view = manager.view(&id("killed")).unwrap();
+        if let Some(exit) = view.exit {
+            assert_eq!(exit.code, pryxd::runtime::exit_by(libc::SIGKILL));
+            assert!(!exit.oom_killed, "a real signal kill is not a memory-controller receipt");
+            break;
+        }
+        assert!(Instant::now() < deadline, "the real killed workload did not exit");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let recovered = serde_json::to_value(fresh_without_engine_oom(dir.path(), &container).await).unwrap();
+    assert_eq!(recovered["oom_killed"], false);
+    cleanup(&manager, &["killed"]).await;
+}
+
+async fn fresh_without_engine_oom(state: &std::path::Path, container: &str) -> pryxd::runtime::ContainerInfo {
+    let socket = DockerConfig::default().socket;
+    let gap = oom_engine::EvidenceGap::new(&socket, container).await;
+    let fresh = gvisor::engine_runtime(gap.socket()).with_oom_journal(state);
+    fresh.info().await.unwrap();
+    let info = fresh.inspect(container).await.unwrap().unwrap();
+    gap.assert_exercised();
+    info
 }
 
 /// Capture only this owned container's fixed OOM fields before panic cleanup removes it.
@@ -132,14 +186,31 @@ async fn failure_evidence(id: Option<&str>) {
     };
     let capture = async {
         let inspect = docker.inspect_container(id, None).await?;
-        let state = inspect.state.unwrap_or_default();
+        let state = inspect.state.clone().unwrap_or_default();
         eprintln!(
             "OOM_FAILURE_STATE {}",
             serde_json::json!({
                 "id": inspect.id, "status": state.status, "oomKilled": state.oom_killed,
                 "exitCode": state.exit_code, "startedAt": state.started_at, "finishedAt": state.finished_at,
+                "pid": state.pid,
             })
         );
+        let host = inspect.host_config.as_ref();
+        eprintln!(
+            "OOM_FAILURE_LIMITS {}",
+            serde_json::json!({
+                "memory": host.and_then(|h| h.memory),
+                "memorySwap": host.and_then(|h| h.memory_swap),
+                "pidsLimit": host.and_then(|h| h.pids_limit),
+                "oomKillDisable": host.and_then(|h| h.oom_kill_disable),
+                "oomScoreAdj": host.and_then(|h| h.oom_score_adj),
+                "runtime": host.and_then(|h| h.runtime.as_deref()).map(|runtime| match runtime {
+                    "runc" | "runsc" | "crun" | "io.containerd.runc.v2" => runtime,
+                    _ => "other",
+                }),
+            })
+        );
+        eprintln!("OOM_FAILURE_KERNEL {}", current_leaf_events(&docker, id, &inspect).await);
         let now = time::OffsetDateTime::now_utc();
         let since = (now - time::Duration::minutes(1)).unix_timestamp().to_string();
         let until = now.unix_timestamp().saturating_add(1).to_string();
@@ -159,6 +230,31 @@ async fn failure_evidence(id: Option<&str>) {
                 })
             );
         }
+        match docker.version().await {
+            Ok(version) => {
+                let components = version
+                    .components
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|component| {
+                        matches!(component.name.as_str(), "Engine" | "containerd" | "runc" | "docker-init")
+                    })
+                    .map(|component| {
+                        let version = diagnostic_version(&component.version).map(str::to_owned);
+                        (component.name, version)
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                eprintln!(
+                    "OOM_FAILURE_VERSIONS {}",
+                    serde_json::json!({
+                        "engine": version.version.as_deref().and_then(diagnostic_version),
+                        "api": version.api_version.as_deref().and_then(diagnostic_version),
+                        "components": components,
+                    })
+                );
+            }
+            Err(_) => eprintln!("OOM_FAILURE_VERSIONS unavailable"),
+        }
         Ok::<_, bollard::errors::Error>(())
     };
     match tokio::time::timeout(Duration::from_secs(3), capture).await {
@@ -166,4 +262,92 @@ async fn failure_evidence(id: Option<&str>) {
         Ok(Err(_)) => eprintln!("OOM_FAILURE_EVIDENCE engine read unavailable"),
         Err(_) => eprintln!("OOM_FAILURE_EVIDENCE capture deadline"),
     }
+}
+
+/// Only fixed public version tokens, never component details or arbitrary owner strings.
+fn diagnostic_version(version: &str) -> Option<&str> {
+    (!version.is_empty()
+        && version.len() <= 128
+        && version.bytes().all(|byte| byte.is_ascii_alphanumeric() || b".+-_".contains(&byte)))
+    .then_some(version)
+}
+
+/// A still-live owned leaf only. An exited container's deleted cgroup cannot supply evidence;
+/// absence is reported, never read as a zero counter or replaced with another cgroup's values.
+/// File names and counter names are Linux's Documentation/admin-guide/cgroup-v2.rst ABI.
+async fn current_leaf_events(
+    docker: &bollard::Docker,
+    id: &str,
+    inspect: &bollard::models::ContainerInspectResponse,
+) -> serde_json::Value {
+    use std::os::unix::fs::MetadataExt;
+    use std::path::{Component, Path};
+
+    let missing = |reason| serde_json::json!({"observed": false, "reason": reason});
+    if id.len() != 64 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return missing("immutable_id_unconfirmed");
+    }
+    let Some(state) = inspect.state.as_ref() else { return missing("no_owner_state") };
+    let Some(pid) = state.pid.filter(|pid| *pid > 0) else { return missing("no_live_owner_pid") };
+    if inspect.id.as_deref() != Some(id) || state.started_at.as_ref().is_none_or(String::is_empty) {
+        return missing("owner_identity_unconfirmed");
+    }
+    let Ok(membership) = std::fs::read_to_string(format!("/proc/{pid}/cgroup")) else {
+        return missing("membership_unavailable");
+    };
+    let Some(group) = membership.lines().find_map(|line| line.strip_prefix("0::/")) else {
+        return missing("unified_membership_unavailable");
+    };
+    let group = Path::new(group);
+    if !group.components().all(|part| matches!(part, Component::Normal(_)))
+        || !group.file_name().is_some_and(|leaf| leaf.to_string_lossy().contains(id))
+    {
+        return missing("owned_leaf_unconfirmed");
+    }
+    let root = Path::new("/sys/fs/cgroup").join(group);
+    let Ok(before) = std::fs::metadata(&root) else { return missing("leaf_unavailable") };
+    let mut files = std::collections::BTreeMap::new();
+    for name in ["memory.events.local", "memory.events"] {
+        let Ok(text) = std::fs::read_to_string(root.join(name)) else { continue };
+        let counters = text
+            .lines()
+            .filter_map(|line| {
+                let (key, value) = line.split_once(' ')?;
+                if !matches!(key, "low" | "high" | "max" | "oom" | "oom_kill" | "oom_group_kill") {
+                    return None;
+                }
+                let number = value.parse::<u64>().ok()?;
+                Some((key.to_owned(), number.to_string()))
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        if !counters.is_empty() {
+            files.insert(name, counters);
+        }
+    }
+    let mut limits = std::collections::BTreeMap::new();
+    for name in ["memory.max", "memory.swap.max", "pids.max"] {
+        if let Ok(text) = std::fs::read_to_string(root.join(name)) {
+            let value = text.trim();
+            if value == "max" || value.parse::<u64>().is_ok() {
+                limits.insert(name, value.to_owned());
+            }
+        }
+    }
+    let Ok(after) = std::fs::metadata(&root) else { return missing("leaf_disappeared") };
+    if before.dev() != after.dev() || before.ino() != after.ino() {
+        return missing("leaf_identity_changed");
+    }
+    let Ok(current) = docker.inspect_container(id, None).await else { return missing("owner_recheck_unavailable") };
+    if current.id.as_deref() != Some(id)
+        || !current
+            .state
+            .as_ref()
+            .is_some_and(|current| current.pid == Some(pid) && current.started_at == state.started_at)
+    {
+        return missing("owner_identity_changed");
+    }
+    if files.is_empty() {
+        return missing("counters_unavailable");
+    }
+    serde_json::json!({"observed": true, "files": files, "limits": limits})
 }

@@ -89,6 +89,7 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES,
             "maxHttpFrameBytes":agentos_sidecar_client::wire::DEFAULT_MAX_FRAME_BYTES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
         "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},
+        "x-pryx-snapshots": {"localForksFeature": crate::protocol::LOCAL_FORKS_FEATURE},
         "x-pryx-agent": {
             "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
             "captureBytes": pryx_agent::contract::CAPTURE_BYTES,

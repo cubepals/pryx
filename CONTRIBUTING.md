@@ -33,6 +33,11 @@ The wasm case runs as your normal user against the checksum-pinned sidecar; miss
 setup. Reuse the staged directory on later test runs. Docker and full end-to-end acceptance run
 in CI.
 
+The process tier's kernel programs are C in `bpf/`, embedded as the committed
+`bpf/network.bpf.o`. After changing the C, run `sh bpf/build.sh` (Ubuntu 24.04's `clang-18`,
+`llvm-18` and `libbpf-dev`) and commit the object; CI rebuilds it and requires the same bytes.
+`sudo cargo test --locked --lib bpf:: -- --ignored` loads them into your kernel.
+
 The structure rules are Cubepals' `scripts/check-structure.ts`, run here against
 `structure-baseline.json`; CI's `Structure` step shows how to run it. CI's `contract` job runs
 Cubepals' control plane against your build. `bun install --frozen-lockfile` and `bun run check` check every TypeScript workspace;

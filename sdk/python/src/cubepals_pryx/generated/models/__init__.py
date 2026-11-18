@@ -5,6 +5,11 @@
 from .agent_result import AgentResult
 from .make_request import MakeRequest
 from .make_request_egress import MakeRequestEgress
+from .make_request_egress_addresses import MakeRequestEgressAddresses
+from .make_request_egress_addresses_allow_item import (
+    MakeRequestEgressAddressesAllowItem,
+)
+from .make_request_egress_addresses_deny_item import MakeRequestEgressAddressesDenyItem
 from .make_request_env import MakeRequestEnv
 from .make_request_isolation import MakeRequestIsolation
 from .make_request_labels import MakeRequestLabels
@@ -38,6 +43,9 @@ __all__ = (
     "AgentResult",
     "MakeRequest",
     "MakeRequestEgress",
+    "MakeRequestEgressAddresses",
+    "MakeRequestEgressAddressesAllowItem",
+    "MakeRequestEgressAddressesDenyItem",
     "MakeRequestEnv",
     "MakeRequestIsolation",
     "MakeRequestLabels",

@@ -1887,6 +1887,13 @@
           "id": {
             "$ref": "#/components/schemas/SnapshotId"
           },
+          "memory": {
+            "description": "Taken of a workload asleep with its memory outside it (a VM's): that memory's identity. A\nfork from this snapshot on this node takes the memory too while the workload still sleeps\nwith it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "method": {
             "$ref": "#/components/schemas/Method"
           },
@@ -2578,6 +2585,9 @@
     "nativeBrowserPolicyFeature": "native-browser-policy",
     "observedGuaranteesFeature": "observed-resource-limits",
     "unenforcedMemoryFeature": "unenforced-memory"
+  },
+  "x-pryx-snapshots": {
+    "localForksFeature": "local-forks"
   },
   "x-pryx-tiers": {
     "capabilityScopePrefix": "tier-capabilities:"

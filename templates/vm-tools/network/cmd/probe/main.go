@@ -5,7 +5,8 @@
 //
 // Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque
 // acceptance bytes; policy.go checks inherited packet-transport denials as a workload;
-// production.go attacks the immutable production guest policy.
+// production.go attacks the immutable production guest policy;
+// retained_dns.go keeps one DNS socket through a sleep and the restores of its forks.
 package main
 
 import (
@@ -236,7 +237,14 @@ func main() {
 	verifyRestricted := flag.Bool("verify-restricted", false, "Verify prepared networking and kernel refusal of direct packet transport")
 	policyOnly := flag.Bool("policy-only", false, "Check inherited unprivileged guest socket policy")
 	production := flag.String("production-policy", "", "Private production policy acceptance configuration")
+	retainedDNS := flag.String("retained-dns", "", "Keep one UDP DNS socket across memory restores")
 	flag.Parse()
+	if *retainedDNS != "" {
+		if err := retainDNS(*retainedDNS, *ready); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *production != "" {
 		if err := productionPolicy(*production); err != nil {
 			log.Fatal(err)

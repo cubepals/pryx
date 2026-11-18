@@ -68,6 +68,7 @@ export class NodeChoice {
     region: string,
     avoid: string[] = [],
     only: string | null = null,
+    prefer: string | null = null,
   ): PlacementRequest {
     return {
       require: spec.require,
@@ -93,6 +94,7 @@ export class NodeChoice {
       ],
       avoid,
       ...(only === null ? {} : { only }),
+      ...(prefer === null ? {} : { prefer }),
     }
   }
 

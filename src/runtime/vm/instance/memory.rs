@@ -1,19 +1,19 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Memory sleep for an ordinary user's VM. Sleep has the guest flush its disk and hold a
-//! connection, pauses the monitor, writes its full snapshot, and retires it; wake restores that
-//! snapshot on this node only, into a host of the same class (CPU model, host kernel, monitor),
-//! and refuses otherwise, leaving a cold boot from the disk as the wake. An image is used once,
-//! and is discarded as soon as anything else touches its disk. The memory files hold guest
-//! secrets, so they stay in this runtime's private state, owned and 0600 like the disk, and are
-//! never part of a data copy, an export or a transfer. The jailer path does not sleep this way.
+//! connection, pauses the monitor, writes its full snapshot, and retires it; wake (`wake.rs`)
+//! restores that snapshot on this node only, into a host of the same class (CPU model, host
+//! kernel, monitor), and refuses otherwise, leaving a cold boot from the disk as the wake. An
+//! image is used once, and is discarded as soon as anything else touches its disk. The memory
+//! files hold guest secrets, so they stay in this runtime's private state, owned and 0600 like the
+//! disk, and are never part of a data copy, an export or a transfer. The jailer path does not
+//! sleep this way.
 use super::*;
 use crate::runtime::vm::disk;
-use pryx_agent::{vm_monitor, vm_sleep};
+use pryx_agent::vm_sleep;
 use serde_json::json;
 use std::os::unix::fs::PermissionsExt;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
     time::Instant,
 };
@@ -31,6 +31,14 @@ pub(super) struct Class {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Image {
+    /// This sleep's own name, which a snapshot of the guest asleep records so that a fork on this
+    /// node can take this memory with that snapshot's disk; empty in an image older than it.
+    #[serde(default)]
+    pub(super) id: String,
+    /// The verified bootstrap this memory actually booted: its init and network helper stay in
+    /// memory across restores, so a new bundle cannot supply their capabilities to an old image.
+    #[serde(default)]
+    pub(super) bootstrap_sha256: String,
     pub(super) class: Class,
     pub(super) disk: disk::Stamp,
     /// The boot the guest still is, which its init's resume must name.
@@ -95,7 +103,7 @@ impl Class {
     }
 }
 
-fn path_text(path: &Path) -> Result<&str, RuntimeError> {
+pub(super) fn path_text(path: &Path) -> Result<&str, RuntimeError> {
     path.to_str().ok_or_else(|| error("VM memory paths must be UTF-8"))
 }
 
@@ -122,8 +130,26 @@ impl VmRuntime {
         Ok(())
     }
 
+    /// Takes a sleep's image out of its sandbox's record before any monitor may load it: its files
+    /// move to a name no journal knows, and the record then says it has none. Answers where the
+    /// files are now; a crash after this never restores them, and the next start sweeps them.
+    pub(super) fn consume(&self, entry: &mut Entry) -> Result<PathBuf, RuntimeError> {
+        let directory = self.memory_directory(entry)?;
+        let consumed = directory.with_extension("consumed");
+        match fs::remove_dir_all(&consumed) {
+            Ok(()) => (),
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => (),
+            Err(problem) => return Err(error(problem)),
+        }
+        fs::rename(&directory, &consumed).map_err(error)?;
+        File::open(self.state.root.join("memory")).and_then(|directory| directory.sync_all()).map_err(error)?;
+        entry.memory = None;
+        self.save_entry(entry.clone())?;
+        Ok(consumed)
+    }
+
     /// Monitor actions go through the bundle's SDK transport, to the monitor's own API socket.
-    async fn monitor_action(
+    pub(super) async fn monitor_action(
         bundle: &Bundle,
         api: &Path,
         mut action: serde_json::Value,
@@ -158,7 +184,23 @@ impl VmRuntime {
         let mut live = live.lock().await;
         let bundle = self.bundle().await?;
         self.discard_memory(&mut entry)?;
-        let image = self.freeze(&bundle, &entry, &mut live).await?;
+        let image = match self.freeze(&bundle, &entry, &mut live).await {
+            Ok(image) => image,
+            Err(problem) => {
+                if live.monitor.exited().map_err(error)?.is_some() {
+                    // Retired, whatever stopped it: nothing of that boot runs, and its next start
+                    // boots the disk.
+                    retired(&mut live).await;
+                    drop(live);
+                    self.state.live.lock().unwrap().remove(&entry.id);
+                    entry.code = crate::runtime::exit_by(libc::SIGKILL);
+                    entry.finished = Some(crate::clock::now());
+                    entry.clean_disk = None;
+                    self.save_entry(entry)?;
+                }
+                return Err(problem);
+            }
+        };
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
         entry.memory = Some(image);
@@ -205,9 +247,37 @@ impl VmRuntime {
         .await;
         if let Err(problem) = taken {
             let problem = with_exit(problem, &mut live.monitor);
-            // Paused or not, the guest goes on where it was; its hold's end finds no resume.
-            let _ = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
+            // A resume the monitor confirms lets the guest go on where it was; its hold's end
+            // finds no resume. Unconfirmed, the guest may stay paused or its monitor still be
+            // writing the files: it is retired, and the files go only once it has exited.
+            let resumed = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
             drop(hold);
+            let recovered = async {
+                resumed?;
+                // Running vCPUs do not confirm that init has ended its resume wait, rebuilt
+                // the reset network transport and thawed the agent's workload cgroup.
+                let deadline = Instant::now() + GUEST_TIMEOUT;
+                tokio::time::timeout_at(deadline, launch::ready(&mut live.monitor, &entry.spec, deadline))
+                    .await
+                    .map_err(|_| RuntimeError::Timeout("VM agent did not recover after a failed snapshot".into()))??;
+                if live.monitor.exited().map_err(error)?.is_some() {
+                    return Err(error("VM monitor exited during snapshot recovery"));
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(unrecovered) = recovered {
+                live.killing = true;
+                let killed = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill()).await;
+                let retirement = if matches!(killed, Ok(Ok(()))) {
+                    let _ = fs::remove_file(&state);
+                    let _ = fs::remove_file(&memory);
+                    "the guest was retired"
+                } else {
+                    "monitor retirement remains unconfirmed and its lease is retained"
+                };
+                return Err(error(format!("{problem}; its recovery failed too: {unrecovered}; {retirement}")));
+            }
             let _ = fs::remove_file(&state);
             let _ = fs::remove_file(&memory);
             return Err(problem);
@@ -230,6 +300,8 @@ impl VmRuntime {
         File::open(&store).and_then(|directory| directory.sync_all()).map_err(error)?;
         tracing::info!(sandbox = %entry.id, milliseconds = started.elapsed().as_millis(), "VM slept with its memory");
         Ok(Image {
+            id: uuid::Uuid::new_v4().simple().to_string(),
+            bootstrap_sha256: bundle.bootstrap().image_sha256.clone(),
             class,
             disk: disk::Stamp::current(&entry.spec.data_dir)?.ok_or_else(|| error("VM disk is missing after sleep"))?,
             nonce: live.nonce.clone(),
@@ -271,237 +343,6 @@ impl VmRuntime {
         })
         .await
         .map_err(|_| RuntimeError::Timeout("VM guest did not hold its sleep".into()))?
-    }
-
-    pub(super) async fn wake_entry(&self, name: &str) -> Result<(), RuntimeError> {
-        let entry = self.entry(name)?;
-        let transition = self.transition(&entry.id);
-        let _transition = transition.lock().await;
-        let mut entry = self.entry(name)?;
-        let image =
-            entry.memory.clone().ok_or_else(|| RuntimeError::Conflict("This VM has no memory to wake".into()))?;
-        if self.running_or_retired(&entry.id).await? {
-            return Err(RuntimeError::Conflict("This VM is already running".into()));
-        }
-        let bundle = self.bundle().await?;
-        let restored = self.thaw(&bundle, &entry, &image).await;
-        // Used once whatever happened: a guest that ran from it has moved on, and a refused
-        // restore leaves a cold boot from the disk as the only safe wake.
-        self.discard_memory(&mut entry)?;
-        match restored {
-            Ok(live) => {
-                entry.finished = None;
-                self.save_entry(entry.clone())?;
-                self.state.live.lock().unwrap().insert(entry.id.clone(), Arc::new(tokio::sync::Mutex::new(live)));
-                Ok(())
-            }
-            Err(problem) => {
-                tracing::warn!(sandbox = %entry.id, %problem, "VM memory was not restored; a wake boots its disk");
-                // Nothing of that boot runs any more: it reads as killed until the cold boot.
-                entry.finished = Some(crate::clock::now());
-                entry.code = crate::runtime::exit_by(libc::SIGKILL);
-                self.save_entry(entry)?;
-                Err(problem)
-            }
-        }
-    }
-
-    /// A new monitor from the image: refused before it starts unless this host is of the
-    /// image's class and the disk is the one it was taken with. A monitor that started and
-    /// failed is killed before this returns.
-    async fn thaw(&self, bundle: &Bundle, entry: &Entry, image: &Image) -> Result<Live, RuntimeError> {
-        let started = Instant::now();
-        restorable(bundle, entry, image)?;
-        let store = self.memory_directory(entry)?;
-        directory(&store)?;
-        let (state, memory) = (store.join(STATE), store.join(MEMORY));
-        // The same layer files the snapshot names; a file-only guest has none.
-        let layers = if entry.spec.image.is_empty() {
-            Vec::new()
-        } else {
-            self.pinned(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout)
-                .await?
-                .layers
-        };
-        let lease = self.lease(entry)?;
-        let boots = self.state.root.join("boots");
-        let directory = sandbox_directory(&boots, &lease)?;
-        let deadline = Instant::now() + launch::BOOT_TIMEOUT;
-        let mut network = self.network(bundle, directory.path(), &lease, entry, deadline).await?;
-        let channel = directory.path().join(configuration::CHANNEL);
-        let api = directory.path().join("api");
-        let serial = directory.path().join("serial");
-        let mut read = vec![
-            bundle.root().join("kernel/vmlinux"),
-            bundle.root().join("bootstrap/bootstrap.erofs"),
-            state.clone(),
-            memory.clone(),
-        ];
-        read.extend(layers);
-        let plan = vm_monitor::Plan {
-            program: bundle.root().join("bin/firecracker"),
-            arguments: vec!["--api-sock".into(), path_text(&api)?.into()],
-            directory: directory.path().into(),
-            lock: lease,
-            parent: std::process::id(),
-            read,
-            write: vec![entry.spec.data_dir.join(disk::FILE)],
-            role: vm_monitor::Role::Ordinary,
-        };
-        // The snapshot names the disk by its link here; for a fork it is the fork's own disk.
-        monitor::link_disk(directory.path(), &entry.spec.data_dir.join(disk::FILE))?;
-        let resume = PathBuf::from(format!("{}_{}", channel.display(), vm_sleep::RESUME_PORT));
-        let listener = UnixListener::bind(&resume).map_err(error)?;
-        fs::set_permissions(&resume, fs::Permissions::from_mode(0o600)).map_err(error)?;
-        let mut monitor = Machine::restore(
-            &bundle.root().join("bin/vm-launcher"),
-            &plan,
-            &serial,
-            resume,
-            deadline,
-            usize::try_from(u64::from(entry.spec.log_max_size_mb) * 1024 * 1024).map_err(error)?,
-        )
-        .await?;
-        let mut stages = launch::Stages::default();
-        let restoring = Restoring { bundle, entry, image, api, state, memory, channel: channel.clone(), deadline };
-        let ready = self.resumed(&restoring, &mut monitor, &listener, &mut stages).await;
-        let (forwarder, nonce) = match ready {
-            Ok(ready) => ready,
-            Err(problem) => {
-                let problem = with_exit(problem, &mut monitor);
-                #[cfg(test)]
-                diagnostics::failed(&mut monitor, &serial, &entry.spec).await;
-                let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.kill()).await;
-                if let Some(network) = &mut network {
-                    let _ = network.stop().await;
-                }
-                return Err(problem);
-            }
-        };
-        drop(listener);
-        tracing::info!(
-            sandbox = %entry.id,
-            stages = %stages,
-            milliseconds = started.elapsed().as_millis(),
-            "VM woke with its memory"
-        );
-        Ok(Live {
-            monitor,
-            jail: None,
-            forwarder,
-            network,
-            _directory: directory,
-            serial,
-            channel,
-            nonce,
-            shutdown_requested: false,
-            killing: false,
-            stages,
-            #[cfg(test)]
-            diagnostic_secrets: entry.spec.env.iter().map(|(_, value)| value.clone()).collect(),
-        })
-    }
-
-    /// The restore itself, then the guest's resume and its agent's answer through a new forwarder.
-    async fn resumed(
-        &self,
-        restoring: &Restoring<'_>,
-        monitor: &mut Machine,
-        listener: &UnixListener,
-        stages: &mut launch::Stages,
-    ) -> Result<(Forwarder, String), RuntimeError> {
-        let Restoring { bundle, entry, image, api, state, memory, channel, deadline } = restoring;
-        while !api.exists() {
-            if monitor.exited().map_err(error)?.is_some() || Instant::now() >= *deadline {
-                return Err(error("VM monitor did not open its API for a restore"));
-            }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-        Self::monitor_action(
-            bundle,
-            api,
-            json!({"action": "load", "snapshot": path_text(state)?, "memory": path_text(memory)?}),
-            launch::BOOT_TIMEOUT,
-        )
-        .await?;
-        stages.mark("restore");
-        let nonce = self.resume_guest(entry, image, listener, monitor, *deadline).await?;
-        stages.mark("resume");
-        let forwarder = self.forward(bundle, channel, entry, *deadline).await?;
-        // A file-only guest's agent binding takes whatever port its forwarder was given.
-        let mut spec = entry.spec.clone();
-        if let [binding] = spec.ports.as_mut_slice()
-            && binding.host_port == 0
-        {
-            binding.host_port = forwarder.addresses()[0].port();
-        }
-        launch::ready(monitor, &spec, *deadline).await?;
-        stages.mark("agent");
-        Ok((forwarder, nonce))
-    }
-
-    /// Gives the restored guest's init its signed resume: the host's time and fresh entropy, and
-    /// for a fork's copy this entry's own identity, signed by the source's the guest still holds.
-    /// Answers the boot nonce the guest has from then on.
-    async fn resume_guest(
-        &self,
-        entry: &Entry,
-        image: &Image,
-        listener: &UnixListener,
-        monitor: &Machine,
-        deadline: Instant,
-    ) -> Result<String, RuntimeError> {
-        let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-        let (key, sandbox, epoch, identity) = match &image.guest {
-            None => (agent::key(&entry.spec)?, boot.sandbox.clone(), boot.epoch, None),
-            Some(source) => (
-                pryx_agent::auth::SigningKey::from_encoded(&source.key).map_err(error)?,
-                source.sandbox.clone(),
-                source.epoch,
-                Some(vm_sleep::Identity {
-                    sandbox: boot.sandbox.clone(),
-                    epoch: boot.epoch,
-                    key: agent_secret(&entry.spec)?,
-                    nonce: uuid::Uuid::new_v4().simple().to_string(),
-                    hostname: format!("pryx-{}", entry.id),
-                }),
-            ),
-        };
-        let nonce = identity.as_ref().map_or_else(|| image.nonce.clone(), |identity| identity.nonce.clone());
-        let pid = monitor.pid().and_then(|pid| i32::try_from(pid).ok());
-        // What the listener saw, for a resume that never came: no connection, or others'.
-        let mut others = Vec::new();
-        let mut asked = false;
-        let exchange = tokio::time::timeout_at(deadline, async {
-            let mut socket = loop {
-                let (socket, _) = listener.accept().await.map_err(error)?;
-                let peer = socket.peer_cred().map_err(error)?.pid();
-                if pid.is_some() && peer == pid {
-                    break socket;
-                }
-                others.push(peer);
-            };
-            asked = true;
-            let seed = ring::rand::generate::<[u8; vm_sleep::SEED_BYTES]>(&ring::rand::SystemRandom::new())
-                .map_err(|_| error("Host entropy is unavailable"))?
-                .expose();
-            let now = crate::clock::now().unix_timestamp_nanos();
-            let resume = vm_sleep::fork(&key, &image.nonce, &sandbox, epoch, now, &seed, identity);
-            let mut line = serde_json::to_vec(&resume).map_err(error)?;
-            line.push(b'\n');
-            socket.write_all(&line).await.map_err(error)?;
-            let mut acknowledgement = Vec::new();
-            tokio::io::BufReader::new((&mut socket).take(16))
-                .read_until(b'\n', &mut acknowledgement)
-                .await
-                .map_err(error)?;
-            if acknowledgement != b"true\n" {
-                return Err(error("VM guest init did not take its resume"));
-            }
-            Ok(nonce)
-        })
-        .await;
-        exchange.map_err(|_| unresumed(asked, pid, &others))?
     }
 }
 
@@ -574,7 +415,8 @@ impl VmRuntime {
         let entry = inner.entry.clone();
         let image = self.freeze(bundle, &entry, &mut inner.live).await;
         drop(inner);
-        let mut live = self.thaw(bundle, &entry, &image?).await?;
+        // Never journaled, so nothing to consume: a crash leaves only files the next start sweeps.
+        let mut live = self.thaw(bundle, &entry, &image?, &self.memory_directory(&entry)?).await?;
         live.killing = true;
         let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill()).await;
         live.forwarder.stop().await.map_err(error)
@@ -608,6 +450,7 @@ fn probe_specification(data: &Path) -> Result<ContainerSpec, RuntimeError> {
         entrypoint: None,
         workdir: None,
         egress: None,
+        egress_addresses: None,
         env: vec![(secret_env, encoded)],
         labels: BTreeMap::new(),
         user: format!("{PROBE_ID}:{PROBE_ID}"),
@@ -641,50 +484,20 @@ fn probe_specification(data: &Path) -> Result<ContainerSpec, RuntimeError> {
     })
 }
 
-/// What one restore reads and where its monitor answers.
-struct Restoring<'a> {
-    bundle: &'a Bundle,
-    entry: &'a Entry,
-    image: &'a Image,
-    api: PathBuf,
-    state: PathBuf,
-    memory: PathBuf,
-    channel: PathBuf,
-    deadline: Instant,
-}
-
-/// A failed monitor action, with how the monitor ended if it has: a seccomp trap reads as SIGSYS.
-/// What a restore's resume listener saw when no resume came: an unanswered ask, or no ask at all.
-fn unresumed(asked: bool, monitor: Option<i32>, others: &[Option<i32>]) -> RuntimeError {
-    RuntimeError::Timeout(if asked {
-        "VM guest init asked for its resume and did not acknowledge it".into()
-    } else {
-        format!("VM guest init did not ask for its resume (monitor {monitor:?}; other peers {others:?})")
-    })
-}
-
-/// Whether this host and this sandbox are still the ones the image was taken on and for: the same
-/// class, the very disk the sleep left, and the same memory and CPUs.
-fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), RuntimeError> {
-    if Class::current(&bundle.root().join("bin/firecracker"))? != image.class {
-        return Err(RuntimeError::Conflict(
-            "This VM's memory was taken on a host of another class; it wakes by booting its disk".into(),
-        ));
-    }
-    if disk::Stamp::current(&entry.spec.data_dir)? != Some(image.disk) {
-        return Err(RuntimeError::Conflict("This VM's disk changed after its memory was taken".into()));
-    }
-    if entry.spec.memory_bytes != image.memory_bytes || entry.spec.nano_cpus != image.nano_cpus {
-        return Err(RuntimeError::Conflict("This VM's memory or CPUs changed after its memory was taken".into()));
-    }
-    Ok(())
-}
-
-fn with_exit(problem: RuntimeError, monitor: &mut Machine) -> RuntimeError {
+pub(super) fn with_exit(problem: RuntimeError, monitor: &mut Machine) -> RuntimeError {
     match monitor.exited() {
         Ok(Some(status)) => error(format!("{problem}; the monitor ended with {status}")),
         _ => problem,
     }
+}
+
+/// What a retired monitor's boot leaves running on the host, stopped, as an observation would.
+async fn retired(live: &mut Live) {
+    let _ = live.forwarder.stop().await;
+    if let Some(network) = &mut live.network {
+        let _ = network.stop().await;
+    }
+    let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.finish_serial()).await;
 }
 
 /// Removes a host listener's socket file when the sleep it served is over.
@@ -693,6 +506,32 @@ impl Drop for Bound {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
     }
+}
+
+/// At start, before any guest runs: every memory file no journal names as its sleep's image, which
+/// a removal, a crash mid-sleep or a wake that consumed it left behind. Guest memory holds
+/// secrets, so nothing of it outlives the sandbox it was taken of.
+pub(super) fn sweep(memory: &Path, entries: &BTreeMap<String, Entry>) -> Result<(), RuntimeError> {
+    let mut kept = std::collections::HashSet::new();
+    for entry in entries.values().filter(|entry| entry.memory.is_some()) {
+        let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
+        kept.insert(super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?);
+    }
+    for path in fs::read_dir(memory).map_err(error)? {
+        let path = path.map_err(error)?.path();
+        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| kept.contains(name)) {
+            continue;
+        }
+        tracing::info!(memory = %path.display(), "VM memory no journal names is removed");
+        // symlink_metadata never follows a link: a link is removed, never its target.
+        let removed = if fs::symlink_metadata(&path).map_err(error)?.is_dir() {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+        removed.map_err(error)?;
+    }
+    File::open(memory).and_then(|directory| directory.sync_all()).map_err(error)
 }
 
 pub(super) const ROOT_REFUSAL: &str = "VM memory sleep runs as an ordinary user; the root VM worker stops its guests";
@@ -713,4 +552,40 @@ pub(super) fn sandbox_directory(boots: &Path, lease: &Path) -> Result<tempfile::
         .permissions(fs::Permissions::from_mode(0o700))
         .tempdir_in(boots)
         .map_err(error)
+}
+
+#[cfg(test)]
+mod sweep_tests {
+    use super::*;
+
+    #[test]
+    fn only_a_sleeping_journals_memory_survives_a_start() {
+        let root = tempfile::tempdir().unwrap();
+        let memory = root.path().join("memory");
+        directory(&memory).unwrap();
+        let image = serde_json::json!({
+            "class": {"cpu": "c", "kernel": "k", "monitor": "m"},
+            "disk": {"device": 1, "inode": 2, "bytes": 3, "modified": [4, 5], "changed": [6, 7]},
+            "nonce": "n", "memoryBytes": 268435456, "nanoCpus": null
+        });
+        let entry = |id: &str, image: Option<&serde_json::Value>| -> Entry {
+            let spec = super::super::tests::spec(root.path(), "alpine:3.24");
+            serde_json::from_value(serde_json::json!({"id": id, "spec": spec, "code": 0, "memory": image})).unwrap()
+        };
+        let name = |entry: &Entry| {
+            super::super::super::filesystems::sha256(entry.spec.agent.as_ref().unwrap().sandbox.as_bytes()).unwrap()
+        };
+        let (asleep, awake) = (entry("vm-asleep", Some(&image)), entry("vm-awake", None));
+        let entries = BTreeMap::from([(asleep.id.clone(), asleep.clone()), (awake.id.clone(), awake.clone())]);
+        for directory in [name(&asleep), name(&awake), format!("{}.consumed", name(&asleep)), "removed".into()] {
+            fs::create_dir(memory.join(&directory)).unwrap();
+            fs::write(memory.join(&directory).join(MEMORY), b"guest secrets").unwrap();
+        }
+        fs::write(memory.join("stray"), b"guest secrets").unwrap();
+        std::os::unix::fs::symlink(root.path(), memory.join("link")).unwrap();
+        sweep(&memory, &entries).unwrap();
+        let left: Vec<_> = fs::read_dir(&memory).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+        assert_eq!(left, [std::ffi::OsString::from(name(&asleep))], "Only the sleeping guest's image is kept");
+        assert!(root.path().exists(), "A link is removed, never what it names");
+    }
 }

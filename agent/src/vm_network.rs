@@ -133,3 +133,21 @@ pub(crate) async fn stop(child: Option<Child>) -> io::Result<()> {
     }
     Ok(())
 }
+
+/// A restored guest's conntrack still translates established DNS flows to its old gateways.
+/// Trusted init calls this while the workload is frozen, after replacing its redirect rules;
+/// failure leaves the workload frozen and refuses the restore instead of breaking its network.
+pub(crate) async fn reset_connections() -> io::Result<()> {
+    let mut child = Command::new(Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::NETWORK_PROGRAM))
+        .arg("--reset-connections")
+        .env_clear()
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .kill_on_drop(true)
+        .spawn()?;
+    if !tokio::time::timeout(Duration::from_secs(5), child.wait()).await??.success() {
+        return Err(io::Error::other("Trusted guest connection tracking reset failed"));
+    }
+    Ok(())
+}

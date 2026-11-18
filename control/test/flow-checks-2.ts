@@ -7,10 +7,14 @@
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import { FleetStore } from '../src/archive-transport.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
-import { NodeRefused, NodeUnreachable } from '../src/node-client.ts'
+import { THRESHOLDS } from '../src/health.ts'
+import { type NodeClient, NodeRefused, NodeUnreachable } from '../src/node-client.ts'
+import { DEFAULTS } from '../src/placement.ts'
 import { drain } from '../src/registry.ts'
+import { FleetRuntime } from '../src/runtime-engine.ts'
 import { RuntimeFull } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { TEARDOWN_MS, TRANSFER_MS } from '../src/workload-api.ts'
@@ -348,6 +352,104 @@ export function registerFlows2(ctx: ReturnType<typeof flowContext>) {
     expect(ctx.stored(key)).toEqual([])
     expect(await ctx.kinds(key, after)).toEqual(['placement.released', 'placement.destroyed'])
     expect((await ctx.eventData('placement.destroyed', key)).map((e) => e.data)).toEqual([{ nodes: [n.id] }])
+  })
+  test('14. a fork restores from a snapshot where it lies on its node, and from the store elsewhere', async () => {
+    await ctx.region('fork-near', 2)
+    const [y] = (await ctx.region('fork-far', 1)) as [EnrolledNode]
+    const source = ctx.server()
+    const placed = await ctx.runtime.ensureProvisioned(
+      source,
+      { regionKey: 'fork-near' },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    const sourceNode = decodeHandle(placed).node ?? ''
+    const snap = await ctx.snapshotOn(sourceNode, source, `fleet/test/${source}/fork.tar.gz`)
+    const near = ctx.server()
+    const since = ctx.nodes.calls.length
+    const forked = await ctx.runtime.restore(
+      await ctx.runtime.adopt(near, { regionKey: 'fork-near' }, ctx.SPEC),
+      { kind: 'snapshot', snapshot: snap.handle },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    expect(decodeHandle(forked).node).toBe(sourceNode)
+    const restores = ctx.nodes.calls.slice(since).filter((c) => c.path === `/v1/workloads/${near}/restore`)
+    expect(restores.map((c) => c.body)).toEqual([{ fork: { workload: source, snapshot: snap.id } }])
+    expect(ctx.nodes.calls.slice(since).some((c) => c.path.endsWith('/upload'))).toBe(false)
+    const far = ctx.server()
+    const away = ctx.nodes.calls.length
+    const copied = await ctx.runtime.restore(
+      await ctx.runtime.adopt(far, { regionKey: 'fork-far' }, ctx.SPEC),
+      { kind: 'snapshot', snapshot: snap.handle },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    expect(decodeHandle(copied).node).toBe(y.id)
+    const fromStore = ctx.nodes.calls.slice(away).filter((c) => c.path === `/v1/workloads/${far}/restore`)
+    expect(fromStore.map((c) => Object.keys(c.body as object))).toEqual([['url']])
+  })
+  test('a lost completed fork reply recovers the same durable placement and epoch', async () => {
+    const [node] = (await ctx.region('fork-reply-lost', 1)) as [EnrolledNode]
+    const source = ctx.server()
+    await ctx.runtime.ensureProvisioned(source, { regionKey: 'fork-reply-lost' }, ctx.SPEC, ctx.quiet)
+    const snapshot = await ctx.snapshotOn(node.id, source, null)
+    const target = ctx.server()
+    const handle = await ctx.runtime.adopt(target, { regionKey: 'fork-reply-lost' }, ctx.SPEC)
+    const from = { kind: 'snapshot' as const, snapshot: snapshot.handle }
+    const before = ctx.nodes.calls.length
+    let completedReply: unknown
+    ctx.nodes.once(new RegExp(`^POST /v1/workloads/${target}/restore$`), async (answer) => {
+      completedReply = answer()
+      const copy = ctx.nodes.copies.get(`${node.id}/${target}`)
+      if (copy === undefined) throw new Error('fork target is missing')
+      copy.state = 'suspended'
+      throw new NodeUnreachable('timeout', 'the completed restore reply was lost')
+    })
+    await expect(ctx.runtime.restore(handle, from, ctx.SPEC, ctx.quiet)).rejects.toBeInstanceOf(
+      NodeUnreachable,
+    )
+    expect(completedReply).toMatchObject({ sizeBytes: 5, entries: 1 })
+    const interrupted = await ctx.placement(target)
+    expect(interrupted).toMatchObject({ node_id: node.id, state: 'placing', completing: 'restore' })
+    const epoch = Number(interrupted?.epoch)
+    const history = await ctx.history(target)
+    // A fresh control instance has only the durable placement and node reply contract. The
+    // manager regression separately proves the paused node's receipt and no-second-fork rule.
+    const fresh = new FleetRuntime({
+      db: ctx.db,
+      nodes: ctx.nodes as unknown as NodeClient,
+      store: new FleetStore(ctx.store, 'test'),
+      deployment: 'test',
+      regionMap: {},
+      placement: DEFAULTS,
+      cpuMillisPerGb: 250,
+      thresholds: THRESHOLDS,
+      log: () => {},
+    })
+    await fresh.refreshRegistry()
+    ctx.nodes.once(new RegExp(`^POST /v1/workloads/${target}/restore$`), async () => {
+      expect(ctx.nodes.copies.get(`${node.id}/${target}`)).toMatchObject({ epoch, state: 'suspended' })
+      return completedReply
+    })
+    const recovered = await fresh.restore(handle, from, ctx.SPEC, ctx.quiet)
+    expect(decodeHandle(recovered)).toMatchObject({ node: node.id, epoch })
+    expect(await ctx.placement(target)).toMatchObject({
+      node_id: node.id,
+      epoch: String(epoch),
+      state: 'placed',
+      completing: null,
+    })
+    expect(await ctx.history(target)).toEqual(history)
+    const restoreCalls = ctx.nodes.calls
+      .slice(before)
+      .filter((c) => c.path === `/v1/workloads/${target}/restore`)
+    expect(restoreCalls).toHaveLength(2)
+    expect(restoreCalls.map((c) => [c.node, c.epoch, c.body])).toEqual([
+      [node.id, epoch, { fork: { workload: source, snapshot: snapshot.id } }],
+      [node.id, epoch, { fork: { workload: source, snapshot: snapshot.id } }],
+    ])
+    expect(ctx.nodes.calls.slice(before).some((c) => c.path === `/v1/workloads/${target}/start`)).toBe(false)
   })
   test('13. a suspended copy whose resume does not come back goes on as a boot', async () => {
     const [n] = (await ctx.region('resume-hung', 1)) as [EnrolledNode]

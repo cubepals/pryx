@@ -6,6 +6,7 @@ engine reexec. This fixture follows the recorded launch identity and exact kerne
 not a process name or a host-wide group. It is not an installer or runtime controller.
 """
 from contextlib import contextmanager
+import http.client
 import json
 import os
 from pathlib import Path
@@ -100,21 +101,26 @@ def listeners(peer, endpoint):
     return found
 
 
-def holders(leader, sockets, entries):
+def holders(leader, sockets, entries, verified=()):
     found = {}
     for pid, identity in entries.items():
         if identity['uid'] != os.getuid() or not within(pid, leader, entries):
+            assert pid not in verified, 'A verified fixture listener changed ownership or ancestry'
             continue
         try:
             for entry in (Path('/proc') / str(pid) / 'fd').iterdir():
                 try:
                     target = os.readlink(entry)
-                except FileNotFoundError:
+                except (FileNotFoundError, PermissionError) as error:
+                    if isinstance(error, PermissionError) and pid in verified:
+                        raise
                     continue
                 if target in sockets:
                     found[pid] = identity
                     break
-        except (FileNotFoundError, ProcessLookupError):
+        except (FileNotFoundError, ProcessLookupError, PermissionError) as error:
+            if isinstance(error, PermissionError) and pid in verified:
+                raise
             continue
     assert found, 'No listener holder belongs to the recorded fixture'
     return found
@@ -192,7 +198,7 @@ def paused(endpoint, owned):
                     while True:
                         assert not select.select([leader], [], [], 0)[0], 'The fixture launcher exited'
                         entries = table()
-                        current = holders(identity['pid'], sockets, entries)
+                        current = holders(identity['pid'], sockets, entries, resume.stopped)
                         assert current.keys().isdisjoint(protected), 'The API listener belongs to the probe or an ancestor'
                         added = False
                         for holder, seen in current.items():
@@ -210,6 +216,20 @@ def paused(endpoint, owned):
                             assert listeners(pid, endpoint) == sockets
                             break
                         time.sleep(0.01)
+                # An inaccessible descendant is never a signal target. It may still serve the
+                # socket, so prove the outage before admitting the caller's paused body.
+                with socket.socket(socket.AF_UNIX) as probe:
+                    probe.settimeout(1)
+                    probe.connect(str(endpoint))
+                    connection = http.client.HTTPConnection('localhost', timeout=1)
+                    connection.sock = probe
+                    connection.request('GET', '/_ping')
+                    try:
+                        connection.getresponse()
+                    except TimeoutError:
+                        pass
+                    else:
+                        raise AssertionError('The paused engine still answered its API')
                 yield
             finally:
                 resume()

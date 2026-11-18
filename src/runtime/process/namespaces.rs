@@ -22,6 +22,10 @@ pub const HELPER: &str = "namespaces/bin/bwrap";
 /// How long the probe's own sandbox may take to start and print the supervisor's version.
 const PROBE: Duration = Duration::from_secs(10);
 
+/// Why a sandbox that started in its own namespaces isn't relaunched: it may have been placed for
+/// them, so it keeps its first launch's mode or doesn't start.
+pub(super) const RELAUNCH_WITHOUT_NAMESPACES: &str = "this sandbox started in namespaces of its own and is not relaunched without them; the namespace helper no longer starts here";
+
 /// The mode a sandbox was started in, as its runtime journal records it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Namespaced {
@@ -44,6 +48,14 @@ pub(crate) fn helper(agent: &Path) -> Result<PathBuf, String> {
 /// bubblewrap's arguments for one supervisor: the agent crate's, which its own tests start too.
 pub(super) use pryx_agent::process_namespaces::arguments;
 
+/// A namespaced sandbox's private /tmp size: the node's /tmp size for a sandbox, no more than its
+/// memory, which the RSS watchdog would never see spent there, and never 0, which is no limit.
+pub(super) fn tmp_bytes(tmp_size_mb: u32, memory_bytes: i64) -> u64 {
+    const MIB: u64 = 1 << 20;
+    let memory = u64::try_from(memory_bytes).ok().filter(|bytes| *bytes > 0).unwrap_or(u64::MAX);
+    (u64::from(tmp_size_mb.max(1)) * MIB).min(memory)
+}
+
 /// The helper for `agent`, once a launch-equivalent probe as `owner` has proved it here.
 pub(crate) fn proved(agent: &Path, owner: (u32, u32)) -> Result<PathBuf, String> {
     let helper = helper(agent)?;
@@ -56,11 +68,14 @@ pub(crate) fn proved(agent: &Path, owner: (u32, u32)) -> Result<PathBuf, String>
 fn probe(helper: &Path, agent: &Path, owner: (u32, u32)) -> Result<(), String> {
     use std::os::unix::process::CommandExt;
     let mut command = Command::new(helper);
-    command.args(arguments(Path::new("/"), true, &[(agent, false)])).arg(agent).arg("--version");
+    command.args(arguments(Path::new("/"), true, tmp_bytes(1, 0), &[(agent, false)])).arg(agent).arg("--version");
     command.env_clear().stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     if rustix::process::geteuid().is_root() {
         command.uid(owner.0).gid(owner.1);
     }
+    // As a launch does: a daemon granted ambient capabilities for kernel network policy passes
+    // none on, and bubblewrap refuses to start with capabilities it wasn't installed with.
+    crate::bpf::host::drop_ambient_on_exec(&mut command);
     let mut child = command.spawn().map_err(|error| format!("The namespace helper did not start: {error}"))?;
     let deadline = std::time::Instant::now() + PROBE;
     loop {
@@ -88,8 +103,26 @@ pub(crate) fn capability(agent: &Path, probed: Result<(), String>) -> crate::cap
     use crate::capability::{Capability, State};
     match probed {
         Ok(()) => Capability::on("Process sandboxes start in their own user, mount, PID and IPC namespaces"),
-        Err(reason) => Capability::new(State::Off, reason, action(agent, restricted())),
+        Err(reason) => {
+            let action = action(agent, restricted() && userns_denial(&reason));
+            Capability::new(State::Off, reason, action)
+        }
     }
+}
+
+/// bubblewrap 0.13.1's raw_clone failure and rtnetlink diagnostics (bubblewrap.c and
+/// network.c). These are its actual C messages, without Rust io::Error's display suffix.
+const USERNS_DENIALS: &[&str] = &[
+    "No permissions to create a new namespace",
+    "Creating new namespace failed: Operation not permitted",
+    "loopback: Failed RTM_NEWADDR: Operation not permitted",
+];
+
+/// Only a launch-equivalent namespace refusal under Ubuntu's rule suggests an AppArmor profile.
+/// A missing helper, spawn failure, timeout or unrelated tool failure needs its own action.
+fn userns_denial(reason: &str) -> bool {
+    reason.starts_with("user namespaces are unavailable to the namespace helper:")
+        && USERNS_DENIALS.iter().any(|diagnostic| reason.contains(diagnostic))
 }
 
 /// Ubuntu 24.04 and later let only binaries an AppArmor profile names use a user namespace
@@ -105,8 +138,13 @@ pub fn action(agent: &Path, restricted: bool) -> String {
     if !restricted {
         return "Allow unprivileged user namespaces on this host (user.max_user_namespaces above 0)".into();
     }
+    let warning = if root_protected(&helper) {
+        ""
+    } else {
+        "Warning: this helper path is writable by an ordinary user; its owner can replace the binary that receives the profile. Move the installation to a root-owned directory before granting it. "
+    };
     format!(
-        "As root, save this AppArmor profile as /etc/apparmor.d/pryx-namespaces, then run \
+        "{warning}As root, save this AppArmor profile as /etc/apparmor.d/pryx-namespaces, then run \
          apparmor_parser -r /etc/apparmor.d/pryx-namespaces and restart pryx:\n{}",
         profile(&helper)
     )
@@ -117,8 +155,36 @@ pub fn action(agent: &Path, restricted: bool) -> String {
 pub fn profile(helper: &Path) -> String {
     format!(
         "abi <abi/4.0>,\ninclude <tunables/global>\n\nprofile pryx-namespaces {} flags=(unconfined) {{\n  userns,\n\n  include if exists <local/pryx-namespaces>\n}}\n",
-        helper.display()
+        quoted_attachment(helper)
     )
+}
+
+fn root_protected(path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    path.ancestors().all(|part| {
+        std::fs::symlink_metadata(part)
+            .is_ok_and(|info| !info.file_type().is_symlink() && info.uid() == 0 && info.mode() & 0o022 == 0)
+    })
+}
+
+/// AppArmor attachment names are quoted and AARE metacharacters are literal, so an installation
+/// path cannot widen this profile to another program or inject another profile rule.
+fn quoted_attachment(path: &Path) -> String {
+    let mut quoted = String::from("\"");
+    for c in path.to_string_lossy().chars() {
+        match c {
+            '\\' | '\"' | '*' | '?' | '[' | ']' | '{' | '}' | '@' => {
+                quoted.push('\\');
+                quoted.push(c);
+            }
+            '\n' => quoted.push_str("\\012"),
+            '\r' => quoted.push_str("\\015"),
+            '\t' => quoted.push_str("\\011"),
+            c => quoted.push(c),
+        }
+    }
+    quoted.push('\"');
+    quoted
 }
 
 #[cfg(test)]
@@ -130,14 +196,18 @@ mod tests {
     fn a_launch_takes_every_namespace_and_a_private_tmp_and_only_network_none_its_own_network() {
         let data = Path::new("/state/data/sandbox");
         let agent = Path::new("/tmp/install/pryx-agent");
-        let shared = arguments(data, false, &[(agent, false)]);
+        let shared = arguments(data, false, tmp_bytes(256, 64 << 20), &[(agent, false)]);
         let text =
             |arguments: &[OsString]| arguments.iter().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
         let shared = text(&shared);
         for required in ["--unshare-user", "--unshare-pid", "--unshare-ipc", "--as-pid-1", "--proc", "--dev"] {
             assert!(shared.contains(&required.to_string()), "{required}: {shared:?}");
         }
-        assert!(shared.windows(2).any(|pair| pair == ["--tmpfs", "/tmp"]), "{shared:?}");
+        let bound = (64u64 << 20).to_string();
+        assert!(
+            shared.windows(4).any(|w| w == ["--size", bound.as_str(), "--tmpfs", "/tmp"]),
+            "bounded by memory: {shared:?}"
+        );
         assert!(shared.windows(2).any(|pair| pair == ["--cap-drop", "ALL"]), "{shared:?}");
         assert!(!shared.contains(&"--unshare-net".to_string()), "network internet shares the host's: {shared:?}");
         assert_eq!(shared.last().map(String::as_str), Some("--"));
@@ -149,7 +219,8 @@ mod tests {
         assert!(
             shared.windows(3).any(|w| w == ["--ro-bind-try", "/tmp/install/pryx-agent", "/tmp/install/pryx-agent"])
         );
-        let private = text(&arguments(data, true, &[]));
+        let private = text(&arguments(data, true, tmp_bytes(0, 0), &[]));
+        assert!(private.windows(2).any(|w| w == ["--size", (1u64 << 20).to_string().as_str()]), "never 0: {private:?}");
         assert!(private.contains(&"--unshare-net".to_string()), "{private:?}");
         for refused in ["--die-with-parent", "--cap-add", "--disable-userns"] {
             assert!(!private.contains(&refused.to_string()), "{refused}: {private:?}");
@@ -161,9 +232,40 @@ mod tests {
         let agent = Path::new("/home/someone/.local/lib/pryx/pryx-agent");
         let said = action(agent, true);
         assert!(said.contains("apparmor_parser -r /etc/apparmor.d/pryx-namespaces"), "{said}");
-        assert!(said.contains("profile pryx-namespaces /home/someone/.local/lib/pryx/namespaces/bin/bwrap"), "{said}");
+        assert!(
+            said.contains("profile pryx-namespaces \"/home/someone/.local/lib/pryx/namespaces/bin/bwrap\""),
+            "{said}"
+        );
         assert!(said.contains("userns,") && said.contains("flags=(unconfined)"), "{said}");
+        assert!(said.contains("writable by an ordinary user"), "{said}");
         assert!(!action(agent, false).contains("apparmor"), "no profile where the rule is off");
+    }
+
+    #[test]
+    fn only_a_namespace_permission_denial_suggests_the_profile() {
+        // Recorded real helper output: Ubuntu's loopback denial and raw_clone's own message.
+        for denied in [
+            "user namespaces are unavailable to the namespace helper: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted",
+            "user namespaces are unavailable to the namespace helper: bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces.",
+        ] {
+            assert!(userns_denial(denied));
+        }
+        for unrelated in [
+            "This installation has no namespace helper",
+            "The namespace helper did not finish its probe",
+            "The namespace helper did not start: Permission denied",
+            "user namespaces are unavailable to the namespace helper: wrong executable",
+        ] {
+            assert!(!userns_denial(unrelated), "{unrelated}");
+        }
+    }
+
+    #[test]
+    fn the_attachment_quotes_spaces_and_escapes_profile_metacharacters() {
+        let path = Path::new("/opt/a b/\"quoted\"*?[{}]/bwrap");
+        assert_eq!(quoted_attachment(path), "\"/opt/a b/\\\"quoted\\\"\\*\\?\\[\\{\\}\\]/bwrap\"");
+        let text = profile(path);
+        assert!(text.contains(&quoted_attachment(path)), "{text}");
     }
 
     #[test]

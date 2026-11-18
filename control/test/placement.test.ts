@@ -70,6 +70,15 @@ const request = (over: Partial<PlacementRequest> = {}): PlacementRequest => ({
 })
 
 describe('selectNode', () => {
+  test("a fork goes to its snapshot's node when that node fits, and elsewhere when it doesn't", () => {
+    const chosen = node('chosen', {}, { memoryMb: 8192 })
+    const holder = node('holder')
+    expect(selectNode(request(), [chosen, holder]).node?.id).toBe('chosen')
+    expect(selectNode(request({ prefer: 'holder' }), [chosen, holder]).node?.id).toBe('holder')
+    const full = node('holder', {}, { memoryMb: 16_384 })
+    expect(selectNode(request({ prefer: 'holder' }), [chosen, full]).node?.id).toBe('chosen')
+    expect(selectNode(request({ prefer: 'gone' }), [chosen, holder]).node?.id).toBe('chosen')
+  })
   test('separate-users is refused on a process node sharing its uid', () => {
     const target = node('process', { features: ['placement-epochs', 'process-tier', 'process-shared-uid'] })
     const decision = selectNode(request({ isolation: 'process', require: ['separate-users'] }), [target])

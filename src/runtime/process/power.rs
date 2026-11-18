@@ -73,6 +73,45 @@ fn open_across_exec(command: &mut Command, descriptors: Vec<i32>) {
 }
 
 impl ProcessRuntime {
+    /// Traverse-only ancestors permit the selected UID to reach its data; private journal,
+    /// credentials and workload records retain their own 0700/0600 permissions.
+    pub(super) fn traversable(&self, data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        use std::os::unix::fs::PermissionsExt;
+        for parent in data_dir.ancestors().skip(1) {
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
+            if Some(parent) == self.state.root.parent() {
+                break;
+            }
+        }
+        Ok(())
+    }
+    /// Detaches a sandbox's kernel network policy once its processes are gone.
+    pub(super) fn release_network(&self, entry: &Entry) -> Result<(), RuntimeError> {
+        if let Some(network) = self.network.as_ref().or(self.network_cleanup.as_ref()) {
+            return network.release(&entry.spec.name);
+        }
+        // Observation already owns the entries lock. The caller's generation supplies the
+        // record proof without looking it up again and recursively acquiring that mutex.
+        if entry.network.is_some() {
+            return Err(error("Kernel network policy cleanup cannot be proved; retain this process journal"));
+        }
+        Ok(())
+    }
+    /// Generations that may still run without verified programs: a live supervisor, uncertain
+    /// legacy descendants, or an existing/unreadable canonical cgroup after failed cleanup.
+    pub(super) fn unpoliced(&self) -> usize {
+        let Some(network) = &self.network else { return 0 };
+        let entries = self.state.entries.lock().unwrap();
+        entries
+            .values()
+            .filter(|entry| {
+                !network.verified(&entry.spec.name)
+                    && (matching_pid(entry.pid, entry.ticks).is_some()
+                        || self.legacy_pending(entry)
+                        || network.pending(&entry.spec.name))
+            })
+            .count()
+    }
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
             .observe_entry(name)?
@@ -132,7 +171,8 @@ impl ProcessRuntime {
             kept.push(pryx_agent::process_namespaces::tool_directory(tools));
         }
         let mut command = Command::new(helper);
-        command.args(super::namespaces::arguments(&spec.data_dir, mode.private_network, &kept)).arg(&agent.binary);
+        let tmp = super::namespaces::tmp_bytes(spec.tmp_size_mb, spec.memory_bytes);
+        command.args(super::namespaces::arguments(&spec.data_dir, mode.private_network, tmp, &kept)).arg(&agent.binary);
         Ok((command, true, mode.private_network))
     }
     fn launch_command(
@@ -144,15 +184,7 @@ impl ProcessRuntime {
         let spec = &entry.spec;
         let agent = spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let owner = self.owner(&agent.sandbox)?;
-        // Traverse-only ancestors permit the selected UID to reach its data; private journal,
-        // credentials and workload records retain their own 0700/0600 permissions.
-        use std::os::unix::fs::PermissionsExt;
-        for parent in spec.data_dir.ancestors().skip(1) {
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
-            if Some(parent) == self.state.root.parent() {
-                break;
-            }
-        }
+        self.traversable(&spec.data_dir)?;
         let binding = |logical| {
             spec.ports
                 .iter()
@@ -246,35 +278,58 @@ impl ProcessRuntime {
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
         let _launch = self.state.launch.lock().await;
         let mut entry = self.entry(name)?;
+        if self.network.is_none()
+            && (entry.network.is_some() || entry.spec.egress.is_some() || entry.spec.egress_addresses.is_some())
+        {
+            return Err(error("this sandbox requires kernel-network-policy, which this host cannot verify"));
+        }
         if entry.spec.nano_cpus.is_some() {
             return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
         }
         if self.running(name)? {
             return Ok(());
         }
+        // Observation may have retired the previous generation and saved its final state.
+        // Do not checkpoint the stale clone from before that cleanup over a newly prepared set.
+        entry = self.entry(name)?;
+        let binary = entry.spec.agent.as_ref().map(|agent| agent.binary.clone());
+        let helper = match binary {
+            Some(binary) => {
+                let own = self.clone();
+                tokio::task::spawn_blocking(move || own.namespace_helper(&binary))
+                    .await
+                    .unwrap_or_else(|failed| Err(failed.to_string()))
+            }
+            None => Err("the sandbox has no supervisor".into()),
+        };
+        // The journal keeps the first launch's mode: a namespaced sandbox never relaunches plain.
+        if entry.namespaced.is_some()
+            && let Err(reason) = &helper
+        {
+            return Err(error(format!("{}: {reason}", super::namespaces::RELAUNCH_WITHOUT_NAMESPACES)));
+        }
         let (tools, required) = self.native_policy(&entry).await?;
         entry.native_browser =
             Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));
-        let binary = entry.spec.agent.as_ref().map(|agent| agent.binary.clone());
-        let proved = match binary {
-            Some(binary) => {
-                let own = self.clone();
-                tokio::task::spawn_blocking(move || own.namespace_helper(&binary).is_ok()).await.unwrap_or(false)
-            }
-            None => false,
-        };
         entry.namespaced =
-            proved.then_some(super::namespaces::Namespaced { private_network: entry.spec.internal_network });
+            helper.is_ok().then_some(super::namespaces::Namespaced { private_network: entry.spec.internal_network });
         let (mut command, listeners) = self.launch_command(&entry, tools, required)?;
-        let child = command.spawn().map_err(error)?;
+        crate::bpf::host::drop_ambient_on_exec(&mut command);
+        // Every socket the supervisor or its commands open is its cgroup's, so the programs
+        // are attached before it starts and it joins the cgroup before it runs. A namespaced
+        // supervisor's helper joins it the same way, and everything below it inherits it.
+        if let Some(network) = &self.network {
+            let (record, _) = network.prepare(&entry.spec).await?;
+            entry.network = Some(record);
+        }
+        self.spawn_checkpoint(entry, |entry| {
+            if let Some(network) = &self.network {
+                network.spawn_verified(&entry.spec.name, &mut command)
+            } else {
+                command.spawn().map_err(error)
+            }
+        })?;
         drop(listeners);
-        entry.pid = Some(child.id());
-        entry.ticks = identity(child.id());
-        entry.started = Some(format_time(crate::clock::now()));
-        entry.cleaned = false;
-        entry.finished = None;
-        self.state.children.lock().unwrap().insert(entry.spec.name.clone(), child);
-        self.save(entry)?;
         // Health is a safe read; startup failures never cause a duplicate launch.
         for _ in 0..500 {
             if !self.running(name)? {
@@ -290,6 +345,60 @@ impl ProcessRuntime {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         Err(RuntimeError::Timeout("Process supervisor did not become healthy".into()))
+    }
+
+    /// A durable intent, synchronous fork/exec and PID checkpoint form one observation turn.
+    /// No observer may mistake an in-progress launch for an exited or lost generation.
+    pub(super) fn spawn_checkpoint(
+        &self,
+        mut entry: Entry,
+        spawn: impl FnOnce(&Entry) -> Result<std::process::Child, RuntimeError>,
+    ) -> Result<(), RuntimeError> {
+        let mut entries = self.state.entries.lock().unwrap();
+        let current = match Self::entry_from(&entries, &entry.spec.name) {
+            Ok(current) => current,
+            Err(problem) => {
+                self.release_network(&entry)?;
+                return Err(problem);
+            }
+        };
+        if current.id != entry.id
+            || (current.pid, current.ticks, &current.started) != (entry.pid, entry.ticks, &entry.started)
+        {
+            self.release_network(&entry)?;
+            return Err(RuntimeError::Conflict("Process generation changed before launch".into()));
+        }
+        // A crash before the later PID checkpoint still leaves a boot-scoped owner, including
+        // plain mode without BPF. Policed launches also save their prepared object identity.
+        entry.network_boot = Some(crate::host::boot_id().unwrap_or_else(|| journal::UNKNOWN_BOOT.into()));
+        entry.network_launch_pending = true;
+        entry.network_clean = false;
+        entry.network_stop_nonce = None;
+        if let Err(problem) = self.save_in(&mut entries, entry.clone()) {
+            self.release_network(&entry)?;
+            return Err(problem);
+        }
+        let child = match spawn(&entry) {
+            Ok(child) => child,
+            Err(problem) => {
+                self.release_network(&entry)?;
+                return Err(problem);
+            }
+        };
+        entry.pid = Some(child.id());
+        entry.network_launch_pending = false;
+        entry.ticks = identity(child.id());
+        entry.started = Some(format_time(crate::clock::now()));
+        entry.cleaned = false;
+        entry.finished = None;
+        self.state.children.lock().unwrap().insert(entry.spec.name.clone(), child);
+        let saved = self.save_in(&mut entries, entry.clone());
+        if saved.is_err() {
+            // Durable intent already covers a daemon crash; retain the actual live identity
+            // in memory so this daemon can still stop it after a PID-checkpoint write failure.
+            entries.insert(entry.spec.name.clone(), entry);
+        }
+        saved
     }
     pub(super) fn observe_entry(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         // Observation and journal removal share the same turn; a late observation cannot
@@ -319,8 +428,16 @@ impl ProcessRuntime {
             if let Some(agent) = &entry.spec.agent {
                 self.retire_orphans(&agent.sandbox)?;
             }
+            self.release_network(&entry)?;
             entry.cleaned = true;
             self.save_in(&mut entries, entry.clone())?;
+        }
+        if !alive && entry.network.is_none() {
+            let clean = entry.network_clean;
+            self.note_legacy_loss(&mut entry)?;
+            if clean != entry.network_clean {
+                self.save_in(&mut entries, entry.clone())?;
+            }
         }
         let paused = alive
             && entry
@@ -333,6 +450,8 @@ impl ProcessRuntime {
             crate::labels::LABEL_BROWSER_SANDBOX.into(),
             (alive && entry.native_browser == Some(true)).to_string(),
         );
+        let attached = self.network.as_ref().is_some_and(|network| network.verified(&entry.spec.name));
+        labels.insert(crate::labels::LABEL_NETWORK_POLICY.into(), (alive && attached).to_string());
         labels.insert(crate::labels::LABEL_PRIVATE_PIDS.into(), entry.namespaced.is_some().to_string());
         labels.insert(
             crate::labels::LABEL_PRIVATE_NETWORK.into(),

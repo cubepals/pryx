@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Stop the local installation's retained compute before removing its state. The daemon
 //! must have released its store lock; unrelated containers are never adopted or signalled.
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -21,8 +22,8 @@ async fn stop(config: &Config, purge: bool) -> anyhow::Result<()> {
     let _lock = store.lock().context("stop the local node before removing its compute")?;
     let (records, bad) = store.load_all()?;
     ensure!(bad.is_empty(), "unreadable workload records; keep state and repair them before purging");
-    let runtime = configured::create(config).await?;
-    let owned = owned_compute(config, runtime.as_ref(), records).await?;
+    let configured::Construction { runtime, unavailable } = configured::create_with_reasons(config).await?;
+    let owned = owned_compute(config, runtime.as_ref(), records, &unavailable).await?;
     stop_owned(runtime.as_ref(), owned, purge).await?;
     if purge {
         unseal_native_tools(&config.state_dir).context("preparing the stopped native cache for purge")?;
@@ -44,6 +45,7 @@ async fn owned_compute(
     config: &Config,
     runtime: &dyn ContainerRuntime,
     records: Vec<crate::store::WorkloadRecord>,
+    unavailable: &BTreeMap<&'static str, String>,
 ) -> anyhow::Result<Vec<(String, crate::protocol::StopSpec)>> {
     // Validate the complete set before any mutation. A reused name is never authority.
     let mut owned = Vec::new();
@@ -55,7 +57,8 @@ async fn owned_compute(
             .context("legacy workload tier is unresolved; restore its previous explicit runtime before cleanup")?;
         ensure!(
             runtime.tiers().contains(&tier),
-            "{tier} tier is unavailable; state was kept and no compute was stopped"
+            "{tier} tier is unavailable; state was kept and no compute was stopped{}",
+            unavailable.get(tier).map(|reason| format!(": {reason}")).unwrap_or_default()
         );
         runtime.bind(&record.container_name, record.container_id.as_deref(), tier)?;
         let Some(info) = runtime.inspect(&record.container_name).await? else { continue };
@@ -173,7 +176,7 @@ mod tests {
         record.container_id = None;
         drop(manager);
         let runtime = Router::new(vec![process.clone()]).unwrap();
-        let owned = owned_compute(&config, &runtime, vec![record.clone()]).await.unwrap();
+        let owned = owned_compute(&config, &runtime, vec![record.clone()], &BTreeMap::new()).await.unwrap();
         assert_eq!(owned.len(), 1);
         let observed = process.container(&record.container_name).unwrap();
         assert_eq!(owned[0].0, observed.id);
@@ -203,7 +206,7 @@ mod tests {
         for (tier, reason) in [(Some(Isolation::Container), "container"), (None, "unresolved")] {
             record.isolation = tier;
             store.save(&record).unwrap();
-            let error = owned_compute(&config, &runtime, vec![record.clone()]).await.unwrap_err();
+            let error = owned_compute(&config, &runtime, vec![record.clone()], &BTreeMap::new()).await.unwrap_err();
             assert!(format!("{error:#}").contains(reason), "{error:#}");
             assert_eq!(std::fs::read(&marker).unwrap(), b"keep these bytes");
             assert_eq!(store.load_all().unwrap().0, vec![record.clone()]);

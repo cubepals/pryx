@@ -7,7 +7,9 @@
 //! because it reads secret values, which only the spec's module may see. What a spec holds, and
 //! its defaults, are in `spec.rs`.
 
-use super::{MAX_STOP_TIMEOUT, WorkloadSpec};
+use oci_spec::distribution::Reference;
+
+use super::{AddressPolicy, MAX_STOP_TIMEOUT, WorkloadSpec};
 use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 
 /// The host's own bounds. The protocol validates shape; the host decides what it allows.
@@ -15,6 +17,8 @@ use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 pub(crate) struct SpecPolicy {
     pub(crate) process: bool,
     pub(crate) wasm: bool,
+    /// The process tier's programs enforce network policy in the kernel on this host.
+    pub(crate) kernel_network: bool,
     pub(crate) allowed_images: Vec<String>,
     pub(crate) min_memory_mb: u32,
     pub(crate) max_memory_mb: u32,
@@ -26,9 +30,27 @@ const MAX_ENV_VALUE: usize = 64 * 1024;
 const MAX_ENV_TOTAL: usize = 512 * 1024;
 const MAX_ENTRYPOINT_ARGS: usize = 64;
 const MAX_ARG: usize = 64 * 1024;
-const MAX_PORTS: usize = 8;
+/// A request's own ports; a sandbox with an agent also has the agent's and its spares.
+pub(crate) const MAX_PORTS: usize = 8;
 const MAX_LABELS: usize = 32;
 const MAX_RESUMES_ON: usize = 128;
+const MAX_ADDRESS_RULES: usize = 64;
+/// What an allow rule may not name: this host (0/8, loopback, ::, ::1, IPv4-mapped), link-local
+/// and multicast. The host's protections refuse them whatever a request says.
+const UNOPENABLE: [&str; 9] = [
+    "0.0.0.0/8",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "224.0.0.0/3",
+    "::/128",
+    "::1/128",
+    "fe80::/10",
+    "ff00::/8",
+    "::ffff:0:0/96",
+];
+/// Why a network policy is refused on a process tier whose programs this host can't attach.
+pub(crate) const KERNEL_NETWORK_PROBLEM: &str =
+    "network policy on the process tier requires kernel-network-policy, which this host does not provide";
 /// The weights Docker passes on as the container's cpu.shares: the kernel's bounds for it
 /// (`MIN_SHARES` and `MAX_SHARES`, kernel/sched/sched.h), which nothing exports.
 pub(crate) const CPU_WEIGHTS: std::ops::RangeInclusive<u32> = 2..=262_144;
@@ -86,9 +108,21 @@ pub(crate) fn digest_reference(entry: &str) -> bool {
 }
 
 /// Whether one `allowed_images` entry admits `image`: a digest reference by equality, a prefix by
-/// its text. Config validation (`config/validate.rs`) refuses every other kind of entry.
+/// its text where the parsed reference agrees. The image is read by the maintained OCI reference
+/// parser first, so a `name:` or `name@` entry admits only that repository's tags or digests:
+/// `alpine:` is Docker Hub's alpine, never `alpine:5000/x/y`, a repository on the registry host
+/// `alpine`. An entry ending in `/` never ends inside a registry, which holds no `/`. Config
+/// validation (`config/validate.rs`) refuses every other kind of entry.
 pub(crate) fn admits(entry: &str, image: &str) -> bool {
-    if digest_reference(entry) { image == entry } else { image.starts_with(entry) }
+    if digest_reference(entry) {
+        return image == entry;
+    }
+    let Ok(parsed) = Reference::try_from(image) else { return false };
+    image.starts_with(entry)
+        && entry.strip_suffix([':', '@']).is_none_or(|name| {
+            Reference::try_from(name)
+                .is_ok_and(|named| (named.registry(), named.repository()) == (parsed.registry(), parsed.repository()))
+        })
 }
 
 fn image_ok(image: &str) -> bool {
@@ -154,9 +188,14 @@ impl WorkloadSpec {
             {
                 problems.add("egress", "must contain at most 128 valid lowercase hostnames per list");
             }
-            if policy.process || policy.wasm {
+            if policy.wasm {
                 problems.add("egress", "hostname egress requires the container tier");
+            } else if policy.process && !policy.kernel_network {
+                problems.add("egress", KERNEL_NETWORK_PROBLEM);
             }
+        }
+        if let Some(addresses) = &self.egress_addresses {
+            self.check_addresses(policy, addresses, &mut problems);
         }
         self.check_env(&mut problems);
         self.check_resources(policy, &mut problems);
@@ -240,6 +279,38 @@ impl WorkloadSpec {
         let secrets = self.secrets.iter().map(|(k, v)| k.len() + v.0.len());
         if env.chain(secrets).sum::<usize>() > MAX_ENV_TOTAL {
             problems.add("env", format!("all variables together must stay under {MAX_ENV_TOTAL} bytes"));
+        }
+    }
+
+    fn check_addresses(&self, policy: &SpecPolicy, addresses: &AddressPolicy, problems: &mut Problems) {
+        let field = "egressAddresses";
+        if !policy.process || !policy.kernel_network {
+            problems.add(field, KERNEL_NETWORK_PROBLEM);
+        }
+        if self.network == crate::protocol::NetworkMode::None {
+            problems.add(field, "address rules require network internet");
+        }
+        if addresses.allow.len() > MAX_ADDRESS_RULES || addresses.deny.len() > MAX_ADDRESS_RULES {
+            problems.add(field, format!("at most {MAX_ADDRESS_RULES} rules per list"));
+        }
+        let unopenable: Vec<ipnet::IpNet> =
+            UNOPENABLE.iter().map(|net| net.parse().expect("the host's own ranges parse")).collect();
+        for (list, rules) in [("allow", &addresses.allow), ("deny", &addresses.deny)] {
+            for (index, rule) in rules.iter().enumerate() {
+                let Some((prefix, _)) = rule.parsed() else {
+                    problems.add(
+                        format!("{field}.{list}[{index}]"),
+                        "needs an IPv4 or IPv6 prefix and, optionally, ports [low, high] from 1 to 65535",
+                    );
+                    continue;
+                };
+                if list == "allow" && unopenable.iter().any(|kept| kept.contains(&prefix) || prefix.contains(kept)) {
+                    problems.add(
+                        format!("{field}.allow[{index}]"),
+                        "can't open this host, link-local, multicast or IPv4-mapped addresses",
+                    );
+                }
+            }
         }
     }
 
@@ -377,6 +448,7 @@ mod tests {
         SpecPolicy {
             process: false,
             wasm: false,
+            kernel_network: false,
             allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,
@@ -493,6 +565,37 @@ mod tests {
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));
         assert!(errors.iter().any(|e| e.field == "ports[1].audience"));
     }
+    /// A prefix admits what the reference parser reads under it, never a registry host its text
+    /// happens to begin: `alpine:5000/x/y` is the repository `x/y` on the host `alpine:5000`.
+    #[test]
+    fn a_prefix_admits_only_the_repository_its_name_parses_to() {
+        for (entry, image) in [
+            ("alpine:", "alpine:3.24"),
+            ("alpine:", "alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"),
+            ("alpine@", "alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"),
+            ("ghcr.io/example/http-app:", "ghcr.io/example/http-app:1.2"),
+            ("localhost:5000/app:", "localhost:5000/app:1"),
+            ("ghcr.io/example/", "ghcr.io/example/http-app:1.2"),
+        ] {
+            assert!(admits(entry, image), "{entry} refused {image}");
+        }
+        for (entry, image) in [
+            ("alpine:", "alpine:5000/x/y"),
+            ("alpine:", "alpine:5000/library/alpine:3.24"),
+            ("node:", "node:443/node:22"),
+            // No reading of this text is a reference, though it begins with the entry.
+            ("docker.io/library/alpine:", "docker.io/library/alpine:5000/x"),
+            ("localhost:", "localhost:5000/app:1"),
+            ("alpine:", "alpine:3.24/../x"),
+        ] {
+            assert!(!admits(entry, image), "{entry} admitted {image}");
+        }
+        let mut v = example_spec();
+        v["image"] = "alpine:5000/x/y".into();
+        let errors = spec(v).validate(&policy()).err().unwrap_or_default();
+        assert_eq!(errors.iter().map(|e| e.field.as_str()).collect::<Vec<_>>(), ["image"]);
+    }
+
     /// The server preset's default allowlist admits the images the VM bundle is proven with by
     /// digest; an operator who takes a pin out narrows it, and no other digest of the same name
     /// gets in through a pin.

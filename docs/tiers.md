@@ -243,6 +243,15 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 
 ## gVisor tier and the namespaced process mode
 
+The server preset installs the pinned static release agent automatically. An independently
+configured gVisor agent must also be a static ELF; a GNU debug build with an image-controlled
+loader is refused. The node keeps a digest-named execute-only copy outside sandbox data, so
+Linux and gVisor protect its memory and descriptors before the process becomes visible. An
+exec's successful cleanup is authenticated; losing its owner retires that same sandbox run,
+while an earlier exec can never retire a later stop/start generation. Node exec removes the
+agent's bootstrap variables and preserves ordinary workload variables. Async work belongs to
+the agent's process API; a completed node exec retains no detached descendants.
+
 The `gvisor` tier is the container backend with the engine's gVisor `runsc` runtime (release
 20261109.0, Apache-2.0, deploy/gvisor.json): the same images, limits, ports, bridge and firewall,
 served beside containers wherever the engine lists `runsc`. A request naming `container` is never
@@ -296,10 +305,11 @@ the host kernel's own.
 | Python | Install in image | Install in image | Bundled CPython | Bundled CPython | Embedded Pyodide | Install in image |
 | Node | Install in image | Install in image | Bundled Node | Bundled Node | Embedded V8 compatibility runtime | Install in image |
 | Shell | Static agent fallback | Static agent fallback | Static agent shell | Static agent shell | Verified agentOS coreutils shell | The image's shell |
-| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | The same Landlock, seccomp and limits inside its own user, mount, PID and IPC namespaces, a private /tmp, and its own empty network for network none | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
+| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, policed in the kernel where `kernel-network-policy` is on, otherwise mutually trusted Internet workloads | The same Landlock, seccomp and limits inside its own user, mount, PID and IPC namespaces, a private /tmp, and its own empty network for network none; otherwise the host's network, policed as the plain mode's | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
 | Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
 | CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
 | Sleep retains files | Yes | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
+| Egress policy | Bridge firewall (`host-firewall` with root's firewall loaded); hostname egress through host gateways | The container's bridge firewall; hostname egress refused | Where `kernel-network-policy` is on (root, the server preset's unit included, or CAP_BPF and CAP_NET_ADMIN with a delegated cgroup): per-sandbox cgroup programs give `host-firewall`, hostname egress, address rules and, from other machines, only the published ports ([bpf.md](bpf.md)); elsewhere only `network: none` | As the plain process mode, the same programs on its cgroup | `network: none`; hostname egress refused | Guest firewall and host-owned gateways ([vm.md](vm.md)) |
 | Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | Host TCP according to policy; none with network none, whose agent answers on listeners the node passes in | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
 | Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | As an ordinary user, yes: the guest's memory is written beside its disk and restored on a host of the same class; otherwise the guest stops and boots again |
 
@@ -428,34 +438,45 @@ second at p50.
 
 ### Memory sleep and wake
 
-Measured at `f57a3c3` in
-[VM experiments 43796105838](https://github.com/cubepals/pryx/actions/runs/43796105838) (job
-133065167324), on a hosted `ubuntu-24.04` runner with KVM, as the runner's ordinary user, by
+Measured at `63f13ec` in
+[VM experiments 43825335671](https://github.com/cubepals/pryx/actions/runs/43825335671) (job
+133169626399), on a hosted `ubuntu-24.04` runner with KVM, as the runner's ordinary user, by
 `memory_acceptance` through the runtime a sandbox uses: an Alpine guest with 256 MiB and one vCPU,
 whose entrypoint keeps a counter going, slept and woken thirty times in a row. A sleep is the
-guest's signed flush and hold, the pause, the full snapshot into the runtime's private state and
-the monitor's retirement; a wake is the restore, the guest's signed resume (clock and host
-entropy) and its agent's answer through a new forwarder.
+guest's signed freeze of its workload, flush and hold, the pause, the full snapshot into the
+runtime's private state and the monitor's retirement; a wake is the restore, the guest's signed
+resume (clock, host entropy and gateway ports) and its agent's answer through a new forwarder.
 
 | Measurement, ordinary-user VM, n=30 | p50 / p90 |
 | --- | --- |
-| Sleep with memory (ms) | 1,298.35 / 1,636.94 |
-| Wake with memory (ms) | 218.03 / 225.09 |
+| Sleep with memory (ms) | 395.04 / 464.10 |
+| Wake with memory (ms) | 220.05 / 235.62 |
+
+The first figures, at `f57a3c3` in
+[VM experiments 43796105838](https://github.com/cubepals/pryx/actions/runs/43796105838), before the
+workload froze for its sleep, were 1,298.35 / 1,636.94 ms to sleep and 218.03 / 225.09 ms to wake.
 
 In every sample the same process ran on after the wake, with its counter past where it was and
 its `/tmp` file kept; after the last, the guest's wall clock was within two seconds of the host's.
 A wake whose state file had been corrupted, and a wake whose image recorded another host class,
 each booted the disk instead, with what was written before the sleep there and the memory gone;
 a stop while asleep ended the memory and reported a SIGKILL's exit. The node API's run in the
-same job split a wake into its restore (13 to 20 ms), the guest's resume (25 to 58 ms) and the
-agent's first answer (125 to 130 ms).
+first job split a wake into its restore (15 to 17 ms), the guest's resume (34 to 110 ms) and the
+agent's first answer (126 to 132 ms).
 
-Two forks with memory of one sleeping source were made in 3.42 and 2.81 ms (a copy of the disk
-and links to the memory) and woke in 196.76 and 197.72 ms. The two forks and the source then each
+Three forks with memory of one sleeping source were made in 1.63 to 2.18 ms (a copy of the disk
+and links to the memory); two woke in 193.07 and 201.89 ms. The two forks and the source then each
 ran the source's process under its own hostname, and the 32 bytes each read from `/dev/urandom`
 first after its wake differed between all three; each fork refused the source's agent token. The
-guest kernel has no VM generation ID driver (`0` in each guest, as its configuration says), so
-the different bytes are the resume hook's host entropy and forced reseed.
+source's workload appended 16 random bytes a line to its disk every 10 ms: the third fork,
+refused its restore by another host class, booted the flushed disk with all 84 lines the memory
+held, and the first line each restored copy drew after its restore differed between all three.
+The guest kernel has no VM generation ID driver (`0` in each guest, as its configuration says),
+so the different bytes are the resume hook's host entropy and forced reseed.
+
+A guest with a network, public and under a hostname policy, passed the production network probe
+(DNS, the allowed request, every refusal) after a wake with memory, in its fork with memory, and
+in the source woken after the fork.
 
 The [kernel spike](checks/k25-vm-spikes.md) measured a minimal guest fixture, not a sandbox:
 p50 717.035 ms and p90 725.265 ms from launch to a validated filesystem and vsock report, over
@@ -537,7 +558,8 @@ Hostname egress allow/deny is available on container nodes that announce
 `egress-hostnames` after root firewall installation. Each such sandbox has a dedicated bridge
 and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. An ordinary-user node
 whose only tier is `vm` announces it too, with guest rules and host-owned gateways
-([vm.md](vm.md#as-an-ordinary-user)). Process and wasm return an explicit tier refusal.
+([vm.md](vm.md#as-an-ordinary-user)). A process node announces it, with `egress-addresses`, where its
+kernel network policy is on ([bpf.md](bpf.md)); elsewhere process and wasm return an explicit refusal.
 `network:none` remains the all-tiers network boundary.
 Workdir uses the `workload-options` feature; user selection is restricted to the operator
 container user. Metrics use cached tier counters and preserve null where unavailable.

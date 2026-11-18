@@ -42,17 +42,86 @@ pub(super) fn left_running(count: &str, why: &str) {
     }
 }
 
-/// The pids limit: a container's own cgroup shows it; gVisor's kernel shows its own cgroups, so
-/// on gvisor the engine's record of the limit it applied is read instead.
-pub(super) fn pids_limited(inside: &str, container: &str) {
-    if !on_gvisor() {
-        return assert!(inside.contains("4096"), "pids limit");
+/// gVisor's virtual process bound is its inherited RLIMIT_NPROC; the other tier retains its
+/// actual cgroup assertion. The fork-exhaustion case below proves enforcement, not metadata.
+pub(super) fn pids_limited(inside: &str, _container: &str) {
+    if on_gvisor() {
+        assert!(inside.contains("nproc=4096"), "the sandbox's own process bound: {inside}");
+    } else {
+        assert!(inside.contains("4096"), "pids limit");
     }
-    let out = std::process::Command::new("docker")
-        .args(["inspect", "--format", "{{.HostConfig.PidsLimit}}", container])
-        .output()
+}
+
+#[tokio::test]
+#[ignore = "needs Docker and cgroup v2; the gvisor run proves its actual process bound"]
+async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
+    if !on_gvisor() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let config = extra(&dep) + "default_pids_limit = 128\n";
+    let m = manager_probed(dir.path(), docker(), &config, pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]));
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    m.ensure(id("forks"), shell(SERVER, 512), Precondition::None, None).await.unwrap();
+    m.start(id("forks"), None).await.unwrap();
+    m.ensure(id("neighbour"), shell(SERVER, 128), Precondition::None, None).await.unwrap();
+    m.start(id("neighbour"), None).await.unwrap();
+    let backend = bollard::Docker::connect_with_unix(
+        DockerConfig::default().socket.to_str().unwrap(),
+        60,
+        bollard::API_DEFAULT_VERSION,
+    )
+    .unwrap();
+    let target = m.view(&id("forks")).unwrap().locate.container_id.unwrap();
+    let neighbour = m.view(&id("neighbour")).unwrap().locate.container_id.unwrap();
+    assert_ne!(target, neighbour);
+    let neighbour_start = backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at;
+    let host = super::process_bound::HostPids::capture(&backend, &target).await;
+    let limit = m
+        .exec(
+            id("forks"),
+            ExecRequest { command: vec!["sh".into(), "-c".into(), "ulimit -u".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
         .unwrap();
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "4096", "the engine applied the pids limit");
+    assert_eq!(limit.stdout.trim(), "128", "{limit:?}");
+    host.observe(m.exec(
+        id("forks"),
+        ExecRequest {
+            command: vec![
+                "sh".into(),
+                "-c".into(),
+                "exec 2>&1; i=0; while [ \"$i\" -lt 256 ]; do sleep 60 & i=$((i+1)); done; echo exceeded-limit".into(),
+            ],
+            timeout_seconds: 20,
+        },
+        None,
+        None,
+    ))
+    .await;
+    let stopped = m.stop(id("forks"), None, None).await.unwrap();
+    assert!(!stopped.workload.exit.expect("retirement must record an exit").oom_killed);
+    let stopped = backend.inspect_container(&target, None).await.unwrap().state.unwrap();
+    assert_eq!(stopped.running, Some(false));
+    assert_eq!(stopped.oom_killed, Some(false));
+    host.assert_empty().await;
+    let healthy = m
+        .exec(
+            id("neighbour"),
+            ExecRequest { command: vec!["printf".into(), "neighbour-kept".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(healthy.exit_code, Some(0));
+    assert_eq!(healthy.stdout, "neighbour-kept");
+    assert_eq!(backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at, neighbour_start);
+    cleanup(&m, &["forks", "neighbour"]).await;
 }
 
 /// Hostname egress on gvisor: never announced, and a create that names a policy is refused.
@@ -77,6 +146,80 @@ pub(super) async fn hostname_egress_refused() {
     assert!(made.is_err() && said.contains("egress"), "a hostname policy is refused on gvisor: {said}");
 }
 
+/// A sandbox on the internet names and reaches a public host on either engine tier: on gvisor
+/// through the host's upstream resolvers, since Docker's embedded resolver is out of its reach.
+#[tokio::test]
+#[ignore = "needs Docker and the internet"]
+async fn a_sandbox_on_the_internet_resolves_and_fetches_a_public_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let m = daemon(dir.path(), &dep);
+    m.reconcile(Records::FromDisk).await;
+    m.ensure(id("dns"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
+    m.start(id("dns"), None).await.unwrap();
+    let fetch = "nslookup example.com && wget -q -O /dev/null http://example.com/";
+    let request = ExecRequest { command: vec!["sh".into(), "-c".into(), fetch.into()], timeout_seconds: 30 };
+    let out = m.exec(id("dns"), request, None, None).await.unwrap();
+    assert_eq!(out.exit_code, Some(0), "{out:?}");
+    cleanup(&m, &["dns"]).await;
+}
+
+/// An ordinary executable lookup/refusal is an authenticated command result, not an owner
+/// death: the same sandbox and start still accept a later command after either launch error.
+#[tokio::test]
+#[ignore = "needs Docker with gVisor and its protected exec owner"]
+async fn ordinary_gvisor_launch_errors_keep_the_same_sandbox_running() {
+    if !on_gvisor() {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let m = daemon(directory.path(), &dep);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    m.ensure(id("launch"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
+    m.start(id("launch"), None).await.unwrap();
+    let before = m.view(&id("launch")).unwrap();
+    let target = before.locate.container_id.clone().unwrap();
+    let backend = engine_api(&DockerConfig::default().socket).await;
+    let started = backend.inspect_container(&target, None).await.unwrap().state.unwrap().started_at;
+    let create = ExecRequest {
+        command: vec![
+            "sh".into(),
+            "-c".into(),
+            "printf 'not executable' > /tmp/pryx-no-exec; chmod 600 /tmp/pryx-no-exec".into(),
+        ],
+        timeout_seconds: 10,
+    };
+    assert_eq!(m.exec(id("launch"), create, None, None).await.unwrap().exit_code, Some(0));
+    for executable in ["/tmp/pryx-missing-command", "/tmp/pryx-no-exec"] {
+        // Read the expected POSIX launch status from the sandbox's real shell, not a copy.
+        let shell = ExecRequest {
+            command: vec!["sh".into(), "-c".into(), "exec \"$1\"".into(), "sh".into(), executable.into()],
+            timeout_seconds: 10,
+        };
+        let expected = m.exec(id("launch"), shell, None, None).await.unwrap();
+        assert!(expected.exit_code.is_some_and(|code| code != 0));
+        let direct = ExecRequest { command: vec![executable.into()], timeout_seconds: 10 };
+        let failure = m.exec(id("launch"), direct, None, None).await.unwrap();
+        assert_eq!(failure.exit_code, expected.exit_code);
+        assert!(!failure.timed_out && !failure.killed);
+        let healthy = ExecRequest { command: vec!["printf".into(), "still-kept".into()], timeout_seconds: 10 };
+        let healthy = m.exec(id("launch"), healthy, None, None).await.unwrap();
+        assert_eq!(healthy.exit_code, Some(0));
+        assert_eq!(healthy.stdout, "still-kept");
+        let after = m.view(&id("launch")).unwrap();
+        assert_eq!(after.state, WorkloadState::Running);
+        assert_eq!(after.locate.container_id, before.locate.container_id);
+        assert_eq!(after.started_at, before.started_at);
+        let state = backend.inspect_container(&target, None).await.unwrap().state.unwrap();
+        assert_eq!(state.running, Some(true));
+        assert_eq!(state.started_at, started);
+    }
+    cleanup(&m, &["launch"]).await;
+}
+
 /// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
 /// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
 /// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.
@@ -94,7 +237,13 @@ async fn gvisor_refusal(socket: &std::path::Path) -> Option<String> {
     }
     let info = engine.info().await.expect("the engine answers info");
     let registered = info.runtimes.unwrap_or_default().contains_key(pryxd::runtime::docker::GVISOR_RUNTIME);
-    (!registered).then(|| pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    if !registered {
+        Some(pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    } else if info.security_options.unwrap_or_default().iter().any(|option| option == "name=rootless") {
+        Some(pryxd::runtime::docker::gvisor::GVISOR_ROOTLESS_PROBLEM.into())
+    } else {
+        None
+    }
 }
 
 /// The engine's own API at `socket`, at the version it negotiates (Podman's is older than Docker's).

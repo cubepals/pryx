@@ -131,6 +131,25 @@ pub struct SuspendRecord {
     /// A spec a `PUT` deferred while it was suspended, put in place at its next boot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending: Option<PendingSpec>,
+    /// A completed memory-fork restore, acknowledged only for this same suspended generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fork_restore: Option<MemoryForkRestore>,
+}
+
+/// A completed local fork's reply and exact target identity. Kept with its suspension so a
+/// lost reply can be recovered without copying again; contains no environment or secret values.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryForkRestore {
+    pub(crate) source_workload: WorkloadId,
+    pub(crate) source_snapshot: crate::ids::SnapshotId,
+    pub(crate) target: WorkloadId,
+    pub(crate) epoch: Option<u64>,
+    pub(crate) generation: u64,
+    pub(crate) spec_digest: String,
+    pub(crate) container_name: String,
+    pub(crate) container_id: String,
+    pub(crate) response: crate::protocol::RestoreResponse,
 }
 
 impl SuspendRecord {
@@ -468,6 +487,7 @@ pub(crate) mod tests {
                 entrypoint: None,
                 workdir: None,
                 egress: None,
+                egress_addresses: None,
                 user: None,
                 env: Default::default(),
                 secret_names: vec![],
@@ -649,7 +669,9 @@ pub(crate) mod tests {
             resumes_on: Some("1.21.8".into()),
             suspended_at: Some("2026-10-16T08:00:00Z".into()),
             pending: Some(PendingSpec { spec_digest: "sha256:y".into(), spec: record("w").spec }),
+            ..SuspendRecord::default()
         };
+        assert!(serde_json::to_value(&suspend).unwrap().get("forkRestore").is_none(), "old journal shape");
         store.save_suspend(&id, &suspend).unwrap();
         assert_eq!(store.load_suspends().get(&id), Some(&suspend));
         store.save_suspend(&id, &SuspendRecord::default()).unwrap();

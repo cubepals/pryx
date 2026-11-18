@@ -3,11 +3,19 @@
 use super::{ContainerRuntime, docker::DockerRuntime};
 use crate::capability::{Capability, State};
 use crate::config::{Config, RuntimeKind};
+use std::collections::BTreeMap;
 use std::sync::Arc;
+
+/// One construction's backends and the original reasons it omitted other tiers. These are
+/// construction observations, not a new probe or a claim about a backend's later availability.
+pub(crate) struct Construction {
+    pub(crate) runtime: Arc<dyn ContainerRuntime>,
+    pub(crate) unavailable: BTreeMap<&'static str, String>,
+}
 
 pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
     if config.runtime == RuntimeKind::Auto {
-        return auto(config).await;
+        return Ok(auto(config).await?.runtime);
     }
     let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Vm {
         if rustix::process::geteuid().is_root() {
@@ -23,7 +31,15 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
     } else if config.runtime == RuntimeKind::Wasm {
         Arc::new(crate::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
     } else if config.runtime == RuntimeKind::Process {
-        Arc::new(crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
+        let served = crate::runtime::process::Served {
+            ports: config.network.port_range[0]..=config.network.port_range[1],
+            api_port: config.api.listen.port(),
+        };
+        Arc::new(
+            crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?
+                .with_network(served)
+                .await,
+        )
     } else {
         anyhow::ensure!(config.docker.enabled, "the container tier is disabled by this host preset");
         let socket = super::engine::socket(&config.docker).await?;
@@ -40,6 +56,16 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
         Arc::new(docker)
     };
     Ok(runtime)
+}
+
+/// The same construction used by `create`, keeping its initial off reasons for a refusal's
+/// diagnosis. A second probe could replace the evidence that caused this construction to omit it.
+pub(crate) async fn create_with_reasons(config: &Config) -> anyhow::Result<Construction> {
+    if config.runtime == RuntimeKind::Auto {
+        auto(config).await
+    } else {
+        Ok(Construction { runtime: create(config).await?, unavailable: BTreeMap::new() })
+    }
 }
 
 /// Probe prerequisites without starting compute or mutating a host.
@@ -97,7 +123,7 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
     ])
 }
 
-async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
+async fn auto(config: &Config) -> anyhow::Result<Construction> {
     let mut selected = config.clone();
     let mut engine_error = None;
     if config.docker.enabled {
@@ -117,8 +143,10 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
     }
     let mut backends = Vec::new();
     let mut reasons = Vec::new();
+    let mut unavailable = BTreeMap::new();
     for tier in ["container", crate::protocol::Isolation::Gvisor.as_str(), "process", "wasm", "vm"] {
         if let Some(reason) = &available[tier] {
+            unavailable.insert(tier, reason.clone());
             reasons.push(format!("{tier}: {reason}"));
             continue;
         }
@@ -126,7 +154,10 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
             // The same engine and host policy as the container tier, with runsc for each start.
             match container(config, &config.docker.socket) {
                 Ok(docker) => backends.push(Arc::new(docker.gvisor()) as Arc<dyn ContainerRuntime>),
-                Err(error) => reasons.push(format!("{tier}: {error}")),
+                Err(error) => {
+                    unavailable.insert(tier, error.to_string());
+                    reasons.push(format!("{tier}: {error}"));
+                }
             }
             continue;
         }
@@ -140,7 +171,10 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
         // Boxing closes only the construction recursion; workload dispatch remains the router.
         match Box::pin(create(&single)).await {
             Ok(runtime) => backends.push(runtime),
-            Err(error) => reasons.push(format!("{tier}: {error}")),
+            Err(error) => {
+                unavailable.insert(tier, error.to_string());
+                reasons.push(format!("{tier}: {error}"));
+            }
         }
     }
     for reason in &reasons {
@@ -149,11 +183,11 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
     if backends.is_empty() {
         anyhow::bail!("No isolation tier is available: {}", reasons.join("; "));
     }
-    Ok(Arc::new(super::router::Router::new(backends)?))
+    Ok(Construction { runtime: Arc::new(super::router::Router::new(backends)?), unavailable })
 }
 
 fn container(config: &Config, socket: &std::path::Path) -> anyhow::Result<DockerRuntime> {
-    let mut docker = DockerRuntime::new(socket)?.with_native_tools(
+    let mut docker = DockerRuntime::new(socket)?.with_oom_journal(&config.state_dir).with_native_tools(
         config.docker.native_tools_seccomp.as_deref(),
         config.docker.native_fuse,
         config.docker.native_tools_apparmor.as_deref(),

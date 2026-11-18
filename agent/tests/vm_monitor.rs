@@ -167,8 +167,14 @@ denied(lambda: fcntl.ioctl(0,termios.FIOCLEX))
 try: os.write(0,b'lease write must fail')
 except OSError as error: assert error.errno==errno.EBADF
 else: raise AssertionError('Inherited packet lease permitted writes')
-for family in (socket.AF_UNIX,socket.AF_VSOCK,socket.AF_NETLINK):
+for family in (socket.AF_UNIX,socket.AF_VSOCK):
     denied(lambda: socket.socket(family,socket.SOCK_STREAM))
+for protocol in (socket.NETLINK_USERSOCK,socket.NETLINK_XFRM,socket.NETLINK_CRYPTO):
+    denied(lambda: socket.socket(socket.AF_NETLINK,socket.SOCK_RAW,protocol))
+# Routing netlink alone, which admission asks how a destination is routed; never bound.
+route=socket.socket(socket.AF_NETLINK,socket.SOCK_RAW,socket.NETLINK_ROUTE)
+denied(lambda: route.bind((0,0)))
+route.close()
 denied(lambda: socket.socketpair())
 client=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 denied(lambda: client.bind(('127.0.0.1',0)))

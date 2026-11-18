@@ -134,6 +134,7 @@ mod tests {
                 .await
                 .unwrap(),
             forked: Default::default(),
+            retirement_nonce: Default::default(),
         });
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         spec.ports[0].host_port = listener.local_addr().unwrap().port();

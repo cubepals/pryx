@@ -12,7 +12,10 @@ all-features = false
 # RustSec. A known vulnerability, or a crate its authors withdrew, fails the build.
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    # Maintained shell, Jupyter and agentOS releases still require unmaintained chrono.
+    "RUSTSEC-2026-0543",
+]
 
 [licenses]
 version = 2

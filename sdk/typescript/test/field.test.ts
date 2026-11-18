@@ -83,6 +83,7 @@ function peer(version = 2, isolation?: 'wasm') {
   let state = 'sleeping'
   let data = ''
   let failure: string | undefined
+  let maxExecSeconds: number | null = null
   const view = () => ({
     id: 'box',
     state,
@@ -112,6 +113,7 @@ function peer(version = 2, isolation?: 'wasm') {
           token: 'scoped',
           expiresAt: Date.now() + 999999,
           epoch: 1,
+          maxExecSeconds,
         })
       if (path === '/_pryx/health') return Response.json({ status: 'ok', apiVersion: version })
       if (path === '/v1/sandboxes' && method === 'GET') return Response.json({ sandboxes: [view()] })
@@ -202,6 +204,9 @@ function peer(version = 2, isolation?: 'wasm') {
     calls,
     fail: (code: string | undefined) => {
       failure = code
+    },
+    cap: (seconds: number | null) => {
+      maxExecSeconds = seconds
     },
   }
 }
@@ -312,6 +317,15 @@ test('lookup, lifecycle, templates and webhooks use public ownership routes', as
   await expect(p.client.template({ name: 'named', isolation: 'wasm', run: ['hang'] })).rejects.toThrow(
     `Template command failed (timed out after ${1000 * stepSeconds} ms)`,
   )
+  // A project that caps a command's time below the step default caps its build steps too.
+  p.cap(120)
+  const before = p.calls.length
+  await p.client.template({ name: 'named', isolation: 'wasm', run: ['true'] })
+  const capped = p.calls
+    .slice(before)
+    .filter((call) => call.path === '/_pryx/processes' && call.method === 'POST')
+  expect(capped.map((call) => call.body.timeout)).toEqual([120])
+  p.cap(null)
   await p.client.templates()
   const hook = await p.client.webhook({ url: 'https://example.com/hook', kinds: ['created', 'deleted'] })
   expect(hook.secret).toBe('shown-once')

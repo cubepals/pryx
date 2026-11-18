@@ -243,6 +243,14 @@ fn check_extra(root: &Path, directory: &Path, expected: &BTreeSet<PathBuf>) -> i
     Ok(())
 }
 fn readonly(root: &Path) -> io::Result<()> {
+    fn seal(path: &Path, wanted: u32) -> io::Result<()> {
+        // A dedicated sandbox UID may verify a host-owned cache already sealed by the node.
+        // Exact modes need no mutation; writable or special bits still require sealing.
+        if fs::symlink_metadata(path)?.permissions().mode() & 0o7777 != wanted {
+            fs::set_permissions(path, fs::Permissions::from_mode(wanted))?;
+        }
+        Ok(())
+    }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         if entry.file_type()?.is_symlink() {
@@ -252,8 +260,8 @@ fn readonly(root: &Path) -> io::Result<()> {
             readonly(&entry.path())?;
         } else {
             let executable = entry.metadata()?.permissions().mode() & 0o111 != 0;
-            fs::set_permissions(entry.path(), fs::Permissions::from_mode(if executable { 0o555 } else { 0o444 }))?;
+            seal(&entry.path(), if executable { 0o555 } else { 0o444 })?;
         }
     }
-    fs::set_permissions(root, fs::Permissions::from_mode(0o555))
+    seal(root, 0o555)
 }

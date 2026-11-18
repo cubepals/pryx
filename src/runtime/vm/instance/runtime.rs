@@ -324,10 +324,12 @@ impl ContainerRuntime for VmRuntime {
             .join("leases")
             .join(format!("{}.lock", super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?));
         self.recover_disk(data)?;
-        // A copy may repair the disk it reads, so memory taken with that disk is discarded.
+        // Asleep with its memory, a guest's disk is the file its sleep flushed, which no monitor
+        // writes: it is copied as it lies, never repaired, so the memory taken with it still holds
+        // and the guest stays asleep. The copy is a flushed disk a later boot of it checks first.
         let asleep = self.state.entries.lock().unwrap().values().find(|entry| entry.spec.data_dir == data).cloned();
-        if let Some(mut entry) = asleep.filter(|entry| entry.memory.is_some()) {
-            self.discard_memory(&mut entry)?;
+        if asleep.is_some_and(|entry| entry.memory.is_some()) {
+            return Ok(Box::new(lock(&lease)?));
         }
         let path = data.join(super::super::disk::FILE);
         let exists = match fs::symlink_metadata(&path) {
@@ -357,6 +359,17 @@ impl ContainerRuntime for VmRuntime {
             }
             Ok(Box::new(held))
         }
+    }
+    async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {
+        match self.entry(name) {
+            Ok(entry) => Ok(entry.memory.map(|image| image.id).filter(|id| !id.is_empty())),
+            Err(RuntimeError::NotFound(_)) => Ok(None),
+            Err(problem) => Err(problem),
+        }
+    }
+    async fn fork_memory(&self, source: &str, target: &str, image: &str) -> Result<(), RuntimeError> {
+        let (own, source, target, image) = (self.clone(), source.to_owned(), target.to_owned(), image.to_owned());
+        tokio::spawn(async move { own.fork_into(&source, &target, Some(&image)).await }).await.map_err(error)?
     }
     fn supports_agent(&self) -> bool {
         true
@@ -491,7 +504,11 @@ impl ContainerRuntime for VmRuntime {
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("VM started while removal was waiting; its record is retained".into()));
         }
-        self.forget_entry(&entry.id)
+        // Whatever its record says: guest memory never outlives its sandbox.
+        let mut entry = self.entry(&entry.id)?;
+        self.discard_memory(&mut entry)?;
+        self.forget_entry(&entry.id)?;
+        self.remove_leases(&entry)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         self.observe(name).await

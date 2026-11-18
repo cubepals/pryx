@@ -79,6 +79,9 @@ func serveTap(path string, descriptor int) error {
 	if err != nil {
 		return err
 	}
+	if err := policy.readsRoutes(); err != nil {
+		return err
+	}
 	// The bridged guest resolves at the stack's own gateway, so no host port is dialed for DNS.
 	network, err := newPacketStack(profile, stackOptions{policy: policy, concurrency: int(configuration.Concurrency),
 		resolver: true})

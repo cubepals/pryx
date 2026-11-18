@@ -9,7 +9,10 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
-//! - `oom.rs`: container/start-scoped authenticated OOM evidence.
+//! - `oom.rs`: container/start-scoped authenticated Docker OOM evidence.
+//! - `oom_journal.rs`: durable systemd invocation binding and OOM receipts.
+//! - `start.rs`: one start with exec-generation and journal ownership.
+//! - `remove.rs`: container retirement and owned receipt cleanup.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
@@ -17,8 +20,10 @@
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `events.rs`: engine event translation.
+//! - `exec_agent.rs`: durable execute-only exec owner programs.
+//! - `exec_completion.rs`: authenticated exec cleanup and failed-owner retirement.
 //! - `exec.rs`: command attachment and timeout containment.
-//! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
+//! - `gvisor.rs`: the gvisor tier's runtime name, availability, ownership and resolvers.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
@@ -31,16 +36,21 @@ mod create;
 pub(crate) mod egress;
 mod events;
 mod exec;
+mod exec_agent;
+mod exec_completion;
 pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
 mod network;
 mod oom;
+mod oom_journal;
 pub(crate) mod ownership;
 mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
+mod remove;
+mod start;
 mod termination;
 use container::{body_of, info_from};
 
@@ -120,6 +130,8 @@ pub struct DockerRuntime {
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
     oom: oom::Observations,
+    oom_journal: Option<oom_journal::Context>,
+    starts: exec_completion::Starts,
     oci_runtime: Option<&'static str>, // gvisor: every container made and seen uses this runtime
 }
 
@@ -176,6 +188,8 @@ impl DockerRuntime {
             native_tools: Default::default(),
             ownership: Default::default(),
             oom: Default::default(),
+            oom_journal: None,
+            starts: Default::default(),
             oci_runtime: None,
         })
     }
@@ -482,9 +496,13 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
+            default_runtime: info.default_runtime,
             memory_sleep: false,
         };
         podman::enforcement(&mut result, native.as_ref());
+        if self.oci_runtime.is_some() {
+            gvisor::enforcement(&mut result);
+        }
         if result.rootless {
             let visible = termination::peer(&self.socket).await.is_ok();
             result.local_process_ids = Some(visible);
@@ -565,19 +583,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
-            // A lost response does not undo Docker's mutation. Confirm its current state once;
-            // never issue a second start, and preserve the timeout unless it is already running.
-            if matches!(error, RuntimeError::Timeout(_))
-                && matches!(self.inspect(name).await, Ok(Some(info)) if info.status == ContainerStatus::Running)
-            {
-                tracing::warn!("confirmed running after Docker start timeout without repeating start");
-                return Ok(());
-            }
-            return Err(error);
-        }
-        self.inspect(name).await?;
-        Ok(())
+        start::start(self, name).await
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
@@ -633,29 +639,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
-        self.relays.stop(name).await;
-        let network = if self.info.lock().unwrap().as_ref().is_some_and(|info| info.podman) {
-            self.inspect(name).await?.and_then(|info| info.labels.get(podman::NETWORK_LABEL).cloned())
-        } else {
-            None
-        };
-        // v: anonymous volumes an image declares go with the container instead of leaking; the
-        // workload's data is a bind mount, which removal never touches.
-        let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
-        match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) | Ok(()) => {
-                self.oom.forget(name);
-                self.egress.stop(self, name).await?;
-                if let Some(network) = network {
-                    match podman::delete_network(self, &network).await {
-                        Ok(_) | Err(RuntimeError::NotFound(_)) => {}
-                        Err(error) => return Err(error),
-                    }
-                }
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
+        remove::remove(self, name).await
     }
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
@@ -665,10 +649,17 @@ impl ContainerRuntime for DockerRuntime {
                 self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
                 let mut info = info_from(inspect);
-                let docker_history =
-                    self.oci_runtime.is_some() || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);
+                let journal = self.journal_context();
+                let docker_history = self.oci_runtime.is_some()
+                    || journal.is_some()
+                    || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);
                 if docker_history {
                     self.oom.inspect(&self.docker()?, &mut info).await?;
+                    if let Some(journal) = journal
+                        && journal.inspect(self, &mut info).await.is_err()
+                    {
+                        tracing::debug!("native journal OOM evidence is unknown");
+                    }
                 }
                 Ok(Some(info))
             }

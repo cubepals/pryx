@@ -47,6 +47,7 @@ pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
         entrypoint: None,
         workdir: None,
         egress: None,
+        egress_addresses: None,
         env: vec![(secret_env, encoded)],
         labels: BTreeMap::new(),
         user: format!("{uid}:{uid}"),
@@ -288,6 +289,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             )
             .await;
         }
+        fork_outlives_its_parent(&runtime, temporary.path(), &inputs, index).await;
     }
     server.abort();
     println!(
@@ -594,6 +596,46 @@ async fn interrupted(
     assert!(runtime.inspect(id).await.unwrap().is_none());
     assert!(data.join(super::super::disk::FILE).is_file());
     runtime
+}
+
+/// With its parent removed, a fork's layers are kept through an eviction while another image is
+/// prepared, and the fork cold boots on them; once the fork is removed too, they go. The first
+/// image is the parent's, prepared again; the second, the other.
+async fn fork_outlives_its_parent(runtime: &VmRuntime, root: &Path, inputs: &[serde_json::Value], index: usize) {
+    if index != 0 {
+        return;
+    }
+    eprintln!("VM runtime image {index}: a fork outlives its parent's layers");
+    let (image, other) = (inputs[0]["reference"].as_str().unwrap(), inputs[1]["reference"].as_str().unwrap());
+    let (parent_data, fork_data) = (root.join("parent"), root.join("fork"));
+    directory(&parent_data).unwrap();
+    let parent_spec = spec(&parent_data, image);
+    let parent = runtime.create(&parent_spec).await.unwrap();
+    runtime.start(&parent).await.unwrap();
+    exec(runtime, &parent, "printf parent > /data/lineage").await;
+    runtime.stop(&parent, &parent_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
+    let lease = runtime.data_copy_lease(&parent_spec.agent.as_ref().unwrap().sandbox, &parent_data).await.unwrap();
+    crate::tree::copy_tree(&parent_data, &fork_data, None, &[], &mut |_| Ok(())).unwrap();
+    drop(lease);
+    let fork_spec = spec(&fork_data, image);
+    let fork = runtime.create(&fork_spec).await.unwrap();
+    runtime.start(&fork).await.unwrap();
+    let digest = runtime.entry(&fork).unwrap().image_digest.unwrap();
+    let layers = runtime.prepared(image, Some(&digest), Duration::from_secs(120)).await.unwrap().layers;
+    let identities =
+        || layers.iter().map(|layer| fs::metadata(layer).map(|info| (info.dev(), info.ino())).ok()).collect::<Vec<_>>();
+    let before = identities();
+    assert!(before.iter().all(Option::is_some));
+    runtime.remove(&parent).await.unwrap();
+    runtime.prepared(other, None, Duration::from_secs(120)).await.unwrap();
+    runtime.evict_images(Duration::from_secs(120)).await.unwrap();
+    assert_eq!(identities(), before, "An eviction took a layer the fork needs");
+    runtime.stop(&fork, &fork_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
+    runtime.start(&fork).await.unwrap();
+    assert_eq!(exec(runtime, &fork, "cat /data/lineage").await, b"parent");
+    runtime.remove(&fork).await.unwrap();
+    runtime.evict_images(Duration::from_secs(120)).await.unwrap();
+    assert!(identities().iter().all(Option::is_none), "Layers no VM needs were kept");
 }
 
 async fn immediate_exit(runtime: &VmRuntime, root: &Path, image: &str, index: usize) {

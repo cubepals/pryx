@@ -134,6 +134,7 @@ mod tests {
             quiesced: false,
             spec_digest: "sha256:x".into(),
             duration_ms: 1,
+            memory: None,
         }
     }
 

@@ -59,6 +59,57 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Report native journal prerequisites before compilation; unsupported hosts stay unknown.
+      - name: Native journal host metadata
+        continue-on-error: true
+        run: |
+          sudo python3 -I - <<'PY'
+          import asyncio, itertools, json, os, re, stat
+          async def bounded(stream):
+              try: return await stream.readexactly(16385)
+              except asyncio.IncompleteReadError as error: return error.partial
+          async def capture(*args):
+              process = None
+              try:
+                  async with asyncio.timeout(3):
+                      process = await asyncio.create_subprocess_exec('/usr/bin/journalctl', *args, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env={}, limit=16384)
+                      out, err = await asyncio.gather(bounded(process.stdout), bounded(process.stderr))
+                      if max(len(out), len(err)) > 16384: raise ValueError
+                      return {'exit_status': await process.wait(), 'stdout_bytes': len(out), 'stderr_bytes': len(err)}, out
+              except (OSError, TimeoutError, ValueError):
+                  if process and process.returncode is None:
+                      try: process.kill(); await asyncio.wait_for(process.wait(), 1)
+                      except (OSError, TimeoutError): pass
+                  return {'exit_status': None, 'stdout_bytes': None, 'stderr_bytes': None}, b''
+          def store(path):
+              try:
+                  with os.scandir(path) as children: machines = list(itertools.islice(children, 16))
+                  entries = []
+                  for machine in machines:
+                      if re.fullmatch(r'[0-9a-f]{32}', machine.name) and machine.is_dir(follow_symlinks=False):
+                          with os.scandir(machine.path) as files: entries.extend((entry.name, entry.is_file(follow_symlinks=False)) for entry in itertools.islice(files, 128 - len(entries)))
+                  names = [name for name, regular in entries if regular and name.startswith('system') and name.endswith('.journal')]
+                  return {'system_journals': len(names), 'current_system_journal': 'system.journal' in names, 'scan_limit_reached': len(machines) == 16 or len(entries) == 128}
+              except OSError: return None
+          report = {'euid': os.geteuid(), 'paths': [], 'pid1_exe': None, 'same_pid_namespace': None}
+          for path in '/ /usr /usr/bin /usr/bin/journalctl /usr/lib /usr/lib/systemd /usr/lib/systemd/systemd /bin /bin/journalctl /run /run/log /run/log/journal /var /var/log /var/log/journal'.split():
+              entry = {'path': path, 'exists': None, 'uid': None, 'mode': None, 'type': None}
+              try:
+                  metadata = os.lstat(path)
+                  entry.update(exists=True, uid=metadata.st_uid, mode=oct(stat.S_IMODE(metadata.st_mode)), type=stat.filemode(metadata.st_mode)[0])
+              except FileNotFoundError: entry['exists'] = False
+              except OSError: pass
+              report['paths'].append(entry)
+          try: report['pid1_exe'] = os.path.basename(os.readlink('/proc/1/exe'))
+          except OSError: pass
+          try: own, init = os.stat('/proc/self/ns/pid'), os.stat('/proc/1/ns/pid'); report['same_pid_namespace'] = (own.st_dev, own.st_ino) == (init.st_dev, init.st_ino)
+          except OSError: pass
+          result, version = asyncio.run(capture('--version')); match = re.match(rb'systemd ([0-9]{1,6})(?:\s|$)', version) if result['exit_status'] == 0 else None
+          report['journalctl_version'] = match[1].decode('ascii') if match else None
+          report['sync'], _ = asyncio.run(capture('--system', '--sync'))
+          report['journal_stores'] = {path: store(path) for path in ('/run/log/journal', '/var/log/journal')}
+          print(json.dumps(report, sort_keys=True))
+          PY
       # rust-toolchain.toml names the one Rust, with clippy and rustfmt; rustup installs it from there.
       - name: Rust from rust-toolchain.toml
         id: rust
@@ -82,6 +133,15 @@ jobs:
           key: test-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: test-${{ steps.rust.outputs.version }}-
       - run: cargo fmt --check
+      # The process tier's embedded programs are bpf/network.bpf.c as the pinned distribution
+      # toolchain compiles it (docs/decisions.md, K31), so the object is reviewed as its source.
+      - name: The BPF object is its source, compiled
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang-18=1:18.1.3-1ubuntu1 llvm-18=1:18.1.3-1ubuntu1 libbpf-dev=1:1.3.0-2build2
+          sh bpf/build.sh
+          git diff --exit-code -- bpf/network.bpf.o bpf/rejected.bpf.o
       - run: cargo clippy --locked --all-targets -- -D warnings
       # Again as the release builds it, without the fake runtime. The tests turn it on for every
       # target above, so something only the fake runtime uses is caught only here.
@@ -146,11 +206,149 @@ jobs:
           sudo modprobe kvm
           test -c /dev/kvm
           sudo chown "$(id -u):$(id -g)" /dev/kvm
-      - run: cargo test --locked --no-fail-fast
+      - run: |
+          printf 'EXEC_OWNER_KERNEL suid_dumpable='
+          if ! cat /proc/sys/fs/suid_dumpable 2>/dev/null; then
+            printf 'unavailable\n'
+          fi
+          cargo test --locked --no-fail-fast
         env:
           PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
           PRYX_PROBE_KVM: 'on'
           PRYX_PRIVATE_IPC_REPORT: ${{ runner.temp }}/process-ipc-design.json
+      # K31: process sandboxes' kernel network policy on this runner's kernel, as root and as an
+      # ordinary user with CAP_BPF, CAP_NET_ADMIN and a delegated cgroup, against real
+      # destinations: a private address in its own namespace, the host's own address and
+      # loopback, link-local metadata and the internet.
+      - name: Destinations for the kernel network policy
+        id: kernel-destinations
+        run: |
+          uname -r | tee -a "$GITHUB_STEP_SUMMARY"
+          sudo ip netns add pryx-private
+          sudo ip link add pryx-host type veth peer name pryx-guest netns pryx-private
+          sudo ip address add 10.213.0.1/24 dev pryx-host
+          sudo ip link set pryx-host up
+          sudo ip netns exec pryx-private ip address add 10.213.0.2/24 dev pryx-guest
+          sudo ip netns exec pryx-private ip link set pryx-guest up
+          sudo ip netns exec pryx-private ip link set lo up
+          for port in 8000 8001; do
+            sudo ip netns exec pryx-private python3 -m http.server "$port" --bind 10.213.0.2 \
+              --directory "$RUNNER_TEMP" > /dev/null 2>&1 &
+            curl --retry 10 --retry-connrefused --retry-delay 1 -fsS -o /dev/null "http://10.213.0.2:$port/"
+          done
+          # The same namespace stands in for another machine: asked on 8002, it dials this host at
+          # 10.213.0.1 as the edge would and says what it got, or (/udp) sends a datagram to the
+          # port from each source port named, as that many peers elsewhere.
+          cat > "$RUNNER_TEMP/dial.py" <<'PY'
+          import http.server, socket, urllib.parse
+          class Dial(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  url = urllib.parse.urlsplit(self.path)
+                  query = urllib.parse.parse_qs(url.query)
+                  port = int(query['port'][0])
+                  if url.path == '/udp':
+                      for source in query['from'][0].split(','):
+                          with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as peer:
+                              peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                              peer.bind(('10.213.0.2', int(source)))
+                              peer.sendto(source.encode(), ('10.213.0.1', port))
+                      self.answer('sent')
+                      return
+                  try:
+                      dialled = socket.create_connection(('10.213.0.1', port), timeout=3)
+                  except OSError as error:
+                      answer = f'unreached {error}'
+                  else:
+                      with dialled:
+                          answer = 'reached'
+                          try:
+                              dialled.settimeout(3)
+                              dialled.sendall(b'GET /_pryx/health HTTP/1.0\r\nHost: edge\r\n\r\n')
+                              answer += ' ' + dialled.recv(64).decode(errors='replace').split('\r\n')[0]
+                          except OSError:
+                              pass
+                  self.answer(answer)
+              def answer(self, answer):
+                  body = answer.encode()
+                  self.send_response(200)
+                  self.send_header('content-length', str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+          http.server.ThreadingHTTPServer(('10.213.0.2', 8002), Dial).serve_forever()
+          PY
+          sudo ip netns exec pryx-private python3 "$RUNNER_TEMP/dial.py" > /dev/null 2>&1 &
+          curl --retry 10 --retry-connrefused --retry-delay 1 -fsS -o /dev/null "http://10.213.0.2:8002/dial?port=9"
+          sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx-k31/pryx-agent
+          {
+            echo 'PRYX_TEST_PRIVATE=10.213.0.2:8000:8001'
+            echo 'PRYX_TEST_REMOTE=10.213.0.2:8002'
+            echo 'PRYX_TEST_EDGE=10.213.0.1'
+            echo "PRYX_TEST_HOST_ADDRESS=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+          } >> "$GITHUB_ENV"
+      - name: Kernel network policy as root
+        env:
+          PRYX_TEST_AGENT: /usr/local/lib/pryx-k31/pryx-agent
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo --preserve-env=PRYX_TEST_AGENT,PRYX_TEST_PRIVATE,PRYX_TEST_HOST_ADDRESS,PRYX_TEST_REMOTE,PRYX_TEST_EDGE
+        run: |
+          cargo test --locked --lib bpf:: -- --ignored
+          cargo test --locked --lib runtime::process::network \
+            -- --ignored --test-threads 1
+          # The stale-map route case asserts its first and every repeated packet is refused.
+          cargo test --locked --test process_network -- --ignored --test-threads 1 --nocapture
+          # Retain actual service status and reports; verify a same-PID read denial before
+          # exec, and require the unmasked service with the same privileges to prove policy on.
+          python3 scripts/check-address-table-probes-test.py
+          sudo install -m 0755 target/debug/pryxd /usr/local/lib/pryx-k31/pryxd
+          sudo install -m 0644 scripts/check-address-table-probes.py /usr/local/lib/pryx-k31/check-address-table-probes.py
+          sudo python3 /usr/local/lib/pryx-k31/check-address-table-probes.py \
+            /usr/local/lib/pryx-k31/pryxd "$RUNNER_TEMP/kernel-address-probes"
+      # Disposable runner prerequisite, as a host's root would grant it: a pin directory the
+      # user owns on the system's BPF filesystem, and a service with the two capabilities.
+      # Both suites run whichever fails, so one can't hide the other.
+      - name: Kernel network policy as a delegated ordinary user
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
+        run: |
+          sudo install -d -o "$(id -u)" -g "$(id -g)" -m 0700 /sys/fs/bpf/pryx
+          sudo chmod o+x /sys/fs/bpf
+          # The one test binary of pryxd's target named $1 (the bin it also builds is not it).
+          executable() {
+            cargo test --locked -p pryxd "${@:2}" --no-run --message-format=json \
+              | jq -r --arg name "$1" 'select(.reason == "compiler-artifact" and .profile.test
+                  and .target.name == $name and .executable != null) | .executable'
+          }
+          library=$(executable pryxd --lib)
+          policy=$(executable process_network --test process_network)
+          for run in "$library bpf:: --ignored" "$policy --ignored --test-threads 1"; do
+            # shellcheck disable=SC2086 # each run is a program and its arguments
+            sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" --gid="$(id -g)" \
+              -p Delegate=yes -p AmbientCapabilities="CAP_BPF CAP_NET_ADMIN" \
+              --working-directory="$PWD" --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+              --setenv=PRYX_TEST_AGENT="$PWD/target/debug/pryx-agent" \
+              --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
+              --setenv=PRYX_TEST_HOST_ADDRESS="$PRYX_TEST_HOST_ADDRESS" \
+              --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
+              $run
+          done
+      # The server preset's unit grants it too: the suite's public-internet-off and off-the-host
+      # cases as root in a service named as it is, under every [Service] setting of
+      # deploy/pryxd.service but how it starts and stops.
+      - name: Kernel network policy under the installed root unit
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
+        run: |
+          policy=$(cargo test --locked -p pryxd --test process_network --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "process_network"
+                and .executable != null) | .executable')
+          # The unit hides /home, so the suite runs from where the agent is.
+          sudo install -m 0755 "$policy" /usr/local/lib/pryx-k31/process_network
+          mapfile -t settings < <(sed -n '/^\[Service\]/,/^\[/p' deploy/pryxd.service | grep -E '^[A-Z]' \
+            | grep -Ev '^(Type|Exec[A-Za-z]+|Restart|RestartSec|KillSignal|TimeoutStopSec)=' | sed 's/^/--property=/')
+          printf '%s\n' "${settings[@]}"
+          sudo systemd-run --unit=pryxd --quiet --wait --pipe --collect "${settings[@]}" \
+            --setenv=PRYX_TEST_AGENT=/usr/local/lib/pryx-k31/pryx-agent \
+            --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
+            --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
+            /usr/local/lib/pryx-k31/process_network --ignored --test-threads 1 \
+            without_public_internet from_off_the_host
       - name: Save process IPC design evidence
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -160,11 +358,13 @@ jobs:
             ${{ runner.temp }}/process-ipc-design.json
             ${{ runner.temp }}/check-structure.ts
             target/check-control-structure.ts
+            ${{ runner.temp }}/kernel-address-probes/
           if-no-files-found: warn
       # K26: the process tier's namespaced mode on this runner, and its plain mode in a default
       # docker run, against the agent built above with the pinned helper staged beside it. Where
       # Ubuntu's AppArmor rule refuses the helper, the profile the doctor prints is installed first.
       - name: Process sandboxes namespaced here and plain in a default docker run
+        id: process-namespaces
         run: |
           install -d -m 755 "$RUNNER_TEMP/pryx-install"
           install -m 755 target/debug/pryx-agent "$RUNNER_TEMP/pryx-install/pryx-agent"
@@ -191,6 +391,23 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP/pryx-install:/install:ro" -v "$test:/process-namespaces:ro" \
             -e PRYX_TEST_NAMESPACES=off -e PRYX_TEST_PROCESS_AGENT=/opt/pryx/pryx-agent \
             mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture --test-threads 1'
+      # K31 with K26: the policy suite's public-internet-off and off-the-host cases again, as the
+      # delegated user, against the agent above with its helper, so every supervisor starts
+      # namespaced (the profile above admits the helper) and must still get its own programs.
+      - name: Kernel network policy on namespaced process sandboxes
+        # Needs the agent and helper the step above stages, and the profile it installs.
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' && steps.process-namespaces.outcome == 'success' }}
+        run: |
+          policy=$(cargo test --locked -p pryxd --test process_network --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "process_network"
+                and .executable != null) | .executable')
+          sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" --gid="$(id -g)" \
+            -p Delegate=yes -p AmbientCapabilities="CAP_BPF CAP_NET_ADMIN" \
+            --working-directory="$PWD" --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+            --setenv=PRYX_TEST_AGENT="$RUNNER_TEMP/pryx-install/pryx-agent" --setenv=PRYX_TEST_NAMESPACES=on \
+            --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
+            --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
+            "$policy" --ignored --test-threads 1 without_public_internet from_off_the_host
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile
@@ -217,40 +434,11 @@ jobs:
         run: >-
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR'
           cargo test --locked --test docker -- --ignored --test-threads 2 --nocapture
-      # K26 side piece, evidence only: whether a gVisor sandbox on a user bridge reaches Docker's
-      # embedded resolver, and a resolver on the bridge's own address named in its resolv.conf.
-      - name: gVisor resolver experiments
+      # Upgrade between two pinned releases with a sandbox running; actual host executables
+      # must keep the old version there and use the server preset's new pin on a new sandbox.
+      - name: gVisor runtime path upgrade
         if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          docker network create k26-dns > /dev/null
-          gateway=$(docker network inspect k26-dns -f '{{(index .IPAM.Config 0).Gateway}}')
-          echo "embedded resolver, runsc:"
-          docker run --rm --runtime=runsc --network k26-dns alpine:3.22 nslookup -timeout=3 example.com || true
-          sudo python3 - "$gateway" <<'PY' &
-          import socket, sys
-          listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-          listener.bind((sys.argv[1], 53))
-          upstream = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-          upstream.settimeout(5)
-          while True:
-              query, peer = listener.recvfrom(4096)
-              upstream.sendto(query, ('1.1.1.1', 53))
-              try:
-                  listener.sendto(upstream.recv(4096), peer)
-              except OSError:
-                  pass
-          PY
-          forwarder=$!
-          sleep 1
-          printf 'nameserver %s\n' "$gateway" > "$RUNNER_TEMP/k26-resolv.conf"
-          for runtime in runsc runc; do
-            echo "bridge resolver $gateway, $runtime:"
-            docker run --rm --runtime="$runtime" --network k26-dns \
-              -v "$RUNNER_TEMP/k26-resolv.conf:/etc/resolv.conf:ro" alpine:3.22 nslookup -timeout=3 example.com || true
-          done
-          sudo kill "$forwarder" || true
-          docker network rm k26-dns > /dev/null
+        run: sudo env "PATH=$PATH" bun deploy/gvisor-upgrade.ts
       - name: Docker and kernel failure evidence
         if: failure()
         run: |
@@ -259,6 +447,42 @@ jobs:
           docker info --format '{{json .CgroupVersion}} {{json .CgroupDriver}}'
           timeout 15s docker events --format '{{.TimeNano}} {{.Action}} {{.Actor.ID}}' --since 10m --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --filter type=container --filter event=oom
           sudo dmesg --ctime | tail -240
+
+  # K31: the same object loads on the oldest hosted kernel too; the test job covers
+  # ubuntu-24.04's. A verifier rejection fails the test with the verifier's log.
+  kernels:
+    name: BPF programs on ${{ matrix.runner }}'s kernel
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust from rust-toolchain.toml
+        id: rust
+        run: |
+          rustup toolchain install
+          echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: kernels-${{ matrix.runner }}-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: kernels-${{ matrix.runner }}-${{ steps.rust.outputs.version }}-
+      - name: Load, attach and detach every program as root
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo
+          CARGO_PROFILE_TEST_DEBUG: '0'
+        run: |
+          uname -r | tee -a "$GITHUB_STEP_SUMMARY"
+          cargo test --locked --lib bpf:: -- --ignored
 
   supply-chain:
     name: Dependency licences and advisories
@@ -333,6 +557,8 @@ jobs:
           restore-keys: contract-${{ steps.rust.outputs.version }}-
       - run: cargo build --locked
         working-directory: pryxd
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
       # Docker Hub caps anonymous pulls per IP and runners share IPs, so these come from mirrors.
       # Mirrors refuse bursts when parallel jobs pull at once, so each pull retries.
       - name: Pull the test images
@@ -483,6 +709,8 @@ jobs:
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
       - name: Build the current daemon
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
         run: |
           cargo clean --package pryxd
           cargo build --locked
@@ -889,6 +1117,10 @@ jobs:
           .venv-python/bin/python sdk/python/e2e/handles.py
           bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
           bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
+      # K31: the installed unit's pryxd proved kernel network policy for process sandboxes, as
+      # the root installed acceptance on any-host checks too.
+      - name: Kernel network policy in the installed server's pryxd
+        run: sh deploy/server-network-policy.sh
 
       - name: Install and repeat the release image on the host
         if: ${{ !cancelled() && steps.up.outcome == 'success' }}

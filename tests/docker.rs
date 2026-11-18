@@ -15,6 +15,8 @@
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 //! - `oom.rs`: real engine memory bounds and OOM reporting.
+//! - `oom_engine.rs`: read-only real-engine OOM evidence loss for causal journal acceptance.
+//! - `process_bound.rs`: actual host cgroup refusal and retirement evidence for gVisor forks.
 //! - `gvisor.rs`: the gvisor tier beside containers; `PRYX_TEST_GVISOR` runs the suite on it.
 
 #[path = "docker/engine.rs"]
@@ -27,6 +29,10 @@ mod engine_sleep;
 mod gvisor;
 #[path = "docker/oom.rs"]
 mod oom;
+#[path = "docker/oom_engine.rs"]
+mod oom_engine;
+#[path = "docker/process_bound.rs"]
+mod process_bound;
 mod support;
 
 use std::net::TcpListener;
@@ -169,7 +175,8 @@ fn extra(deployment: &str) -> String {
 
 fn daemon(dir: &std::path::Path, dep: &str) -> Arc<Manager> {
     let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
-    let manager = manager_probed(dir, docker(), &extra(dep), probe);
+    let runtime = gvisor::engine_runtime(&DockerConfig::default().socket).with_oom_journal(dir);
+    let manager = manager_probed(dir, Arc::new(runtime), &extra(dep), probe);
     // As `serve` does: pryxd, not Docker, applies restart policies.
     tokio::spawn(manager.clone().restart_supervisor(tokio_util::sync::CancellationToken::new()));
     manager
@@ -238,7 +245,7 @@ async fn lifecycle_hardening_and_graceful_stop() {
                 command: vec![
                     "sh".into(),
                     "-c".into(),
-                    "id -u; grep -E '^(CapEff|NoNewPrivs)' /proc/1/status; touch /etc/x 2>/dev/null && echo rootfs-writable || echo rootfs-readonly; cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max".into(),
+                    "id -u; grep -E '^(CapEff|NoNewPrivs)' /proc/1/status; touch /etc/x 2>/dev/null && echo rootfs-writable || echo rootfs-readonly; cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max; printf 'nproc='; ulimit -u".into(),
                 ],
                 timeout_seconds: 10,
             },

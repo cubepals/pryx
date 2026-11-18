@@ -67,8 +67,14 @@ export async function buildTemplate(
       if ((await lstat(local)).isDirectory()) await box.files.uploadDir(local, remote)
       else await box.files.upload(local, remote)
     }
+    // A project's cap on a command's time holds for build steps too: the agent refuses past it.
+    const limit = await box.execLimitSeconds()
+    const timeout = Math.min(
+      SDK_DEFAULTS.templateStepTimeoutSeconds,
+      limit ?? SDK_DEFAULTS.templateStepTimeoutSeconds,
+    )
     for (const command of [...(options.run ?? []), ...(options.ready ? [options.ready] : [])]) {
-      const result = await box.run(command, { timeout: SDK_DEFAULTS.templateStepTimeoutSeconds })
+      const result = await box.run(command, { timeout })
       if (result.code !== 0) throw failed(result)
     }
     const snapshot = await box.snapshot()

@@ -286,10 +286,10 @@ impl Scope {
         let (ports, gateways) = crate::runtime::egress::listeners::serve(
             http,
             tls,
-            tokio::net::UdpSocket::from_std(dns_udp)?,
-            dns_tcp,
+            (tokio::net::UdpSocket::from_std(dns_udp)?, dns_tcp),
             subnet.into(),
             crate::runtime::egress::Policy::Names(policy),
+            crate::runtime::egress::Refused::default(),
             usize::from(capacity),
         )?;
         let resources = self.resources.as_mut().ok_or_else(handoff::invalid)?;

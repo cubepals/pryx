@@ -13,6 +13,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // First: no later exec may inherit a listener the node passed to this supervisor.
     pryx_agent::process_listeners::adopt()?;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::CLEAN_MODE) {
+        return pryx_agent::exec_deadline::clean(&arguments[1..]);
+    }
     if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::MODE) {
         return pryx_agent::exec_deadline::run(&arguments[1..]);
     }
@@ -137,8 +140,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = runtime.block_on(shell(arguments.get(1).cloned()))?;
         std::process::exit(code.into());
     }
-    let code = runtime.block_on(pryx_agent::bootstrap::serve(pryx_agent::bootstrap::Bootstrap::parse(), forwarding))?;
-    std::process::exit(code)
+    let completed =
+        runtime.block_on(pryx_agent::bootstrap::serve(pryx_agent::bootstrap::Bootstrap::parse(), forwarding));
+    // No request handler or background runtime task may spawn another command after the final
+    // descendant check. This is before process::exit, which would otherwise skip runtime drop.
+    pryx_agent::process_tools::close_admission();
+    drop(runtime);
+    let tools = pryx_agent::process_tools::shutdown();
+    let retired = pryx_agent::process_retirement::descendants();
+    tools?;
+    retired?;
+    let completed = completed?;
+    if let Some(agent) = completed.agent {
+        pryx_agent::process_retirement::checkpoint(&agent)?;
+    }
+    std::process::exit(completed.code)
 }
 
 async fn shell(command: Option<String>) -> Result<u8, Box<dyn std::error::Error>> {

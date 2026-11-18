@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Read-only host capability evidence. Missing permission is unknown, never proof of absence.
-//! Child probes change only their private namespaces or disposable KVM state.
+//! Child probes change only their private namespaces or disposable KVM state; the kernel network
+//! policy probe makes, uses and removes one cgroup of its own.
 //!
 //! Parts (`probe/`):
 //! - `kernel.rs`: kernel ABI, namespaces, devices and the current cgroup.
@@ -89,9 +90,16 @@ pub async fn run() -> Report {
     report
 }
 
+/// Whether the process tier's programs attach here, proved with a disposable cgroup.
+fn kernel_network_policy(report: &mut Report) {
+    crate::capability::probe_phase("kernel-network-policy");
+    report.capabilities.insert(crate::bpf::CAPABILITY.into(), crate::bpf::capability(&crate::bpf::probe()));
+}
+
 /// Detailed standalone tier prerequisites, including distribution integrity.
 pub async fn tier_report() -> Report {
     let mut report = run().await;
+    kernel_network_policy(&mut report);
     tiers::read(&mut report);
     crate::capability::probe_phase("complete");
     report
@@ -100,6 +108,9 @@ pub async fn tier_report() -> Report {
 /// The same host evidence, with configured backend selection and preset restrictions applied.
 pub async fn for_config(config: &crate::config::Config) -> Report {
     let mut report = run().await;
+    if matches!(config.runtime, crate::config::RuntimeKind::Auto | crate::config::RuntimeKind::Process) {
+        kernel_network_policy(&mut report);
+    }
     let available = crate::runtime::configured::availability(config).await;
     let selected = match config.runtime {
         crate::config::RuntimeKind::Auto => None,

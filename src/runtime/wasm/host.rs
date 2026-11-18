@@ -74,6 +74,7 @@ pub(super) async fn start(
         telemetry,
         logs,
         forked: Default::default(),
+        retirement_nonce: Default::default(),
     });
     let mut servers = Vec::new();
     for listener in listeners(agent_binding).await? {

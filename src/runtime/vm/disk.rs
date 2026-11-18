@@ -71,10 +71,15 @@ fn remaining(deadline: Instant) -> Result<Duration, RuntimeError> {
 }
 
 fn room(path: &Path, floor: u64) -> Result<(), RuntimeError> {
+    room_for(path, floor, "VM disk preparation")
+}
+
+/// Refuses `work` unless the filesystem holding `path` has `floor` bytes available.
+pub fn room_for(path: &Path, floor: u64, work: &str) -> Result<(), RuntimeError> {
     match crate::host::disk(path) {
         Some((_, available)) if available >= floor => Ok(()),
-        Some(_) => Err(error("VM disk preparation reached the host's free-space floor")),
-        None => Err(error("VM disk preparation cannot measure available host storage")),
+        Some(_) => Err(error(format!("{work} reached the host's free-space floor"))),
+        None => Err(error(format!("{work} cannot measure available host storage"))),
     }
 }
 

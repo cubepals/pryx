@@ -27,6 +27,10 @@ use vm_boot::COMMAND_CGROUP as CGROUP;
 const WORK: &str = "/run/pryx-init";
 // Linux admin-guide/cgroup-v2.rst: populated=0 means no live process in this subtree.
 const EMPTY_CGROUP: &str = "populated 0";
+// The same document: cgroup.events says frozen=1 once every process under cgroup.freeze stopped.
+const FROZEN_CGROUP: &str = "frozen 1";
+/// How long a sleep waits for the workload to stop before it gives up and goes on running.
+const FREEZE_WAIT: Duration = Duration::from_secs(5);
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
@@ -99,6 +103,20 @@ fn validate(boot: &Boot) -> io::Result<()> {
     Ok(())
 }
 
+/// How much of a drive's identity a virtio block device reports as its serial: Linux's
+/// `VIRTIO_BLK_ID_BYTES` (include/uapi/linux/virtio_blk.h, the virtio specification's
+/// VIRTIO_BLK_T_GET_ID answer), which Firecracker truncates its identity to. No crate the agent
+/// uses exports it.
+const VIRTIO_BLK_ID_BYTES: usize = 20;
+
+/// The guest device whose serial is exactly the drive identity as virtio truncates it. Identities
+/// are undelimited numbers, so one can begin with another; only the whole serial names a drive.
+fn device<'a>(block: &'a BTreeMap<String, PathBuf>, id: &str) -> io::Result<&'a str> {
+    let serial =
+        id.get(..id.len().min(VIRTIO_BLK_ID_BYTES)).ok_or_else(|| invalid("Invalid VM block drive identity"))?;
+    block.get(serial).and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
+}
+
 fn devices() -> io::Result<BTreeMap<String, PathBuf>> {
     let mut devices = BTreeMap::new();
     // Linux drivers/block/virtio_blk.c installs serial on the disk's sysfs device.
@@ -150,14 +168,7 @@ fn prepare(boot: &Boot) -> io::Result<Disk> {
     work.mkdir("pryx-init")?;
     let work = DataDir::open(Path::new(WORK))?;
     let block = devices()?;
-    let device = |id: &str| {
-        let mut matches = block.iter().filter(|(serial, _)| !serial.is_empty() && id.starts_with(serial.as_str()));
-        let path = matches.next().map(|(_, path)| path);
-        if matches.next().is_some() {
-            return Err(invalid("VM kernel block serial is ambiguous"));
-        }
-        path.and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
-    };
+    let device = |id: &str| device(&block, id);
     filesystem(device(&boot.writes)?, Path::new("/write"), "ext4", MountFlags::NOSUID | MountFlags::NODEV, "")?;
     let sync = File::open("/write")?;
     let writes = DataDir::open(Path::new("/write"))?;
@@ -298,7 +309,36 @@ pub fn agent(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into())
 }
 
-async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
+/// Stops every process of the workload, the agent's included, before a sleep's flush, so nothing
+/// it writes after the flush is missing from the disk a cold boot would take, and nothing runs
+/// after a restore before the resume has stepped the clock and reseeded the kernel's generator.
+async fn freeze() -> io::Result<()> {
+    fs::write(Path::new(CGROUP).join("cgroup.freeze"), "1")?;
+    let until = tokio::time::Instant::now() + FREEZE_WAIT;
+    loop {
+        if fs::read_to_string(Path::new(CGROUP).join("cgroup.events"))?.lines().any(|line| line == FROZEN_CGROUP) {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= until {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "VM workload did not freeze"));
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+}
+
+/// Lets the workload run again; harmless when it isn't frozen.
+fn thaw() -> io::Result<()> {
+    fs::write(Path::new(CGROUP).join("cgroup.freeze"), "0")
+}
+
+/// Frozen, then flushed: a wake that can't restore boots this disk with everything written.
+async fn quiesce(disk: &Disk) -> io::Result<()> {
+    freeze().await?;
+    rustix::fs::syncfs(&disk.writes)?;
+    Ok(())
+}
+
+async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) -> crate::vm_sleep::End {
     match held {
         Some(held) => held.ended().await,
         None => std::future::pending().await,
@@ -352,12 +392,13 @@ async fn take_identity(
     })
 }
 
-/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume and,
-/// for a fork, its identity, acknowledged once applied; then a new network helper, since the
-/// restore reset the old one's packet transport.
+/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume, for a
+/// fork its identity, and the guest's redirects to the wake's own gateway ports, then the resume's
+/// acknowledgement and a new network helper, since the restore reset the old one's packet
+/// transport. Only then does the workload run again.
 async fn awake(
     resumed: crate::vm_sleep::Resumed,
-    configuration: Option<&vm_boot::Network>,
+    configuration: &mut Option<vm_boot::Network>,
     network: &mut Option<tokio::process::Child>,
     agent: Option<&mut tokio::process::ChildStdin>,
 ) -> io::Result<Option<Current>> {
@@ -366,11 +407,20 @@ async fn awake(
         Some(identity) => Some(take_identity(identity, agent).await?),
         None => None,
     };
+    if let (Some(gateways), Some(policy)) =
+        (resumed.resume.gateways, configuration.as_mut().and_then(|configuration| configuration.policy.as_mut()))
+    {
+        (policy.http.target, policy.tls.target, policy.dns.target) = (gateways.http, gateways.tls, gateways.dns);
+        crate::vm_firewall::replaced(configuration.as_ref().expect("a policy is a network's")).await?;
+        crate::vm_network::reset_connections().await?;
+    }
     resumed.acknowledge().await;
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
-        *network = crate::vm_network::start(configuration).await?;
+        *network = crate::vm_network::start(configuration.as_ref()).await?;
     }
+    // Only now: a woken workload finds its network up, its lease taken, as a booted one does.
+    thaw()?;
     eprintln!("{}", crate::vm_sleep::RESUMED_MARKER);
     Ok(next)
 }
@@ -385,6 +435,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         return Err("VM file service requires no image layers, no network and a read-only root".into());
     }
     let (sandbox, epoch, secret_env) = arguments.vm_identity();
+    // The network as this boot set it up, its redirects changed by each wake's gateways.
+    let mut configuration = boot.network;
     let encoded = boot
         .environment
         .iter()
@@ -396,12 +448,12 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     let mut current =
         Current { public_key: key.public_key(), key, nonce: boot.nonce.clone(), sandbox: sandbox.to_owned(), epoch };
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
-    if boot.network.is_none() {
+    if configuration.is_none() {
         crate::vm_firewall::disconnected().await?;
-    } else if let Some(network) = boot.network.as_ref().filter(|network| network.policy.is_some()) {
+    } else if let Some(network) = configuration.as_ref().filter(|network| network.policy.is_some()) {
         crate::vm_firewall::redirected(network).await?;
     }
-    let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
+    let mut network = crate::vm_network::start(configuration.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
     let mut sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
     let mut term = signal(SignalKind::terminate())?;
@@ -439,34 +491,51 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         error = crate::vm_network::failure(&mut network), if held.is_none() => return Err(error.into()),
         pending = sleep.receive(&guest), if held.is_none() => {
             let pending = pending?;
-            // Flushed first: a wake that can't restore boots this disk with everything written.
-            rustix::fs::syncfs(&disk.writes)?;
+            // Unacknowledged, the host gives up and the guest goes on running.
+            if let Err(problem) = quiesce(&disk).await {
+                eprintln!("VM sleep refused: {problem}");
+                thaw()?;
+                continue;
+            }
             match crate::vm_sleep::Held::dial().await {
                 Ok(hold) => {
                     held = Some(hold);
                     pending.acknowledge().await;
                 }
-                // Unacknowledged, the host gives up and the guest goes on running.
-                Err(problem) => eprintln!("VM sleep hold was refused: {problem}"),
+                Err(problem) => {
+                    eprintln!("VM sleep hold was refused: {problem}");
+                    thaw()?;
+                }
             }
         }
-        () = held_ended(&mut held) => {
+        end = held_ended(&mut held) => {
             held = None;
             // On the console, which the host keeps with the monitor's output: where a wake got to.
-            eprintln!("VM sleep hold ended; asking the host for this guest's resume");
+            eprintln!("VM sleep hold ended ({end:?}); asking the host for this guest's resume");
             match crate::vm_sleep::resumed(&guest).await {
                 Some(resumed) => {
-                    if let Some(next) = awake(resumed, boot.network.as_ref(), &mut network, agent.as_mut()).await? {
+                    if let Some(next) = awake(resumed, &mut configuration, &mut network, agent.as_mut()).await? {
                         current = next;
                     }
                     drop(sleep);
                     sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
                 }
-                None => eprintln!("VM sleep ended without a resume; this guest goes on where it was"),
+                None => {
+                    eprintln!("VM sleep ended without a resume; this guest goes on where it was");
+                    // A snapshot the host gave up after saving the devices' state reset the
+                    // packet transport too; the host's packet helper takes a new one.
+                    if end == crate::vm_sleep::End::Reset && configuration.is_some() {
+                        crate::vm_network::stop(network.take()).await?;
+                        network = crate::vm_network::start(configuration.as_ref()).await?;
+                    }
+                    thaw()?;
+                }
             }
         }
         }
     };
+    // A stop that came while a sleep held the workload still gives it its grace.
+    thaw()?;
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
         let signal = Signal::from_named_raw(stop.signal).ok_or("Invalid authenticated shutdown signal")?;
         let _ = rustix::process::kill_process_group(pid, signal);
@@ -573,6 +642,25 @@ mod tests {
         assert!(!writes.join("file-upper").exists());
         let (upper, overlay_work) = super::overlay_roots(&temporary, &persistent, false).unwrap();
         assert_eq!((upper.as_str(), overlay_work.as_str()), ("/write/upper", "/write/work"));
+    }
+    #[test]
+    fn a_drive_is_the_device_whose_serial_is_its_whole_truncated_identity() {
+        use std::{collections::BTreeMap, path::PathBuf};
+        // Firecracker's "{dev}{rdev}{ino}": the shorter identity begins the longer one.
+        let (short, long) = ("2050012345", "20500123456789");
+        // Past VIRTIO_BLK_ID_BYTES the device reports only the first twenty bytes.
+        let (truncated, whole) = ("12345678901234567890", "123456789012345678901234");
+        let block = BTreeMap::from([
+            (short.to_owned(), PathBuf::from("/dev/vda")),
+            (long.to_owned(), PathBuf::from("/dev/vdb")),
+            (truncated.to_owned(), PathBuf::from("/dev/vdc")),
+        ]);
+        assert_eq!(super::device(&block, short).unwrap(), "/dev/vda");
+        assert_eq!(super::device(&block, long).unwrap(), "/dev/vdb");
+        assert_eq!(super::device(&block, whole).unwrap(), "/dev/vdc");
+        // A configured identity that is only the beginning of a device's serial names no device.
+        assert!(super::device(&block, &truncated[..19]).is_err());
+        assert!(super::device(&block, "2050").is_err());
     }
     #[test]
     fn init_refuses_an_ordinary_host_before_any_mount() {

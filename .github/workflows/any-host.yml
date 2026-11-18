@@ -643,7 +643,8 @@ jobs:
           # K26: the server preset installed gVisor's pinned runsc and registered it with Docker;
           # a sandbox naming gvisor answers from gVisor's kernel, and one naming container doesn't.
           docker info --format '{{json .Runtimes}}' | tee "$RUNNER_TEMP/server-runtimes.json" | grep -q '"runsc"'
-          /opt/pryx/gvisor/runsc --version | tee -a "$GITHUB_STEP_SUMMARY"
+          runsc=$(docker info --format '{{json .Runtimes}}' | jq -er '.runsc.path')
+          "$runsc" --version | tee -a "$GITHUB_STEP_SUMMARY"
           gvisor_kernel=$(pryx run --image alpine:3.22 --isolation gvisor -- uname -r)
           container_kernel=$(pryx run --image alpine:3.22 --isolation container -- uname -r)
           echo "Server gvisor kernel: $gvisor_kernel; container kernel: $container_kernel" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -661,6 +662,11 @@ jobs:
           started=$(date +%s)
           PRYX_PYTHON="$RUNNER_TEMP/sdk-python/bin/python" bash deploy/server-vm-acceptance.sh
           echo "Root installed VM acceptance seconds: $(($(date +%s)-started))" | tee -a "$GITHUB_STEP_SUMMARY"
+      # K31: the server preset's own unit proved kernel network policy for process sandboxes.
+      # Its own step, after the VM's whatever that found, so neither hides the other.
+      - name: Kernel network policy in the installed server's pryxd
+        if: ${{ !cancelled() }}
+        run: sh deploy/server-network-policy.sh
       - name: Private-service diagnostics after failure
         if: failure()
         run: |
@@ -730,3 +736,26 @@ jobs:
           curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
           sh deploy/local-acceptance.sh | tee acceptance.txt
           cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+      # K27 side piece, evidence only: what aarch64 process tool and VM bundles would take, the
+      # aarch64 counterpart of each of the x86_64 bundles' pinned inputs fetched against the digest
+      # its upstream publishes, and run or resolved here (deploy/arm64_bundle_attempts.py), with
+      # the guest agent built for aarch64-unknown-linux-musl. docs/decisions.md records the answers.
+      - name: aarch64 tool and VM bundle attempts
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends musl-tools
+          rustup toolchain install
+          rustup target add aarch64-unknown-linux-musl
+          export CC_aarch64_unknown_linux_musl=musl-gcc CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          started=$(date +%s)
+          cargo build --locked -p pryx-agent --target aarch64-unknown-linux-musl || true
+          echo "aarch64 musl agent build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 deploy/arm64_bundle_attempts.py --agent target/aarch64-unknown-linux-musl/debug/pryx-agent \
+            | tee "$RUNNER_TEMP/arm64-bundle-attempts.jsonl"
+          cat "$RUNNER_TEMP/arm64-bundle-attempts.jsonl" >> "$GITHUB_STEP_SUMMARY"
