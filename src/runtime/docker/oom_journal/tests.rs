@@ -101,7 +101,7 @@ impl Fixture {
             let (source, current, mutations) = (source.clone(), current.clone(), mutations.clone());
             async move {
                 if request.uri().path().ends_with("/start") {
-                    assert!(request.uri().path().contains(ID), "mutations never use a reusable name");
+                    assert!(request.uri().path().ends_with(&format!("/containers/{ID}/start")));
                     mutations.fetch_add(1, Ordering::SeqCst);
                     if failed {
                         let status = if source.server_failure.load(Ordering::SeqCst) {
@@ -143,9 +143,13 @@ impl Fixture {
     }
 
     fn runtime(&self) -> DockerRuntime {
+        self.runtime_at(self.directory.path())
+    }
+
+    fn runtime_at(&self, state: &Path) -> DockerRuntime {
         let runtime = DockerRuntime::new(&self.socket).unwrap();
         let mut runtime = if self.journal.runc.load(Ordering::SeqCst) { runtime } else { runtime.gvisor() };
-        runtime.oom_journal = Some(Context { state: self.directory.path().into(), source: self.journal.clone() });
+        runtime.oom_journal = Some(Context { state: state.into(), source: self.journal.clone() });
         runtime
     }
 
@@ -366,6 +370,52 @@ async fn direct_gvisor_callers_and_unavailable_journals_keep_the_single_start_mu
 }
 
 #[tokio::test]
+async fn unsupported_receipt_ancestry_keeps_one_start_and_never_supplies_stale_evidence() {
+    use std::os::unix::fs::PermissionsExt;
+
+    for runc in [false, true] {
+        let fixture = Fixture::new(true, false, false);
+        fixture.journal.runc.store(runc, Ordering::SeqCst);
+        let state = fixture.directory.path().join("state");
+        std::fs::create_dir(&state).unwrap();
+        let mut held = receipt::Held::acquire(&state, ID).unwrap();
+        held.receipt.bound = Some(receipt::Bound {
+            started: "2026-11-17T10:00:00Z".into(),
+            boot: boot().unwrap(),
+            invocation: OLD.into(),
+        });
+        held.save().unwrap();
+        drop(held);
+        fixture.oom(OLD);
+        assert!(fixture.runtime_at(&state).inspect(ID).await.unwrap().unwrap().oom_killed);
+        let path = state.join("docker-oom").join(format!("{ID}.json"));
+        let previous = std::fs::read(&path).unwrap();
+        let syncs = fixture.journal.syncs.load(Ordering::SeqCst);
+        fixture.journal.reuse_started.store(true, Ordering::SeqCst);
+        // The ancestor is ours, so this exercises the authority guard without root or chown.
+        std::fs::set_permissions(fixture.directory.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(!receipt::supported(&state).unwrap());
+        fixture.runtime_at(&state).start("owned").await.unwrap();
+        assert_eq!(fixture.calls.load(Ordering::SeqCst), 1);
+        assert!(
+            !fixture.runtime_at(&state).inspect(ID).await.unwrap().unwrap().oom_killed,
+            "a fresh backend cannot consume the previous positive receipt through unsupported ancestry"
+        );
+        assert_eq!(fixture.journal.syncs.load(Ordering::SeqCst), syncs);
+        assert_eq!(std::fs::read(path).unwrap(), previous);
+        std::fs::set_permissions(fixture.directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn an_unknown_receipt_authority_error_refuses_the_start_before_mutation() {
+    let fixture = Fixture::new(true, false, false);
+    let missing = fixture.directory.path().join("missing");
+    assert!(matches!(fixture.runtime_at(&missing).start("owned").await, Err(RuntimeError::Unavailable(_))));
+    assert_eq!(fixture.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn a_successful_start_with_reused_wall_time_cannot_inherit_the_old_oom() {
     for (unavailable, crash_gap) in [(true, false), (false, false), (true, true), (false, true)] {
         let fixture = Fixture::new(false, false, false);
@@ -435,4 +485,87 @@ fn relative_state_roots_keep_the_existing_configuration_contract() {
     *runtime.info.lock().unwrap() = Some(crate::runtime::RuntimeInfo { podman: true, ..Default::default() });
     assert!(runtime.journal_context().is_none(), "Podman's native lifecycle keeps its existing path");
     assert_eq!(runtime.oom_journal.unwrap().state, std::env::current_dir().unwrap().join("./state"));
+}
+
+fn native_store() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("logs").join("journal");
+    let machine = root.join(NEW);
+    std::fs::create_dir_all(&machine).unwrap();
+    for directory in [&root, &machine] {
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let file = machine.join("system.journal");
+    std::fs::write(&file, b"owned fixture").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o640)).unwrap();
+    (temporary, root, machine, file)
+}
+
+#[test]
+fn native_file_authority_pins_protected_files_below_writable_ancestors() {
+    use std::os::{fd::AsRawFd, unix::fs::PermissionsExt};
+    let (temporary, root, _, _) = native_store();
+    let owner = rustix::process::geteuid().as_raw();
+    std::fs::set_permissions(root.parent().unwrap(), std::fs::Permissions::from_mode(0o775)).unwrap();
+    let empty = temporary.path().join("runtime");
+    std::fs::create_dir(&empty).unwrap();
+    std::fs::set_permissions(&empty, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let files = reader::journal_files(&[&empty, &root], owner).unwrap();
+    assert_eq!(files.len(), 1);
+    assert!(reader::journal_files(&[&root], owner.checked_add(1).unwrap()).is_err());
+    std::fs::rename(&root, root.with_extension("retired")).unwrap();
+    std::fs::create_dir(&root).unwrap();
+    let descriptor = format!("/proc/{}/fd/{}", std::process::id(), files[0].as_raw_fd());
+    assert_eq!(std::fs::read(descriptor).unwrap(), b"owned fixture");
+    assert!(reader::journal_files(&[&empty, &root], owner).is_err(), "empty sets never select default journals");
+}
+
+#[test]
+fn native_file_authority_refuses_writable_and_linked_files() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let (temporary, root, _, file) = native_store();
+    let owner = rustix::process::geteuid().as_raw();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o660)).unwrap();
+    assert!(reader::journal_files(&[&root], owner).is_err());
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let target = temporary.path().join("replacement");
+    std::fs::rename(&file, &target).unwrap();
+    symlink(&target, &file).unwrap();
+    assert!(reader::journal_files(&[&root], owner).is_err());
+    std::fs::remove_file(&file).unwrap();
+    std::fs::hard_link(&target, &file).unwrap();
+    assert!(reader::journal_files(&[&root], owner).is_err());
+}
+
+#[test]
+fn native_file_authority_refuses_writable_and_linked_directories() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let (temporary, root, machine, _) = native_store();
+    let owner = rustix::process::geteuid().as_raw();
+    std::fs::set_permissions(&machine, std::fs::Permissions::from_mode(0o775)).unwrap();
+    assert!(reader::journal_files(&[&root], owner).is_err());
+    std::fs::set_permissions(&machine, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let target = temporary.path().join("machine");
+    std::fs::rename(&machine, &target).unwrap();
+    symlink(&target, &machine).unwrap();
+    assert!(reader::journal_files(&[&root], owner).is_err());
+    let alias = temporary.path().join("alias");
+    symlink(root.parent().unwrap(), &alias).unwrap();
+    assert!(reader::journal_files(&[&alias.join("journal")], owner).is_err());
+}
+
+#[test]
+fn native_file_authority_merges_both_stores_and_bounds_descriptors() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_first, root, machine, _) = native_store();
+    let (_second, other, _, _) = native_store();
+    let owner = rustix::process::geteuid().as_raw();
+    assert_eq!(reader::journal_files(&[&root, &other], owner).unwrap().len(), 2);
+    for number in 0..64 {
+        let file = machine.join(format!("system@{number}.journal"));
+        std::fs::write(&file, b"bounded fixture").unwrap();
+        std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o640)).unwrap();
+    }
+    assert!(reader::journal_files(&[&root], owner).is_err());
 }

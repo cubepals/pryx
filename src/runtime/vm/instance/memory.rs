@@ -252,14 +252,31 @@ impl VmRuntime {
             // writing the files: it is retired, and the files go only once it has exited.
             let resumed = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
             drop(hold);
-            if let Err(unresumed) = resumed {
+            let recovered = async {
+                resumed?;
+                // Running vCPUs do not confirm that init has ended its resume wait, rebuilt
+                // the reset network transport and thawed the agent's workload cgroup.
+                let deadline = Instant::now() + GUEST_TIMEOUT;
+                tokio::time::timeout_at(deadline, launch::ready(&mut live.monitor, &entry.spec, deadline))
+                    .await
+                    .map_err(|_| RuntimeError::Timeout("VM agent did not recover after a failed snapshot".into()))??;
+                if live.monitor.exited().map_err(error)?.is_some() {
+                    return Err(error("VM monitor exited during snapshot recovery"));
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(unrecovered) = recovered {
                 live.killing = true;
                 let killed = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill()).await;
-                if matches!(killed, Ok(Ok(()))) {
+                let retirement = if matches!(killed, Ok(Ok(()))) {
                     let _ = fs::remove_file(&state);
                     let _ = fs::remove_file(&memory);
-                }
-                return Err(error(format!("{problem}; its resume failed too, so the guest was retired: {unresumed}")));
+                    "the guest was retired"
+                } else {
+                    "monitor retirement remains unconfirmed and its lease is retained"
+                };
+                return Err(error(format!("{problem}; its recovery failed too: {unrecovered}; {retirement}")));
             }
             let _ = fs::remove_file(&state);
             let _ = fs::remove_file(&memory);

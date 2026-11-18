@@ -5132,8 +5132,9 @@ job when publication is authorized. That job has not run in this task.
   invocation when the current start is missing, suppressed or ambiguous. Ordinary Docker
   evidence remains available on rootless and non-systemd hosts. Private receipt corruption
   refuses a new transaction when invalidation cannot be made durable. Every managed attempt
-  first tombstones its prior proof, even without capture; a successful or ambiguous start
-  clears that proof when realtime reuses StartedAt. Source/API controls cover
+  through trusted receipt storage first tombstones its prior proof, even without capture;
+  unsupported ancestry keeps engine admission and cannot supply journal evidence. A successful
+  or ambiguous start clears trusted prior proof when realtime reuses StartedAt. Source/API controls cover
   missing engine evidence, clock rollback, queued old starts, generation changes, failed starts,
   confirmed-binding recovery, unknown crash gaps/journals, malformed records, authority and receipt retirement. The
   physical acceptance keeps all ten gVisor OOM trials and a fresh backend after each, using the

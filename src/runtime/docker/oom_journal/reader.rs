@@ -3,7 +3,18 @@
 //! journalctl synchronizer drains queued input before acknowledging the causal barrier.
 use super::{RuntimeError, failure, valid_hex};
 use async_trait::async_trait;
-use std::{path::Path, process::Stdio, sync::Arc, time::Duration};
+use rustix::fs::{Mode, OFlags};
+use std::{
+    fs::{File, Metadata, OpenOptions},
+    os::{
+        fd::AsRawFd,
+        unix::fs::{MetadataExt, OpenOptionsExt},
+    },
+    path::{Component, Path, PathBuf},
+    process::Stdio,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::io::AsyncReadExt;
 
 // systemd v255 src/systemd/sd-messages.h, UNIT_STARTED and UNIT_OUT_OF_MEMORY.
@@ -21,8 +32,129 @@ pub(super) trait Source: Send + Sync {
 
 pub(super) struct Native;
 
+// systemd v255 sd-journal.c opens system.journal and system@*.journal[~] in each
+// default-namespace machine directory. Bound the metadata walk and inherited authority set.
+const ENTRIES: usize = 128;
+const FILES: usize = 64;
+const STORES: [&str; 2] = ["/run/log/journal", "/var/log/journal"];
+
+fn anchored(file: &File) -> PathBuf {
+    PathBuf::from(format!("/proc/{}/fd/{}", std::process::id(), file.as_raw_fd()))
+}
+
+fn owned(metadata: &Metadata, owner: u32) -> bool {
+    metadata.uid() == owner && metadata.mode() & 0o022 == 0
+}
+
+fn directory(path: &Path, owner: u32) -> Result<Option<File>, RuntimeError> {
+    // Never follow an input link, even in an ancestor. Group-writable /var/log is
+    // legitimate: authority comes from the protected leaf and pinned journal files.
+    if !path.is_absolute() {
+        return Err(failure("journal directory must be absolute"));
+    }
+    let mut held = File::open("/").map_err(|_| failure("cannot open journal root"))?;
+    for part in path.components() {
+        let Component::Normal(part) = part else {
+            if part == Component::RootDir {
+                continue;
+            }
+            return Err(failure("journal directory is not an absolute normal path"));
+        };
+        let next = match rustix::fs::openat(
+            &held,
+            part,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        ) {
+            Ok(fd) => File::from(fd),
+            Err(rustix::io::Errno::NOENT) => return Ok(None),
+            Err(_) => return Err(failure("cannot open an unlinked journal directory")),
+        };
+        let metadata = next.metadata().map_err(|_| failure("cannot inspect journal directory"))?;
+        if !metadata.is_dir() || (metadata.uid() != owner && metadata.uid() != 0) {
+            return Err(failure("journal directory has another owner"));
+        }
+        held = next;
+    }
+    let metadata = held.metadata().map_err(|_| failure("cannot inspect journal directory"))?;
+    if !owned(&metadata, owner) {
+        return Err(failure("journal directory is writable by another owner"));
+    }
+    Ok(Some(held))
+}
+
+fn journal_name(name: &str) -> bool {
+    (name == "system.journal" || name == "system.journal~")
+        || (name.starts_with("system@") && (name.ends_with(".journal") || name.ends_with(".journal~")))
+}
+
+fn files_in(directory: &File, owner: u32, files: &mut Vec<File>, entries: &mut usize) -> Result<(), RuntimeError> {
+    let path = anchored(directory);
+    for entry in std::fs::read_dir(&path).map_err(|_| failure("cannot enumerate system journals"))? {
+        *entries += 1;
+        if *entries > ENTRIES {
+            return Err(failure("journal metadata walk exceeded its bound"));
+        }
+        let entry = entry.map_err(|_| failure("cannot inspect system journal entry"))?;
+        if !entry.file_name().to_str().is_some_and(journal_name) {
+            continue;
+        }
+        if files.len() == FILES {
+            return Err(failure("system journal file set exceeded its bound"));
+        }
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+            .open(entry.path())
+            .map_err(|_| failure("cannot open an unlinked system journal"))?;
+        let metadata = file.metadata().map_err(|_| failure("cannot inspect system journal file"))?;
+        if !metadata.is_file() || !owned(&metadata, owner) || metadata.nlink() != 1 {
+            return Err(failure("system journal file is not protected"));
+        }
+        files.push(file);
+    }
+    Ok(())
+}
+
+pub(super) fn journal_files(paths: &[&Path], owner: u32) -> Result<Vec<File>, RuntimeError> {
+    let mut files = Vec::new();
+    let mut entries = 0;
+    for path in paths {
+        let Some(root) = directory(path, owner)? else { continue };
+        files_in(&root, owner, &mut files, &mut entries)?;
+        for entry in std::fs::read_dir(anchored(&root)).map_err(|_| failure("cannot enumerate journal machines"))? {
+            entries += 1;
+            if entries > ENTRIES {
+                return Err(failure("journal metadata walk exceeded its bound"));
+            }
+            let entry = entry.map_err(|_| failure("cannot inspect journal machine entry"))?;
+            if !entry.file_name().to_str().is_some_and(|name| valid_hex(name, 32)) {
+                continue;
+            }
+            // proc's intentional FD anchor pins the already-open parent. The directory
+            // entry itself is opened relative to that FD without following any link.
+            let child = rustix::fs::openat(
+                &root,
+                entry.file_name(),
+                OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map(File::from)
+            .map_err(|_| failure("cannot open an unlinked journal machine"))?;
+            let metadata = child.metadata().map_err(|_| failure("cannot inspect journal machine"))?;
+            if !metadata.is_dir() || !owned(&metadata, owner) {
+                return Err(failure("journal machine is not protected"));
+            }
+            files_in(&child, owner, &mut files, &mut entries)?;
+        }
+    }
+    if files.is_empty() {
+        return Err(failure("no protected system journal files are available"));
+    }
+    Ok(files)
+}
+
 fn binary() -> Result<std::path::PathBuf, RuntimeError> {
-    use std::os::unix::fs::MetadataExt;
     if !rustix::process::geteuid().is_root() {
         return Err(failure("requires the native root system journal"));
     }
@@ -35,18 +167,6 @@ fn binary() -> Result<std::path::PathBuf, RuntimeError> {
     let host = std::fs::metadata("/proc/1/ns/pid").map_err(|_| failure("cannot inspect PID 1 namespace"))?;
     if ours.dev() != host.dev() || ours.ino() != host.ino() {
         return Err(failure("requires the system manager PID namespace"));
-    }
-    for directory in ["/run/log", "/var/log"] {
-        let path = Path::new(directory).join("journal");
-        if path.exists() {
-            for ancestor in path.ancestors() {
-                let metadata = std::fs::symlink_metadata(ancestor)
-                    .map_err(|_| failure("cannot authenticate system journal directory"))?;
-                if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
-                    return Err(failure("system journal directory is not protected"));
-                }
-            }
-        }
     }
     ["/usr/bin/journalctl", "/bin/journalctl"]
         .iter()
@@ -73,11 +193,21 @@ async fn native_version() -> Result<std::path::PathBuf, RuntimeError> {
 impl Source for Native {
     async fn available(&self) -> Result<(), RuntimeError> {
         let binary = native_version().await?;
+        let _files = journal_files(&STORES.map(Path::new), 0)?;
         execute(&binary, &["--system".into(), "--sync".into()]).await.map(|_| ())
     }
 
     async fn run(&self, args: &[String]) -> Result<Vec<u8>, RuntimeError> {
-        execute(&native_version().await?, args).await
+        let binary = native_version().await?;
+        if args.iter().any(|arg| arg == "--sync") {
+            return execute(&binary, args).await;
+        }
+        let files = journal_files(&STORES.map(Path::new), 0)?;
+        let mut selected = args.iter().filter(|arg| arg.as_str() != "--system").cloned().collect::<Vec<_>>();
+        // v255 journalctl's repeated --file options feed sd_journal_open_files, which
+        // merges this exact FD set and disables discovery of any additional files.
+        selected.extend(files.iter().map(|file| format!("--file={}", anchored(file).display())));
+        execute(&binary, &selected).await
     }
 }
 

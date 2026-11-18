@@ -11,7 +11,6 @@
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
 //! - `oom.rs`: container/start-scoped authenticated Docker OOM evidence.
 //! - `oom_journal.rs`: durable systemd invocation binding and OOM receipts.
-//! - `oom_journal/`: bounded journal authority, receipt storage and causal controls.
 //! - `start.rs`: one engine mutation with durable generation binding.
 //! - `remove.rs`: container retirement and owned receipt cleanup.
 //! - `ownership.rs`: read-only proof of host data identity mapping.

@@ -68,6 +68,10 @@ impl DockerRuntime {
 }
 
 impl Context {
+    pub(super) fn can_capture(&self) -> Result<bool, RuntimeError> {
+        receipt::supported(&self.state)
+    }
+
     pub(super) async fn available(&self) -> Result<(), RuntimeError> {
         self.source.available().await
     }
@@ -163,6 +167,9 @@ impl Context {
     }
 
     pub(super) async fn retire(&self, id: &str) -> Result<(), RuntimeError> {
+        if !self.can_capture()? {
+            return Ok(());
+        }
         for attempt in 0..100 {
             match receipt::retire(&self.state, id) {
                 Err(RuntimeError::Conflict(_)) if attempt < 99 => {
@@ -175,7 +182,10 @@ impl Context {
     }
 
     pub(super) async fn inspect(&self, runtime: &DockerRuntime, info: &mut ContainerInfo) -> Result<(), RuntimeError> {
-        if info.oom_killed || !matches!(info.status, ContainerStatus::Exited | ContainerStatus::Dead) {
+        if info.oom_killed
+            || !matches!(info.status, ContainerStatus::Exited | ContainerStatus::Dead)
+            || !self.can_capture()?
+        {
             return Ok(());
         }
         let held = self.acquire(&info.id).await?;

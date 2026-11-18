@@ -39,7 +39,7 @@ pub(in crate::runtime::docker) struct Held {
     pub(super) receipt: Receipt,
 }
 
-fn protected(path: &Path, directory: bool, private: bool) -> Result<(), RuntimeError> {
+fn authority(path: &Path, directory: bool, private: bool) -> Result<bool, RuntimeError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|_| failure("cannot inspect receipt authority"))?;
     let owner = rustix::process::geteuid().as_raw();
     if (directory && !metadata.is_dir())
@@ -51,17 +51,32 @@ fn protected(path: &Path, directory: bool, private: bool) -> Result<(), RuntimeE
             && !(metadata.is_dir() && metadata.uid() == 0 && metadata.mode() & libc::S_ISVTX != 0))
         || (!directory && metadata.nlink() != 1)
     {
-        return Err(failure("receipt storage must be private, owned and free of links"));
+        return Ok(false);
     }
-    Ok(())
+    Ok(true)
 }
 
-fn directory(state: &Path) -> Result<PathBuf, RuntimeError> {
+fn protected(path: &Path, directory: bool, private: bool) -> Result<(), RuntimeError> {
+    authority(path, directory, private)?
+        .then_some(())
+        .ok_or_else(|| failure("receipt storage must be private, owned and free of links"))
+}
+
+pub(super) fn supported(state: &Path) -> Result<bool, RuntimeError> {
     if !state.is_absolute() {
         return Err(failure("receipt state directory must be absolute"));
     }
     for ancestor in state.ancestors() {
-        protected(ancestor, true, false)?;
+        if !authority(ancestor, true, false)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn directory(state: &Path) -> Result<PathBuf, RuntimeError> {
+    if !supported(state)? {
+        return Err(failure("receipt storage must be private, owned and free of links"));
     }
     let directory = state.join("docker-oom");
     match std::fs::DirBuilder::new().mode(0o700).create(&directory) {

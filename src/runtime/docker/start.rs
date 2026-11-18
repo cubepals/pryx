@@ -27,7 +27,9 @@ async fn journal_start(runtime: &DockerRuntime, name: &str) -> Result<(), Runtim
     }
     let before = info_from(before);
     let mut capture = None;
-    if let Some(context) = runtime.journal_context() {
+    if let Some(context) = runtime.journal_context()
+        && context.can_capture()?
+    {
         match context.begin(&before).await {
             Ok(held) => capture = Some(held),
             Err(error) => return Err(error),
