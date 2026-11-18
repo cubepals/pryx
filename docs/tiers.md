@@ -87,7 +87,8 @@ configurations are not a capacity claim or replacement for the product's normal 
 overcommit lets fifty idle 100-CPU-millis sandboxes fit the four-core runner; the reports record it. Node memory capacity uses the actual host with its normal reservation;
 fifty idle sandboxes request 12,800 MiB on the observed 16 GiB-class runner.
 Enforcement differs:
-container uses cgroups, process uses native limits and priority, and wasm uses virtual heap/process
+container uses cgroups, process uses a cgroup of its own where the host delegates one and native
+limits and priority otherwise, and wasm uses virtual heap/process
 bounds in a shared worker without a per-VM CPU-rate quota. Equal requests do not imply identical
 host enforcement.
 
@@ -307,11 +308,11 @@ the host kernel's own.
 | Shell | Static agent fallback | Static agent fallback | Static agent shell | Static agent shell | Verified agentOS coreutils shell | The image's shell |
 | Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, policed in the kernel where `kernel-network-policy` is on, otherwise mutually trusted Internet workloads | The same Landlock, seccomp and limits inside its own user, mount, PID and IPC namespaces, a private /tmp, and its own empty network for network none; otherwise the host's network, policed as the plain mode's | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
 | Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
-| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
+| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Where pryxd's cgroup is delegated, the sandbox's own cgroup quota (`cpu-limit`, [process-tier.md](process-tier.md#limits)); elsewhere admission reservation and best-effort nice, a ceiling refused; weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
 | Sleep retains files | Yes | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
 | Egress policy | Bridge firewall (`host-firewall` with root's firewall loaded); hostname egress through host gateways | The container's bridge firewall; hostname egress refused | Where `kernel-network-policy` is on (root, the server preset's unit included, or CAP_BPF and CAP_NET_ADMIN with a delegated cgroup): per-sandbox cgroup programs give `host-firewall`, hostname egress, address rules and, from other machines, only the published ports ([bpf.md](bpf.md)); elsewhere only `network: none` | As the plain process mode, the same programs on its cgroup | `network: none`; hostname egress refused | Guest firewall and host-owned gateways ([vm.md](vm.md)) |
 | Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | Host TCP according to policy; none with network none, whose agent answers on listeners the node passes in | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
-| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | As an ordinary user, yes: the guest's memory is written beside its disk and restored on a host of the same class; otherwise the guest stops and boots again |
+| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Its cgroup frozen where it has one, else a suspended process group | As the plain process mode | No; VM is disposed and recreated | As an ordinary user, yes: the guest's memory is written beside its disk and restored on a host of the same class; otherwise the guest stops and boots again |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.

@@ -1,11 +1,51 @@
 <!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
 # Process isolation
 
-The release image runs the process tier when no usable Docker socket is present. It writes
-no cgroup and requires no host privilege. It has two modes, chosen by the host, never by a
-request: where the host lets the sandbox's user create user namespaces, each sandbox starts in
-namespaces of its own (below); elsewhere, as in a default `docker run`, it creates no user,
-mount, PID or network namespace, exactly as before K26.
+The release image runs the process tier when no usable Docker socket is present. It requires
+no host privilege. It has two modes, chosen by the host, never by a request: where the host lets
+the sandbox's user create user namespaces, each sandbox starts in namespaces of its own (below);
+elsewhere, as in a default `docker run`, it creates no user, mount, PID or network namespace,
+exactly as before K26. Independently, where the host delegates cgroup v2 controllers to pryxd,
+each sandbox gets a cgroup of its own whose limits the kernel enforces ([Limits](#limits)); where
+it doesn't, as in a default `docker run`, pryx writes no cgroup.
+
+## Limits
+
+Where pryxd's cgroup can give its children the `memory` and `cpu` controllers (and `pids`), each
+process sandbox runs in a cgroup of its own below it, `pryx-<key>`, the one its network policy's
+programs attach to as well ([bpf.md](bpf.md)). Before its supervisor joins it, pryxd writes and
+reads back:
+
+| File | From | Means |
+| --- | --- | --- |
+| `memory.max`, `memory.swap.max` 0 | `resources.memoryMb` | The kernel's hard limit, with no swap beyond it, as a container's. Past it the kernel reclaims, then OOM-kills inside the sandbox's cgroup only |
+| `cpu.max` | `resources.cpuMillis`, when asked | A ceiling: that many thousandths of a CPU per 100 ms period |
+| `pids.max` | `resources.pidsLimit` or the node's default | Processes and threads in the sandbox, whatever their user |
+
+A sandbox runs with exactly these or not at all. The tier then announces `memory-limit` and
+`cpu-limit`, and each sandbox reports what it started with: one started before its host delegated
+the controllers reports them off until it starts again. The agent's sampled resident budget is set
+past reach there, since summing resident pages counts shared ones more than once and would kill a
+sandbox the kernel lets run. Stats come from the cgroup: memory charged, CPU time, throttled
+periods and process count. `resources.cpuWeight` stays a container's: it is refused on this tier.
+
+Where they are delegated:
+
+| pryxd runs | Its cgroup |
+| --- | --- |
+| As the server preset's unit, as root | The unit's own (`Delegate=yes`): memory, cpu and pids |
+| As the user preset's unit, an ordinary user | The user service's own (`Delegate=yes`), with what systemd gives users: memory and pids, and cpu from systemd 252 |
+| In a default `docker run`, or from a shell | None: off, with the reason |
+
+cgroup v2 lets a cgroup give its children controllers only while it holds no process of its own,
+so pryx's processes live in the `pryx-daemon` leaf of that cgroup: both units name it
+(`DelegateSubgroup=pryx-daemon`, systemd 254 and later); before that, pryxd moves itself there
+when it is its cgroup's only process, and never moves another. Where none of this holds,
+`process-limits` in `pryx doctor` and the node's host document is off with what is missing and
+what turns it on, the tier announces neither guarantee, memory stays the sampled budget below,
+and a request naming `resources.cpuMillis` is refused naming `cpu-limit`. Control places a CPU
+ceiling only on a tier announcing `cpu-limit`, and a deployment requiring `memory-limit` only on
+one announcing it.
 
 ## Two modes
 
@@ -73,16 +113,16 @@ denied. clone3 returns ENOSYS so libc can use the checked clone fallback. no_new
 prevents setuid executables gaining privileges. The existing platform seccomp policy stays active.
 
 Host policy fixes rlimits for virtual address space, descriptors, per-UID processes and CPU
-time per process, not an aggregate tree CPU allowance. The virtual ceiling allows V8's large
-virtual reservations; it is separate from the resident budget. Nice is a best-effort process
-priority, not a per-sandbox CPU weight or quota. A process spec requesting `resources.cpuMillis`
-or `resources.cpuWeight` is refused with 422 before compute starts. Use a container host for
-those controls. Units reserve `cpuReservationMillis` for admission; stats report no enforced
-CPU ceiling for this tier. The agent samples the
-entire descendant tree's RSS every 100 ms and kills it when its memory budget is exceeded.
-This is not a hard memory cap: allocations can overshoot between samples, and shared pages
-may be counted more than once. Admission uses the enclosing container's readable memory
-allowance, not unrestricted host RAM. The enclosing platform's own memory limit still applies.
+time per process, beside the cgroup's limits where it has them. The virtual ceiling allows V8's
+large virtual reservations; it is separate from the resident budget. Nice is a best-effort
+process priority, not a per-sandbox CPU weight. `resources.cpuWeight` is refused with 422 before
+compute starts, and so is `resources.cpuMillis` where the sandbox's cgroup can't hold it
+([Limits](#limits)). Units reserve `cpuReservationMillis` for admission. Without a cgroup's
+`memory.max`, the agent samples the entire descendant tree's RSS every 100 ms and kills it when
+its memory budget is exceeded. That is not a hard memory cap: allocations can overshoot between
+samples, and shared pages may be counted more than once. Admission uses the enclosing
+container's readable memory allowance, not unrestricted host RAM. The enclosing platform's own
+memory limit still applies.
 
 Existing native specifications naming a CPU ceiling must be recreated as unit/admission-only
 specifications before restarting. Explicit hard-limit requests are never silently downgraded
@@ -123,8 +163,11 @@ A shared UID, a matching port, or an owned listener on a different address canno
 a foreign peer. This worker never executes guest code and exposes no general filesystem or
 network request interface. This protects agent forwarding, not direct guest TCP connections.
 
-Sleep stops the tree with SIGSTOP and retains memory. Wake sends SIGCONT. Stop sends TERM,
-then KILL after the configured grace. Signals use checked kernel start identities and pidfds.
+Sleep retains memory. A sandbox with a cgroup of its own is frozen whole (`cgroup.freeze`, so
+nothing forks past it) and thawed on wake; one without has its tree stopped with SIGSTOP and
+continued with SIGCONT. Stop thaws it, sends TERM, then KILL after the configured grace; a kill
+of a sandbox with a cgroup is `cgroup.kill`, asleep or not, and whatever is left in its cgroup
+once its supervisor is gone is killed before the cgroup is removed. Signals use checked kernel start identities and pidfds.
 The supervisor adopts descendants; snapshot, fork, export and restore copy data with the same
 safe filesystem walk as the container tier. Private signing material and runtime journals
 are excluded. A daemon restart adopts surviving supervisors; a platform container restart
