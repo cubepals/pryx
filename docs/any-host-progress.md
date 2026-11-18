@@ -5190,3 +5190,8 @@ job when publication is authorized. That job has not run in this task.
   compatibility cases, estimated under thirty seconds.
 
 - K27 follow-up local validation: `cargo test --locked -p pryxd` passes 475 tests with the verified pinned agentOS fixture. The workspace run passes 101 agent checks before four unchanged monitor-confinement tests fail on this computer's incompatible Landlock access support; this is not a full workspace pass. The new real-KVM restore cases and installed acceptance remain for the branch workflows.
+
+- K26 DNS review is applied to the current any-host base: gVisor bridge containers bind a
+  read-only resolver file with reachable host upstreams instead of Docker's embedded resolver.
+  Field parsing preserves legal nameserver comments and rejects concatenated directives.
+  Fresh branch proof remains required before landing; the earlier K26 runs above are historical.

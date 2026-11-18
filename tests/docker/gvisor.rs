@@ -77,6 +77,25 @@ pub(super) async fn hostname_egress_refused() {
     assert!(made.is_err() && said.contains("egress"), "a hostname policy is refused on gvisor: {said}");
 }
 
+/// A sandbox on the internet names and reaches a public host on either engine tier: on gvisor
+/// through the host's upstream resolvers, since Docker's embedded resolver is out of its reach.
+#[tokio::test]
+#[ignore = "needs Docker and the internet"]
+async fn a_sandbox_on_the_internet_resolves_and_fetches_a_public_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let m = daemon(dir.path(), &dep);
+    m.reconcile(Records::FromDisk).await;
+    m.ensure(id("dns"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
+    m.start(id("dns"), None).await.unwrap();
+    let fetch = "nslookup example.com && wget -q -O /dev/null http://example.com/";
+    let request = ExecRequest { command: vec!["sh".into(), "-c".into(), fetch.into()], timeout_seconds: 30 };
+    let out = m.exec(id("dns"), request, None, None).await.unwrap();
+    assert_eq!(out.exit_code, Some(0), "{out:?}");
+    cleanup(&m, &["dns"]).await;
+}
+
 /// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
 /// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
 /// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! The gvisor tier's part of the Docker backend: the runtime name it starts containers with, why
-//! an engine can't serve it, and which containers and events of the one engine are whose.
+//! an engine can't serve it, which containers and events of the one engine are whose, and the
+//! resolvers its sandboxes ask.
 use crate::runtime::RuntimeInfo;
 
 /// The name gVisor's own installer (`runsc install`) registers its runtime under in the engine.
@@ -78,9 +79,81 @@ pub(super) async fn thaw_for_stop(
     Ok(())
 }
 
+/// systemd-resolved's list of the host's own upstream servers: /etc/resolv.conf names its stub.
+const RESOLVED_UPSTREAM: &str = "/run/systemd/resolve/resolv.conf";
+const HOST_RESOLV_CONF: &str = "/etc/resolv.conf";
+/// resolv.conf(5): the resolver uses at most this many nameservers (MAXNS).
+const MAXNS: usize = 3;
+pub(crate) const RESOLVER_PROBLEM: &str = "gvisor needs a resolver its sandboxes can reach: the host names only loopback resolvers; name a reachable upstream in /etc/resolv.conf";
+
+/// The resolv.conf a gvisor sandbox on a bridge gets, from the host's: Docker's embedded resolver
+/// (127.0.0.11) answers only through rules gVisor's network stack never sees, so the sandbox asks
+/// the host's upstream resolvers directly, as Docker's default bridge does. Loopback servers are
+/// the host's own and unreachable from the sandbox; IPv4 servers go first. None left, none.
+fn sandbox_resolv_conf(host: &str) -> Option<String> {
+    let mut servers: Vec<std::net::IpAddr> = host
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            if fields.next()? != "nameserver" {
+                return None;
+            }
+            fields.next()?.parse().ok()
+        })
+        .filter(|server: &std::net::IpAddr| !server.is_loopback())
+        .collect();
+    servers.sort_by_key(std::net::IpAddr::is_ipv6);
+    servers.truncate(MAXNS);
+    if servers.is_empty() {
+        return None;
+    }
+    let kept = host.lines().filter(|line| line.starts_with("search ") || line.starts_with("options "));
+    let lines = servers.iter().map(|server| format!("nameserver {server}")).chain(kept.map(str::to_owned));
+    Some(lines.map(|line| line + "\n").collect())
+}
+
+/// Writes the sandbox's resolv.conf beside its data, in its workload's directory, and returns it
+/// for a read-only bind at /etc/resolv.conf, which Docker then leaves to it.
+pub(super) fn resolv_conf_for(data_dir: &std::path::Path) -> Result<std::path::PathBuf, crate::runtime::RuntimeError> {
+    let conf = [RESOLVED_UPSTREAM, HOST_RESOLV_CONF]
+        .into_iter()
+        .find_map(|path| std::fs::read_to_string(path).ok().and_then(|host| sandbox_resolv_conf(&host)))
+        .ok_or_else(|| crate::runtime::RuntimeError::Other(RESOLVER_PROBLEM.into()))?;
+    let workload = data_dir
+        .parent()
+        .ok_or_else(|| crate::runtime::RuntimeError::Other("data has no workload directory".into()))?;
+    let path = workload.join("resolv.conf");
+    crate::durable::write_atomic(&path, conf.as_bytes(), 0o644)
+        .map_err(|error| crate::runtime::RuntimeError::Other(format!("gvisor resolv.conf: {error}")))?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sandbox_asks_the_hosts_reachable_upstream_resolvers() {
+        let resolved = "# systemd-resolved\nnameserver 2001:db8::53\nnameserver 10.0.0.2\nnameserver 10.0.0.3\nnameserver 10.0.0.4\nsearch internal.example\noptions edns0\n";
+        assert_eq!(
+            sandbox_resolv_conf(resolved).as_deref(),
+            Some(
+                "nameserver 10.0.0.2\nnameserver 10.0.0.3\nnameserver 10.0.0.4\nsearch internal.example\noptions edns0\n"
+            )
+        );
+        assert_eq!(sandbox_resolv_conf("nameserver 127.0.0.53\nnameserver ::1\noptions trust-ad\n"), None);
+        assert_eq!(
+            sandbox_resolv_conf("nameserver 127.0.0.53\nnameserver 192.0.2.1\n").as_deref(),
+            Some("nameserver 192.0.2.1\n")
+        );
+    }
+
+    #[test]
+    fn a_commented_nameserver_remains_a_reachable_upstream() {
+        // Moby reads the directive and address as fields, ignoring a trailing comment.
+        assert_eq!(sandbox_resolv_conf(" \tnameserver\t10.0.0.2 # office\n").as_deref(), Some("nameserver 10.0.0.2\n"));
+        assert_eq!(sandbox_resolv_conf("nameserver10.0.0.2\n"), None);
+    }
 
     #[test]
     fn each_backend_owns_only_its_runtime() {
