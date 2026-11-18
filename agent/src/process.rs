@@ -221,6 +221,8 @@ impl Process {
     }
 
     async fn finish(&self, code: Option<i32>, timed_out: bool) {
+        // A retained completion must not keep a PTY stdin bridge waiting through runtime shutdown.
+        self.close_input().await;
         let dropped = self.output.lock().await.dropped;
         let result = ResultView {
             code,

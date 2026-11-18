@@ -406,6 +406,13 @@ async fn terminate(agent: &Agent, signal: i32) {
             let _ = process.signal(libc::SIGKILL);
         }
     }
+    // Kill every child before waiting on an input lock. A canceled completion task must not
+    // leave a retained PTY stdin bridge alive while the executable drops its runtime.
+    for process in agent.processes.list() {
+        if let Ok(process) = agent.processes.get(&process.id) {
+            process.close_input().await;
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The real bootstrap executable must preserve per-port host addresses. Kernel process-tier
-//! restrictions have separate fail-closed tests; this test isolates the actual listener setup.
+//! The real bootstrap executable preserves listener addresses and retires an intentional stop.
+//! Kernel process-tier restrictions have separate fail-closed tests; these use local owned agents.
 
 use pryx_agent::auth::SigningKey;
 use std::{
@@ -191,4 +191,168 @@ async fn process_spare_cannot_forward_a_service_outside_its_supervisor_tree() {
     server.abort();
     assert!(response.is_err(), "the process proxy reached a co-resident service");
     assert_eq!(hits.load(Ordering::SeqCst), 0, "the victim received an application request");
+}
+
+struct OwnedPty(std::os::fd::OwnedFd);
+
+impl Drop for OwnedPty {
+    fn drop(&mut self) {
+        let _ = rustix::process::pidfd_send_signal(&self.0, rustix::process::Signal::KILL);
+    }
+}
+
+#[tokio::test]
+async fn intentional_stop_retires_a_detached_term_resistant_pty() {
+    use pryx_agent::auth::{Claims, Scope, TOKEN_LIFETIME_SECONDS};
+    use pryx_agent::process::{Command as ProcessCommand, Start};
+
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let bindings = serde_json::json!({port.to_string(): ["127.0.0.1"]}).to_string();
+    let data = tempfile::tempdir().unwrap();
+    let (key, encoded) = SigningKey::generate().unwrap();
+    drop(listener);
+    let mut child = Supervisor(
+        Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+            .args([
+                "--sandbox",
+                "one",
+                "--epoch",
+                "1",
+                "--data",
+                data.path().to_str().unwrap(),
+                "--domain",
+                "pryx.test",
+                "--port",
+                &port.to_string(),
+                "--secret-env",
+                "TEST_BOOTSTRAP_SECRET",
+                "--host-bindings",
+                &bindings,
+                "--keep-alive",
+            ])
+            .env("TEST_BOOTSTRAP_SECRET", &encoded)
+            .env_remove(pryx_agent::process_policy::POLICY_ENV)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let until = tokio::time::Instant::now() + Duration::from_secs(10);
+    while tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await.is_err() {
+        assert!(child.0.try_wait().unwrap().is_none(), "bootstrap exited before listening");
+        assert!(tokio::time::Instant::now() < until, "bootstrap did not listen");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let now = pryx_agent::telemetry::now();
+    let token = key
+        .sign(&Claims {
+            sandbox: "one".into(),
+            epoch: 1,
+            issued_at: now,
+            expires_at: now + TOKEN_LIFETIME_SECONDS,
+            scope: Scope::Sandbox,
+            max_ports: 0,
+            max_exec_seconds: None,
+            file: None,
+        })
+        .unwrap();
+    let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(3)).build().unwrap();
+    let request = Start {
+        command: ProcessCommand::Shell(
+            "trap '' TERM; printf 'term-resistant-ready\\n'; \
+             while read line; do printf 'received:%s\\n' \"$line\"; done"
+                .into(),
+        ),
+        env: Default::default(),
+        cwd: None,
+        stdin: true,
+        pty: true,
+        cols: Some(80),
+        rows: Some(24),
+        timeout: None,
+    };
+    let response = client
+        .post(format!("http://127.0.0.1:{port}/_pryx/processes"))
+        .bearer_auth(&token)
+        .header(pryx_agent::contract::IDEMPOTENCY_HEADER, "shutdown-pty")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(serde_json::to_vec(&request).unwrap())
+        .send()
+        .await
+        .unwrap_or_else(|problem| failed_request(&mut child.0, problem, &encoded));
+    assert!(response.status().is_success());
+    let process: serde_json::Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+    let id = process["id"].as_str().unwrap();
+    let pid = i32::try_from(process["pid"].as_u64().unwrap()).unwrap();
+    let owned_pty = OwnedPty(
+        rustix::process::pidfd_open(rustix::process::Pid::from_raw(pid).unwrap(), rustix::process::PidfdFlags::empty())
+            .unwrap(),
+    );
+    let socket = format!("ws://127.0.0.1:{port}/_pryx/processes/{id}/ws");
+    detached_terminal_output(&socket, &token, "term-resistant-ready").await;
+    let written = client
+        .post(format!("http://127.0.0.1:{port}/_pryx/processes/{id}/stdin"))
+        .bearer_auth(&token)
+        .body("live\n")
+        .send()
+        .await
+        .unwrap();
+    assert!(written.status().is_success());
+    detached_terminal_output(&socket, &token, "received:live").await;
+    let observed =
+        client.get(format!("http://127.0.0.1:{port}/_pryx/processes/{id}")).bearer_auth(&token).send().await.unwrap();
+    let observed: serde_json::Value = serde_json::from_slice(&observed.bytes().await.unwrap()).unwrap();
+    assert_eq!(observed["running"], true, "detaching does not retire a live terminal");
+    println!("real bootstrap holds a detached TERM-resistant PTY");
+    rustix::process::kill_process(rustix::process::Pid::from_child(&child.0), rustix::process::Signal::TERM).unwrap();
+    let until = tokio::time::Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            break status;
+        }
+        assert!(tokio::time::Instant::now() < until, "intentional stop retained live PTY blocking I/O");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+    assert_eq!(status.code(), Some(0), "bootstrap handles TERM without being killed by its owner");
+    assert!(
+        std::fs::symlink_metadata(format!("/proc/{pid}"))
+            .is_err_and(|problem| problem.kind() == std::io::ErrorKind::NotFound),
+        "the owned TERM-resistant PTY is retired before bootstrap exit"
+    );
+    drop(owned_pty);
+}
+
+async fn detached_terminal_output(url: &str, token: &str, expected: &str) {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    tokio::time::timeout(Duration::from_secs(3), async {
+        let mut request = url.into_client_request().unwrap();
+        request.headers_mut().insert("authorization", format!("Bearer {token}").parse().unwrap());
+        request
+            .headers_mut()
+            .insert("sec-websocket-protocol", pryx_agent::contract::WEBSOCKET_PROTOCOL.parse().unwrap());
+        let (mut socket, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        let mut output = String::new();
+        loop {
+            let frame = socket.next().await.unwrap().unwrap();
+            if !frame.is_text() {
+                continue;
+            }
+            let event: serde_json::Value = serde_json::from_str(&frame.into_text().unwrap()).unwrap();
+            if event["type"] == "output" {
+                let bytes = STANDARD.decode(event["bytes"].as_str().unwrap()).unwrap();
+                output.push_str(&String::from_utf8(bytes).unwrap());
+                if output.contains(expected) {
+                    socket.close(None).await.unwrap();
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("the owned live terminal reaches its expected output before detachment");
 }
