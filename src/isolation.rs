@@ -34,18 +34,11 @@ use anyhow::{Context, anyhow, ensure};
 use tracing::warn;
 
 use crate::config::Config;
+use crate::ranges::{LINK_LOCAL_V4, PRIVATE_V4, PRIVATE_V6};
 use crate::runtime::docker::{DockerRuntime, bridge_name};
 
 /// The table pryxd owns. Nothing else of the host's firewall is touched.
 pub const TABLE: &str = "pryxd";
-
-/// Private IPv4: RFC 1918's ranges, and RFC 6598's shared space, where WireGuard and Tailscale
-/// overlays live (as infer.rs counts them).
-const PRIVATE_V4: &str = "10.0.0.0/8, 100.64.0.0/10, 172.16.0.0/12, 192.168.0.0/16";
-/// Private IPv6: unique local addresses (RFC 4193) and link-local ones (RFC 4291).
-const PRIVATE_V6: &str = "fc00::/7, fe80::/10";
-/// IPv4 link-local (RFC 3927), where 169.254.169.254 serves instance metadata on most clouds.
-const LINK_LOCAL_V4: &str = "169.254.0.0/16";
 
 /// The rules for a bridge, the ports pryxd hands out and its API's port, as `nft -f` reads them.
 /// The first two lines make the table if it is missing, so the third can always remove it.
