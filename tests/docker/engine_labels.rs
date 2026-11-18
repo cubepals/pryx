@@ -101,8 +101,9 @@ async fn engine_an_image_carrying_private_bindings_gives_its_sandbox_none() {
     let backend = backend(&socket);
     runtime.ensure_image(BASE, Duration::from_secs(120)).await.unwrap();
     let port = unused_port();
-    let (repository, source) = (format!("pryx-forged-{dep}"), format!("source-{dep}"));
-    let image = format!("{repository}:1");
+    // Under the base's own repository, which the test configuration's image allowlist admits.
+    let (repository, tag, source) = ("alpine", format!("pryx-forged-{dep}"), format!("source-{dep}"));
+    let image = format!("{repository}:{tag}");
     let _leftovers = Leftovers { socket: socket.clone(), containers: vec![source.clone()], image: Some(image.clone()) };
     // The image: the base, committed from a container that carries the label.
     let options = bollard::query_parameters::CreateContainerOptionsBuilder::new().name(&source).build();
@@ -115,8 +116,8 @@ async fn engine_an_image_carrying_private_bindings_gives_its_sandbox_none() {
     backend.create_container(Some(options), body).await.unwrap();
     let options = bollard::query_parameters::CommitContainerOptionsBuilder::new()
         .container(&source)
-        .repo(&repository)
-        .tag("1")
+        .repo(repository)
+        .tag(&tag)
         .pause(false)
         .build();
     backend.commit_container(options, bollard::models::ContainerConfig::default()).await.unwrap();
