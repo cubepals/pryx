@@ -13,7 +13,7 @@ mount, PID or network namespace, exactly as before K26.
 | --- | --- | --- |
 | When | The probe could not start the installation's helper in user namespaces | `process-namespaces` is on in `pryx doctor` |
 | PIDs | One host PID view; Landlock keeps other sandboxes' `/proc` unreadable | PID 1 of its own PID namespace; other sandboxes' processes don't exist there (`private-pids`) |
-| `/tmp` | Not granted; `TMPDIR` is the data directory's `.tmp` | A private `/tmp` of its own, granted to it alone |
+| `/tmp` | Not granted; `TMPDIR` is the data directory's `.tmp` | A private `/tmp` of its own, granted to it alone, holding at most the node's `/tmp` size (`tmp_size_mb`) and never more than the sandbox's memory |
 | IPC | The host's | Its own IPC namespace |
 | `network: none` | A seccomp and Landlock filter in the shared network | Also an empty network namespace of its own (`private-network`) |
 | Landlock, seccomp, limits | As below | The same, installed inside the namespaces |

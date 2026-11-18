@@ -1,0 +1,7 @@
+{
+  "version": "release-20261102.0",
+  "url": "https://storage.googleapis.com/gvisor/releases/release/20261102.0/x86_64/gvisor.tar.zstd",
+  "sha512": "3c400f72be459b57b99b1c4f69be96bcd67eef3caf2078e595fc98e688b6b9a3af7802646b3dde7da8a9aba96d34f86be303e0430c7868ab2d13becdd403c0c1",
+  "source": "https://github.com/google/gvisor/tree/release-20261102.0",
+  "license": "Apache-2.0"
+}

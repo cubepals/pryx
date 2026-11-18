@@ -555,6 +555,7 @@ export interface components {
             epoch: number;
             url: string;
             publicKey: string;
+            maxExecSeconds?: number | null;
         };
         FileInfo: {
             kind: string;

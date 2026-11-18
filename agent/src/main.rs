@@ -13,6 +13,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // First: no later exec may inherit a listener the node passed to this supervisor.
     pryx_agent::process_listeners::adopt()?;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::CLEAN_MODE) {
+        return pryx_agent::exec_deadline::clean(&arguments[1..]);
+    }
     if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::MODE) {
         return pryx_agent::exec_deadline::run(&arguments[1..]);
     }

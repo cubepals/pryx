@@ -10,20 +10,22 @@ use std::path::Path;
 
 use crate::process_tool_policy::Policy;
 
-/// bubblewrap's arguments for one supervisor, up to and including `--`. `kept` are the paths
+/// bubblewrap's arguments for one supervisor, up to and including `--`. The private `/tmp` holds
+/// at most `tmp_bytes`, which must not be 0 (tmpfs(5) takes 0 as no limit). `kept` are the paths
 /// the sandbox needs that may lie under `/tmp`, which the private one would otherwise hide:
 /// its agent executable read-only and its tool directory writable.
-pub fn arguments(data: &Path, private_network: bool, kept: &[(&Path, bool)]) -> Vec<OsString> {
+pub fn arguments(data: &Path, private_network: bool, tmp_bytes: u64, kept: &[(&Path, bool)]) -> Vec<OsString> {
+    assert!(tmp_bytes > 0, "a private /tmp of 0 bytes would have no limit");
     let mut arguments: Vec<OsString> = ["--unshare-user", "--unshare-pid", "--unshare-ipc"].map(Into::into).into();
     if private_network {
         arguments.push("--unshare-net".into());
     }
     // The whole host view stays as it was, under Landlock; only /proc, /dev and /tmp are new.
-    for argument in
-        ["--as-pid-1", "--cap-drop", "ALL", "--bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
-    {
+    for argument in ["--as-pid-1", "--cap-drop", "ALL", "--bind", "/", "/", "--proc", "/proc", "--dev", "/dev"] {
         arguments.push(argument.into());
     }
+    // bubblewrap's --size applies to the --tmpfs after it.
+    arguments.extend(["--size".into(), tmp_bytes.to_string().into(), "--tmpfs".into(), "/tmp".into()]);
     arguments.extend(["--bind".into(), data.into(), data.into()]);
     // A tool path appears only once a tool is first asked for; until then there is none to keep.
     for (path, writable) in kept {

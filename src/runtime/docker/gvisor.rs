@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! The gvisor tier's part of the Docker backend: the runtime name it starts containers with, why
-//! an engine can't serve it, and which containers and events of the one engine are whose.
+//! an engine can't serve it, which containers and events of the one engine are whose, and the
+//! resolvers its sandboxes ask.
 use crate::runtime::RuntimeInfo;
 
 /// The name gVisor's own installer (`runsc install`) registers its runtime under in the engine.
 pub const GVISOR_RUNTIME: &str = "runsc";
 pub const GVISOR_PODMAN_PROBLEM: &str =
     "gvisor is unavailable on Podman: pryx starts gVisor through the Docker Engine API's runtime field";
+pub const GVISOR_ROOTLESS_PROBLEM: &str = "gvisor is unavailable on rootless Docker: runsc cgroup enforcement is unproved here; its memory, CPU and process limits are not announced";
 pub const GVISOR_MISSING_PROBLEM: &str =
     "gvisor is unavailable: the engine has no runsc runtime registered; install gVisor and run runsc install";
 
@@ -25,8 +27,43 @@ pub fn problem(info: &RuntimeInfo) -> Option<String> {
         Some(GVISOR_PODMAN_PROBLEM.into())
     } else if !info.runtimes.iter().any(|name| name == GVISOR_RUNTIME) {
         Some(GVISOR_MISSING_PROBLEM.into())
+    } else if info.rootless {
+        Some(GVISOR_ROOTLESS_PROBLEM.into())
     } else {
         None
+    }
+}
+
+/// Docker's rootless controller flags describe its default runtime, not runsc started with
+/// ignore-cgroups. Until this tier has its own enforcement proof, it announces no host limit.
+pub(super) fn enforcement(info: &mut RuntimeInfo) {
+    if info.rootless {
+        info.memory_limit = false;
+        info.cpu_limit = false;
+        info.pids_limit = false;
+    }
+}
+
+/// runsc's host pids cgroup counts Sentry threads, not virtual tasks. Its workload's inherited
+/// RLIMIT_NPROC supplies the per-sandbox process bound inside gVisor's own kernel instead.
+pub(super) fn process_limit(host: &mut bollard::models::HostConfig, limit: i64) {
+    host.ulimits = Some(vec![bollard::models::ResourcesUlimits {
+        name: Some("nproc".into()),
+        soft: Some(limit),
+        hard: Some(limit),
+    }]);
+}
+
+/// Docker's built-in OCI runtime's name (moby's `config.DefaultRuntimeName`).
+pub(super) const RUNC: &str = "runc";
+
+/// The runtime a backend names for each container it makes: the gvisor tier runsc; the container
+/// tier none, leaving the operator's own default, unless that default is runsc, when it names
+/// Docker's runc, so a `container` request never runs on gVisor nor is lost by its own backend.
+pub(super) fn engine_runtime(own: Option<&'static str>, info: &RuntimeInfo) -> Option<String> {
+    match own {
+        Some(own) => Some(own.into()),
+        None => (info.default_runtime.as_deref() == Some(GVISOR_RUNTIME)).then(|| RUNC.into()),
     }
 }
 
@@ -78,9 +115,106 @@ pub(super) async fn thaw_for_stop(
     Ok(())
 }
 
+/// systemd-resolved's list of the host's own upstream servers: /etc/resolv.conf names its stub.
+const RESOLVED_UPSTREAM: &str = "/run/systemd/resolve/resolv.conf";
+const HOST_RESOLV_CONF: &str = "/etc/resolv.conf";
+/// resolv.conf(5): the resolver uses at most this many nameservers (MAXNS).
+const MAXNS: usize = 3;
+pub(crate) const RESOLVER_PROBLEM: &str = "gvisor needs a resolver its sandboxes can reach: the host names only loopback resolvers; name a reachable upstream in /etc/resolv.conf";
+
+/// The resolv.conf a gvisor sandbox on a bridge gets, from the host's: Docker's embedded resolver
+/// (127.0.0.11) answers only through rules gVisor's network stack never sees, so the sandbox asks
+/// the host's upstream resolvers directly, as Docker's default bridge does. Loopback servers are
+/// the host's own and unreachable from the sandbox; IPv4 servers go first. None left, none.
+fn sandbox_resolv_conf(host: &str) -> Option<String> {
+    let mut servers: Vec<std::net::IpAddr> = host
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            if fields.next()? != "nameserver" {
+                return None;
+            }
+            fields.next()?.parse().ok()
+        })
+        .filter(|server: &std::net::IpAddr| !server.is_loopback())
+        .collect();
+    servers.sort_by_key(std::net::IpAddr::is_ipv6);
+    servers.truncate(MAXNS);
+    if servers.is_empty() {
+        return None;
+    }
+    let kept = host.lines().filter(|line| line.starts_with("search ") || line.starts_with("options "));
+    let lines = servers.iter().map(|server| format!("nameserver {server}")).chain(kept.map(str::to_owned));
+    Some(lines.map(|line| line + "\n").collect())
+}
+
+/// Writes the sandbox's resolv.conf beside its data, in its workload's directory, and returns it
+/// for a read-only bind at /etc/resolv.conf, which Docker then leaves to it.
+pub(super) fn resolv_conf_for(data_dir: &std::path::Path) -> Result<std::path::PathBuf, crate::runtime::RuntimeError> {
+    let conf = [RESOLVED_UPSTREAM, HOST_RESOLV_CONF]
+        .into_iter()
+        .find_map(|path| std::fs::read_to_string(path).ok().and_then(|host| sandbox_resolv_conf(&host)))
+        .ok_or_else(|| crate::runtime::RuntimeError::Other(RESOLVER_PROBLEM.into()))?;
+    let workload = data_dir
+        .parent()
+        .ok_or_else(|| crate::runtime::RuntimeError::Other("data has no workload directory".into()))?;
+    let path = workload.join("resolv.conf");
+    crate::durable::write_atomic(&path, conf.as_bytes(), 0o644)
+        .map_err(|error| crate::runtime::RuntimeError::Other(format!("gvisor resolv.conf: {error}")))?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_container_tier_names_runc_only_where_the_engine_defaults_to_runsc() {
+        let mut info = RuntimeInfo::default();
+        assert_eq!(engine_runtime(None, &info), None);
+        info.default_runtime = Some("nvidia".into());
+        assert_eq!(engine_runtime(None, &info), None, "an operator's own default stays");
+        info.default_runtime = Some(GVISOR_RUNTIME.into());
+        assert_eq!(engine_runtime(None, &info).as_deref(), Some(RUNC));
+        assert!(owns(None, engine_runtime(None, &info).as_deref()), "the container backend keeps its own");
+        assert_eq!(engine_runtime(Some(GVISOR_RUNTIME), &info).as_deref(), Some(GVISOR_RUNTIME));
+    }
+
+    #[test]
+    fn a_sandbox_asks_the_hosts_reachable_upstream_resolvers() {
+        let resolved = "# systemd-resolved\nnameserver 2001:db8::53\nnameserver 10.0.0.2\nnameserver 10.0.0.3\nnameserver 10.0.0.4\nsearch internal.example\noptions edns0\n";
+        assert_eq!(
+            sandbox_resolv_conf(resolved).as_deref(),
+            Some(
+                "nameserver 10.0.0.2\nnameserver 10.0.0.3\nnameserver 10.0.0.4\nsearch internal.example\noptions edns0\n"
+            )
+        );
+        assert_eq!(sandbox_resolv_conf("nameserver 127.0.0.53\nnameserver ::1\noptions trust-ad\n"), None);
+        assert_eq!(
+            sandbox_resolv_conf("nameserver 127.0.0.53\nnameserver 192.0.2.1\n").as_deref(),
+            Some("nameserver 192.0.2.1\n")
+        );
+    }
+
+    #[test]
+    fn a_commented_nameserver_remains_a_reachable_upstream() {
+        // Moby reads the directive and address as fields, ignoring a trailing comment.
+        assert_eq!(sandbox_resolv_conf(" \tnameserver\t10.0.0.2 # office\n").as_deref(), Some("nameserver 10.0.0.2\n"));
+        assert_eq!(sandbox_resolv_conf("nameserver10.0.0.2\n"), None);
+    }
+
+    #[test]
+    fn rootless_runsc_cannot_borrow_the_default_runtimes_limit_claims() {
+        let mut info =
+            RuntimeInfo { rootless: true, memory_limit: true, cpu_limit: true, pids_limit: true, ..Default::default() };
+        enforcement(&mut info);
+        assert!(!info.memory_limit && !info.cpu_limit && !info.pids_limit);
+        let mut host = bollard::models::HostConfig::default();
+        process_limit(&mut host, 128);
+        let limit = &host.ulimits.unwrap()[0];
+        assert_eq!(limit.name.as_deref(), Some("nproc"));
+        assert_eq!((limit.soft, limit.hard), (Some(128), Some(128)));
+    }
 
     #[test]
     fn each_backend_owns_only_its_runtime() {
@@ -96,6 +230,8 @@ mod tests {
         assert_eq!(problem(&info).as_deref(), Some(GVISOR_MISSING_PROBLEM));
         info.runtimes.push(GVISOR_RUNTIME.into());
         assert_eq!(problem(&info), None);
+        info.rootless = true;
+        assert_eq!(problem(&info).as_deref(), Some(GVISOR_ROOTLESS_PROBLEM));
         info.podman = true;
         assert_eq!(problem(&info).as_deref(), Some(GVISOR_PODMAN_PROBLEM));
     }

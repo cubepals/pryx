@@ -3348,6 +3348,7 @@ dependencies = [
  "kvm-bindings",
  "kvm-ioctls",
  "libc",
+ "object",
  "oci-spec",
  "podman-api-stubs",
  "procfs",

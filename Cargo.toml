@@ -47,6 +47,9 @@ rustls-pki-types = { version = "1.15", features = ["std"] }
 webpki = { package = "rustls-webpki", version = "0.103", default-features = false, features = ["std", "ring"] }
 rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto"] }
 
+# Trusted exec-owner ELF inspection, using the already locked package.
+object = { version = "=0.39.1", default-features = false, features = ["read_core", "elf", "std"] }
+
 # Docker Engine API client (unix socket, hyper 1).
 bollard = { version = "0.21.1", default-features = false, features = ["pipe"] }
 

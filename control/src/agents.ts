@@ -20,6 +20,8 @@ export const sandboxTokenSchema = z.object({
   epoch: z.number().int(),
   url: z.string(),
   publicKey: z.string(),
+  /** The longest a command may run in the sandbox, when its project caps it. */
+  maxExecSeconds: z.number().int().positive().nullable().optional(),
 })
 export class Agents {
   localOrigin?: string
@@ -98,6 +100,7 @@ export class Agents {
       expiresAt: answer.expiresAt,
       epoch: answer.epoch,
       publicKey: answer.agent.publicKey,
+      maxExecSeconds: policy.limits.maxExecTimeout ?? null,
       url: this.localOrigin
         ? `${this.localOrigin}/sandboxes/${id}`
         : local
