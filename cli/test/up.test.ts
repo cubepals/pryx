@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import gvisor from '../../deploy/gvisor.json'
 import vmImages from '../../templates/vm-tools/image-inputs.json'
 import { runInstallCommand, up } from '../src/up.ts'
 import {
@@ -18,7 +19,15 @@ import {
 } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
-import { gvisorRuntimes, hostInstallProblem, installGvisor } from '../src/up-host.ts'
+import {
+  dockerReloadConfiguration,
+  GVISOR_PREFIX,
+  gvisorInstallProblem,
+  gvisorRuntimes,
+  hostInstallProblem,
+  installGvisor,
+  waitForGvisorRuntime,
+} from '../src/up-host.ts'
 import { defaultAllowedImages, refreshDefaultImages, replaceDefaultImages } from '../src/up-images.ts'
 import { container, service } from '../src/up-units.ts'
 
@@ -29,11 +38,61 @@ test('unsupported distributions name missing packages before installation', () =
   expect(hostInstallProblem(false, false, 'debian')).toBeNull()
 })
 
+test('a server names the unavailable gVisor architecture', () => {
+  expect(gvisorInstallProblem('x64')).toBeNull()
+  expect(gvisorInstallProblem('arm64')).toContain('this host is arm64')
+  expect(gvisorInstallProblem('riscv64')).toContain('the pinned gVisor release supports x64')
+})
+
+test('a Docker reload retains explicit proxy policy and completes an enabled proxy path', () => {
+  const existing = { 'userland-proxy': true, 'userland-proxy-path': '/chosen/proxy', unrelated: 'kept' }
+  const missing = () => null
+  expect(dockerReloadConfiguration(existing, missing)).toBe(existing)
+  const disabled = { 'userland-proxy': false, unrelated: 'kept' }
+  expect(dockerReloadConfiguration(disabled, missing)).toBe(disabled)
+  const absent = { unrelated: 'kept' }
+  expect(dockerReloadConfiguration(absent, missing)).toBe(absent)
+  expect(
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      (path) => (path === 'docker-proxy' ? '/engine/bin/docker-proxy' : null),
+      () => false,
+      () => 28,
+    ),
+  ).toEqual({ 'userland-proxy': true, 'userland-proxy-path': '/engine/bin/docker-proxy' })
+  expect(() =>
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      missing,
+      () => false,
+      () => 28,
+    ),
+  ).toThrow('docker-proxy is unavailable')
+  expect(() =>
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      missing,
+      () => true,
+      () => 28,
+    ),
+  ).toThrow('sets userland-proxy-path by command line')
+  const older = { 'userland-proxy': true }
+  expect(
+    dockerReloadConfiguration(
+      older,
+      missing,
+      () => true,
+      () => 24,
+    ),
+  ).toBe(older)
+})
+
 test('the server preset registers runsc beside existing runtimes and refuses a changed release', async () => {
   expect(gvisorRuntimes({ runtimes: { crun: { path: '/usr/bin/crun' } } }, '/opt/pryx/gvisor')).toEqual({
     crun: { path: '/usr/bin/crun' },
     runsc: { path: '/opt/pryx/gvisor/runsc' },
   })
+  expect(gvisorRuntimes({})).toEqual({ runsc: { path: join(GVISOR_PREFIX, gvisor.version, 'runsc') } })
   const dir = mkdtempSync(join(tmpdir(), 'pryx-gvisor-'))
   const server = Bun.serve({ port: 0, fetch: () => new Response('not the pinned release') })
   const ran: string[][] = []
@@ -46,6 +105,21 @@ test('the server preset registers runsc beside existing runtimes and refuses a c
     server.stop(true)
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('an acknowledged Docker reload waits for the pinned runtime instead of an earlier pin', async () => {
+  const current = join(GVISOR_PREFIX, gvisor.version, 'runsc')
+  const previous = '/opt/pryx/gvisor/earlier/runsc'
+  const paths = [{ runsc: { path: previous } }, { runsc: { path: current } }]
+  let observed = 0
+  await waitForGvisorRuntime(current, async () => paths[observed++])
+  expect(observed).toBe(2)
+  observed = 0
+  await waitForGvisorRuntime(previous, async () => paths[1 - observed++])
+  expect(observed).toBe(2)
+  await expect(waitForGvisorRuntime(current, async () => paths[0], performance.now())).rejects.toThrow(
+    'did not register the pinned gVisor executable',
+  )
 })
 
 test('check mode reports prerequisites without generating credentials', async () => {

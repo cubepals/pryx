@@ -11,7 +11,7 @@
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
 //! - `oom.rs`: container/start-scoped authenticated Docker OOM evidence.
 //! - `oom_journal.rs`: durable systemd invocation binding and OOM receipts.
-//! - `start.rs`: one engine mutation with durable generation binding.
+//! - `start.rs`: one start with exec-generation and journal ownership.
 //! - `remove.rs`: container retirement and owned receipt cleanup.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
@@ -20,8 +20,10 @@
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `events.rs`: engine event translation.
+//! - `exec_agent.rs`: durable execute-only exec owner programs.
+//! - `exec_completion.rs`: authenticated exec cleanup and failed-owner retirement.
 //! - `exec.rs`: command attachment and timeout containment.
-//! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
+//! - `gvisor.rs`: the gvisor tier's runtime name, availability, ownership and resolvers.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
@@ -34,6 +36,8 @@ mod create;
 pub(crate) mod egress;
 mod events;
 mod exec;
+mod exec_agent;
+mod exec_completion;
 pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
@@ -127,6 +131,7 @@ pub struct DockerRuntime {
     pub(super) ownership: ownership::Policy,
     oom: oom::Observations,
     oom_journal: Option<oom_journal::Context>,
+    starts: exec_completion::Starts,
     oci_runtime: Option<&'static str>, // gvisor: every container made and seen uses this runtime
 }
 
@@ -184,6 +189,7 @@ impl DockerRuntime {
             ownership: Default::default(),
             oom: Default::default(),
             oom_journal: None,
+            starts: Default::default(),
             oci_runtime: None,
         })
     }
@@ -490,9 +496,13 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
+            default_runtime: info.default_runtime,
             memory_sleep: false,
         };
         podman::enforcement(&mut result, native.as_ref());
+        if self.oci_runtime.is_some() {
+            gvisor::enforcement(&mut result);
+        }
         if result.rootless {
             let visible = termination::peer(&self.socket).await.is_ok();
             result.local_process_ids = Some(visible);

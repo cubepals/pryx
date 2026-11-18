@@ -10,6 +10,7 @@ use crate::runtime::RuntimeInfo;
 pub const GVISOR_RUNTIME: &str = "runsc";
 pub const GVISOR_PODMAN_PROBLEM: &str =
     "gvisor is unavailable on Podman: pryx starts gVisor through the Docker Engine API's runtime field";
+pub const GVISOR_ROOTLESS_PROBLEM: &str = "gvisor is unavailable on rootless Docker: runsc cgroup enforcement is unproved here; its memory, CPU and process limits are not announced";
 pub const GVISOR_MISSING_PROBLEM: &str =
     "gvisor is unavailable: the engine has no runsc runtime registered; install gVisor and run runsc install";
 
@@ -26,8 +27,43 @@ pub fn problem(info: &RuntimeInfo) -> Option<String> {
         Some(GVISOR_PODMAN_PROBLEM.into())
     } else if !info.runtimes.iter().any(|name| name == GVISOR_RUNTIME) {
         Some(GVISOR_MISSING_PROBLEM.into())
+    } else if info.rootless {
+        Some(GVISOR_ROOTLESS_PROBLEM.into())
     } else {
         None
+    }
+}
+
+/// Docker's rootless controller flags describe its default runtime, not runsc started with
+/// ignore-cgroups. Until this tier has its own enforcement proof, it announces no host limit.
+pub(super) fn enforcement(info: &mut RuntimeInfo) {
+    if info.rootless {
+        info.memory_limit = false;
+        info.cpu_limit = false;
+        info.pids_limit = false;
+    }
+}
+
+/// runsc's host pids cgroup counts Sentry threads, not virtual tasks. Its workload's inherited
+/// RLIMIT_NPROC supplies the per-sandbox process bound inside gVisor's own kernel instead.
+pub(super) fn process_limit(host: &mut bollard::models::HostConfig, limit: i64) {
+    host.ulimits = Some(vec![bollard::models::ResourcesUlimits {
+        name: Some("nproc".into()),
+        soft: Some(limit),
+        hard: Some(limit),
+    }]);
+}
+
+/// Docker's built-in OCI runtime's name (moby's `config.DefaultRuntimeName`).
+pub(super) const RUNC: &str = "runc";
+
+/// The runtime a backend names for each container it makes: the gvisor tier runsc; the container
+/// tier none, leaving the operator's own default, unless that default is runsc, when it names
+/// Docker's runc, so a `container` request never runs on gVisor nor is lost by its own backend.
+pub(super) fn engine_runtime(own: Option<&'static str>, info: &RuntimeInfo) -> Option<String> {
+    match own {
+        Some(own) => Some(own.into()),
+        None => (info.default_runtime.as_deref() == Some(GVISOR_RUNTIME)).then(|| RUNC.into()),
     }
 }
 
@@ -133,6 +169,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_container_tier_names_runc_only_where_the_engine_defaults_to_runsc() {
+        let mut info = RuntimeInfo::default();
+        assert_eq!(engine_runtime(None, &info), None);
+        info.default_runtime = Some("nvidia".into());
+        assert_eq!(engine_runtime(None, &info), None, "an operator's own default stays");
+        info.default_runtime = Some(GVISOR_RUNTIME.into());
+        assert_eq!(engine_runtime(None, &info).as_deref(), Some(RUNC));
+        assert!(owns(None, engine_runtime(None, &info).as_deref()), "the container backend keeps its own");
+        assert_eq!(engine_runtime(Some(GVISOR_RUNTIME), &info).as_deref(), Some(GVISOR_RUNTIME));
+    }
+
+    #[test]
     fn a_sandbox_asks_the_hosts_reachable_upstream_resolvers() {
         let resolved = "# systemd-resolved\nnameserver 2001:db8::53\nnameserver 10.0.0.2\nnameserver 10.0.0.3\nnameserver 10.0.0.4\nsearch internal.example\noptions edns0\n";
         assert_eq!(
@@ -156,6 +204,19 @@ mod tests {
     }
 
     #[test]
+    fn rootless_runsc_cannot_borrow_the_default_runtimes_limit_claims() {
+        let mut info =
+            RuntimeInfo { rootless: true, memory_limit: true, cpu_limit: true, pids_limit: true, ..Default::default() };
+        enforcement(&mut info);
+        assert!(!info.memory_limit && !info.cpu_limit && !info.pids_limit);
+        let mut host = bollard::models::HostConfig::default();
+        process_limit(&mut host, 128);
+        let limit = &host.ulimits.unwrap()[0];
+        assert_eq!(limit.name.as_deref(), Some("nproc"));
+        assert_eq!((limit.soft, limit.hard), (Some(128), Some(128)));
+    }
+
+    #[test]
     fn each_backend_owns_only_its_runtime() {
         assert!(owns(None, None) && owns(None, Some("runc")));
         assert!(!owns(None, Some(GVISOR_RUNTIME)));
@@ -169,6 +230,8 @@ mod tests {
         assert_eq!(problem(&info).as_deref(), Some(GVISOR_MISSING_PROBLEM));
         info.runtimes.push(GVISOR_RUNTIME.into());
         assert_eq!(problem(&info), None);
+        info.rootless = true;
+        assert_eq!(problem(&info).as_deref(), Some(GVISOR_ROOTLESS_PROBLEM));
         info.podman = true;
         assert_eq!(problem(&info).as_deref(), Some(GVISOR_PODMAN_PROBLEM));
     }

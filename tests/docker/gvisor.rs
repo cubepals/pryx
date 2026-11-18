@@ -42,17 +42,86 @@ pub(super) fn left_running(count: &str, why: &str) {
     }
 }
 
-/// The pids limit: a container's own cgroup shows it; gVisor's kernel shows its own cgroups, so
-/// on gvisor the engine's record of the limit it applied is read instead.
-pub(super) fn pids_limited(inside: &str, container: &str) {
-    if !on_gvisor() {
-        return assert!(inside.contains("4096"), "pids limit");
+/// gVisor's virtual process bound is its inherited RLIMIT_NPROC; the other tier retains its
+/// actual cgroup assertion. The fork-exhaustion case below proves enforcement, not metadata.
+pub(super) fn pids_limited(inside: &str, _container: &str) {
+    if on_gvisor() {
+        assert!(inside.contains("nproc=4096"), "the sandbox's own process bound: {inside}");
+    } else {
+        assert!(inside.contains("4096"), "pids limit");
     }
-    let out = std::process::Command::new("docker")
-        .args(["inspect", "--format", "{{.HostConfig.PidsLimit}}", container])
-        .output()
+}
+
+#[tokio::test]
+#[ignore = "needs Docker and cgroup v2; the gvisor run proves its actual process bound"]
+async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
+    if !on_gvisor() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let config = extra(&dep) + "default_pids_limit = 128\n";
+    let m = manager_probed(dir.path(), docker(), &config, pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]));
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    m.ensure(id("forks"), shell(SERVER, 512), Precondition::None, None).await.unwrap();
+    m.start(id("forks"), None).await.unwrap();
+    m.ensure(id("neighbour"), shell(SERVER, 128), Precondition::None, None).await.unwrap();
+    m.start(id("neighbour"), None).await.unwrap();
+    let backend = bollard::Docker::connect_with_unix(
+        DockerConfig::default().socket.to_str().unwrap(),
+        60,
+        bollard::API_DEFAULT_VERSION,
+    )
+    .unwrap();
+    let target = m.view(&id("forks")).unwrap().locate.container_id.unwrap();
+    let neighbour = m.view(&id("neighbour")).unwrap().locate.container_id.unwrap();
+    assert_ne!(target, neighbour);
+    let neighbour_start = backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at;
+    let host = super::process_bound::HostPids::capture(&backend, &target).await;
+    let limit = m
+        .exec(
+            id("forks"),
+            ExecRequest { command: vec!["sh".into(), "-c".into(), "ulimit -u".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
         .unwrap();
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "4096", "the engine applied the pids limit");
+    assert_eq!(limit.stdout.trim(), "128", "{limit:?}");
+    host.observe(m.exec(
+        id("forks"),
+        ExecRequest {
+            command: vec![
+                "sh".into(),
+                "-c".into(),
+                "exec 2>&1; i=0; while [ \"$i\" -lt 256 ]; do sleep 60 & i=$((i+1)); done; echo exceeded-limit".into(),
+            ],
+            timeout_seconds: 20,
+        },
+        None,
+        None,
+    ))
+    .await;
+    let stopped = m.stop(id("forks"), None, None).await.unwrap();
+    assert!(!stopped.workload.exit.expect("retirement must record an exit").oom_killed);
+    let stopped = backend.inspect_container(&target, None).await.unwrap().state.unwrap();
+    assert_eq!(stopped.running, Some(false));
+    assert_eq!(stopped.oom_killed, Some(false));
+    host.assert_empty().await;
+    let healthy = m
+        .exec(
+            id("neighbour"),
+            ExecRequest { command: vec!["printf".into(), "neighbour-kept".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(healthy.exit_code, Some(0));
+    assert_eq!(healthy.stdout, "neighbour-kept");
+    assert_eq!(backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at, neighbour_start);
+    cleanup(&m, &["forks", "neighbour"]).await;
 }
 
 /// Hostname egress on gvisor: never announced, and a create that names a policy is refused.
@@ -113,7 +182,13 @@ async fn gvisor_refusal(socket: &std::path::Path) -> Option<String> {
     }
     let info = engine.info().await.expect("the engine answers info");
     let registered = info.runtimes.unwrap_or_default().contains_key(pryxd::runtime::docker::GVISOR_RUNTIME);
-    (!registered).then(|| pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    if !registered {
+        Some(pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    } else if info.security_options.unwrap_or_default().iter().any(|option| option == "name=rootless") {
+        Some(pryxd::runtime::docker::gvisor::GVISOR_ROOTLESS_PROBLEM.into())
+    } else {
+        None
+    }
 }
 
 /// The engine's own API at `socket`, at the version it negotiates (Podman's is older than Docker's).

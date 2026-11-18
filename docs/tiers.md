@@ -243,6 +243,15 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 
 ## gVisor tier and the namespaced process mode
 
+The server preset installs the pinned static release agent automatically. An independently
+configured gVisor agent must also be a static ELF; a GNU debug build with an image-controlled
+loader is refused. The node keeps a digest-named execute-only copy outside sandbox data, so
+Linux and gVisor protect its memory and descriptors before the process becomes visible. An
+exec's successful cleanup is authenticated; losing its owner retires that same sandbox run,
+while an earlier exec can never retire a later stop/start generation. Node exec removes the
+agent's bootstrap variables and preserves ordinary workload variables. Async work belongs to
+the agent's process API; a completed node exec retains no detached descendants.
+
 The `gvisor` tier is the container backend with the engine's gVisor `runsc` runtime (release
 20261109.0, Apache-2.0, deploy/gvisor.json): the same images, limits, ports, bridge and firewall,
 served beside containers wherever the engine lists `runsc`. A request naming `container` is never

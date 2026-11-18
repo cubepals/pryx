@@ -67,7 +67,7 @@ fn listener_ports(gap: u16, size: u16) -> (u16, u16) {
 /// releases; these cases run two daemons on one host at once, so neither may share a user.
 fn case(agent: &std::path::Path, (low, high): (u16, u16), uid_first: u32) -> String {
     format!(
-        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n[process]\nuid_first = {uid_first}\nuid_count = 64\n",
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\ntmp_size_mb = 8\n[network]\nport_range = [{low}, {high}]\n[process]\nuid_first = {uid_first}\nuid_count = 64\n",
         agent.display()
     )
 }
@@ -197,6 +197,9 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
         let seen = run(&m, "b", "test -e /tmp/neighbour-marker && echo seen || echo unseen").await;
         assert_eq!(seen.trim(), "unseen", "b's /tmp is its own");
         assert!(!std::path::Path::new("/tmp/neighbour-marker").exists(), "and a's is not the host's");
+        // Its private /tmp holds the node's /tmp size (8 MiB here) and no more.
+        let fill = "if head -c 9437184 /dev/zero > /tmp/fill 2>/dev/null; then echo wrote; else echo full; fi";
+        assert_eq!(run(&m, "b", fill).await.trim(), "full", "b's /tmp is bounded");
     }
 
     // Sleep keeps the processes, wake resumes them, and a stop still reaches the supervisor.

@@ -129,6 +129,10 @@ export class Sandbox {
   private path(suffix = '') {
     return `/v1/sandboxes/${encodeURIComponent(this.id)}${suffix}`
   }
+  /** The longest a command may run here, when the sandbox's project caps it. */
+  async execLimitSeconds() {
+    return (await this.#agent.token()).maxExecSeconds ?? undefined
+  }
   private command(command: string | string[], options: RunOptions = {}) {
     return this.#agent.start(command, {
       cwd: this.view.workdir,

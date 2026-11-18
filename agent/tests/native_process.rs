@@ -124,7 +124,8 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
             let tools = policy.tools.as_ref().unwrap();
             let kept = [(executable, false), pryx_agent::process_namespaces::tool_directory(tools)];
             let mut command = Command::new(helper);
-            command.args(pryx_agent::process_namespaces::arguments(&policy.data, false, &kept)).arg(executable);
+            let arguments = pryx_agent::process_namespaces::arguments(&policy.data, false, policy.memory_bytes, &kept);
+            command.args(arguments).arg(executable);
             command
         }
         None => Command::new(executable),

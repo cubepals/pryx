@@ -11,6 +11,7 @@
 //! - `schema.rs`: development-only agent wire schema.
 //! - `state.rs`: bounded, non-secret persistent checkpoints.
 //! - `telemetry.rs`: in-memory activity and stream ownership.
+//! - `process_retirement.rs`: final subreaper descendant retirement.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
 //! - `syscall_abi.rs`: native syscall ABI checks around maintained seccompiler policies.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
@@ -20,6 +21,7 @@
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
 //! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
 //! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
+//! - `exec_completion.rs`: authenticated private exec cleanup completion.
 //! - `exec_deadline.rs`: a node exec's deadline kept inside the sandbox's own kernel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
@@ -129,6 +131,8 @@ mod transfers;
 pub mod transfer_target;
 
 #[cfg(feature = "server")]
+pub mod exec_completion;
+#[cfg(feature = "server")]
 pub mod exec_deadline;
 #[cfg(feature = "server")]
 pub mod process_forward;
@@ -137,6 +141,8 @@ pub mod process_listeners;
 pub mod process_namespaces;
 #[cfg(feature = "server")]
 mod process_peer;
+#[cfg(feature = "server")]
+pub mod process_retirement;
 
 #[cfg(feature = "server")]
 pub mod field_process;

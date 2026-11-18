@@ -13,7 +13,7 @@ async def items(value):
     if hasattr(value,'__aiter__'):return [item async for item in value]
     return list(value)
 class Peer:
-    def __init__(self):self.calls=[];self.state='sleeping';self.command=[];self.files={};self.archives={};self.failure=None;self.version=2;self.isolation=None
+    def __init__(self):self.calls=[];self.state='sleeping';self.command=[];self.files={};self.archives={};self.failure=None;self.max_exec=None;self.version=2;self.isolation=None
     def view(self):return dict(VIEW,state=self.state,name='named',labels={'role':'agent'},workdir='/data',**({'isolation':self.isolation} if self.isolation else {}))
     def exited(self):
         """A step that hangs: the agent ends it at its deadline and reports so."""
@@ -24,7 +24,7 @@ class Peer:
         if path.startswith('/_pryx/'):assert request.headers['authorization']=='Bearer scoped'
         if path.startswith('/v1/'):assert request.headers.get('authorization')=='Bearer project-secret'
         def response(value,status=HTTPStatus.OK):return httpx.Response(status,json=value)
-        if path.endswith('/token'):return response(dict(url='http://agent.test',token='scoped',expiresAt=9999999999,epoch=1))
+        if path.endswith('/token'):return response(dict(url='http://agent.test',token='scoped',expiresAt=9999999999,epoch=1,maxExecSeconds=self.max_exec))
         if path=='/_pryx/health':return response(dict(status='ok',apiVersion=self.version))
         if path=='/v1/project':return response({'defaults':{'isolation':'wasm','repoImage':'unused'}})
         if path=='/v1/sandboxes' and method=='GET':return response({'sandboxes':[self.view()]})
@@ -135,6 +135,8 @@ class Field(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(any(c[0].endswith('/versions') and c[2]['start']=='sleep 60' for c in peer.calls))
             steps=[c[2] for c in peer.calls if c[0]=='/_pryx/processes' and c[1]=='POST'];self.assertTrue(steps);self.assertTrue(all(step['timeout']==SDK_DEFAULTS['templateStepTimeoutSeconds'] for step in steps))
             with self.assertRaisesRegex(PryxError,r'Template command failed \(timed out after '+str(1000*SDK_DEFAULTS['templateStepTimeoutSeconds'])+r' ms\)'):await take(client.template(name='named',isolation='wasm',run=['hang']))
+            peer.max_exec=120;before=len(peer.calls);await take(client.template(name='named',isolation='wasm',run=['true']));peer.max_exec=None
+            self.assertEqual([c[2]['timeout'] for c in peer.calls[before:] if c[0]=='/_pryx/processes' and c[1]=='POST'],[120])
         await self.both(exercise)
     async def test_webhook_registration_does_not_list_its_secret(self):
         async def exercise(client,peer):

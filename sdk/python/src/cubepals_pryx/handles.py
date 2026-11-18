@@ -55,6 +55,9 @@ class Sandbox:
     def _path(self,suffix=''):return f'/v1/sandboxes/{quote(self.id,safe="")}{suffix}'
     def refresh(self):self._view=SandboxView.from_dict(self._http.request(self._path()));self._agent.invalidate();return self
     def spawn(self,command,**options):return self._agent.start(command,**self._command_options(options))
+    def exec_limit_seconds(self):
+        """The longest a command may run here, when the sandbox's project caps it."""
+        return self._agent.token().get('maxExecSeconds')
     def run(self,command,**options):return CommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}),False).result()
     def stream(self,command,**options):return CommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}))
     def write(self,path,data):return self.files.write(path,data)
@@ -117,6 +120,9 @@ class AsyncSandbox(Sandbox):
         self.files=AsyncFiles(http,self.id,self._agent,lambda:self._view)
     async def refresh(self):self._view=SandboxView.from_dict(await self._http.request(self._path()));self._agent.invalidate();return self
     async def spawn(self,command,**options):return await self._agent.start(command,**self._command_options(options))
+    async def exec_limit_seconds(self):
+        """The longest a command may run here, when the sandbox's project caps it."""
+        return (await self._agent.token()).get('maxExecSeconds')
     async def python(self, *, context=''): return await AsyncKernel.open(self._agent, 'python', context)
     async def javascript(self, *, context=''): return await AsyncKernel.open(self._agent, 'javascript', context)
     async def mounts(self):return (await self._agent.request('/_pryx/mounts'))['mounts']
