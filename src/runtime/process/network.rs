@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashMap},
-    net::{IpAddr, Ipv4Addr},
+    net::Ipv4Addr,
     ops::RangeInclusive,
     os::fd::AsRawFd,
     path::{Path, PathBuf},
@@ -61,7 +61,7 @@ struct Held {
     asked: Asked,
     config: [u8; object::CONFIG_BYTES],
     /// This host's addresses as its rules name them.
-    host: Vec<IpAddr>,
+    host: host::Addresses,
     /// Its policy could not be verified: the cgroup is fenced and may not run again until a
     /// fresh prepare removes it and attaches a new set of programs.
     stale: bool,
@@ -222,7 +222,11 @@ impl Network {
     }
 
     /// The rules for what a sandbox asked, on this host with `host` its own addresses.
-    fn compile(&self, asked: &Asked, host: &[IpAddr]) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
+    fn compile(
+        &self,
+        asked: &Asked,
+        host: &host::Addresses,
+    ) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
         let private: Vec<ipnet::IpNet> =
             ranges(crate::ranges::PRIVATE_V4).chain(ranges(crate::ranges::PRIVATE_V6)).collect();
         let link_local: Vec<ipnet::IpNet> =
@@ -231,7 +235,8 @@ impl Network {
             reach: asked.reach,
             allow: &asked.allow,
             deny: &asked.deny,
-            host,
+            host: &host.own,
+            broadcast: &host.broadcast,
             nameservers: &crate::runtime::egress::dns::nameservers(),
             served: self.served.ports.clone(),
             api_port: self.served.api_port,
@@ -326,7 +331,7 @@ impl Network {
         self.refresh_with(host::addresses())
     }
 
-    fn refresh_with(&self, addresses: std::io::Result<Vec<IpAddr>>) -> usize {
+    fn refresh_with(&self, addresses: std::io::Result<host::Addresses>) -> usize {
         let addresses = match addresses {
             Ok(addresses) => addresses,
             Err(problem) => {

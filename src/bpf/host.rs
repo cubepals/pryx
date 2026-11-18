@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Where this daemon may keep a process sandbox's programs: a child of its own cgroup v2
 //! directory for each sandbox, and a directory on a BPF filesystem it alone writes for their
-//! pins. Also the host facts a policy needs: this host's own addresses, and the kernel's word
-//! each time they change. Found by looking, never configured; what is missing is reported with
+//! pins. Also the host facts a policy needs: this host's own addresses and the broadcast
+//! prefixes its routes also deliver here, and the kernel's word each time they change. Found by looking, never configured; what is missing is reported with
 //! what would turn it on. Not the programs: those are `attach.rs`.
 use std::{
     fs, io,
@@ -261,13 +261,24 @@ pub(crate) fn drop_ambient_on_exec(command: &mut Command) {
     }
 }
 
-/// This host's own addresses: IPv4 from the routing trie, IPv6 from the interface table. An
-/// unreadable table is no proof that the host owns no address: it leaves the policy unavailable.
-pub(crate) fn addresses() -> io::Result<Vec<IpAddr>> {
+/// What a policy keeps this host to, as the kernel routes it now.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Addresses {
+    /// This host's own addresses.
+    pub(crate) own: Vec<IpAddr>,
+    /// The IPv4 prefixes routed as broadcast (a subnet's last address, loopback's): a datagram
+    /// sent there reaches this host's own sockets too, from the link rather than from loopback.
+    pub(crate) broadcast: Vec<ipnet::IpNet>,
+}
+
+/// This host's own addresses and broadcast prefixes: IPv4 from the routing trie, IPv6 from the
+/// interface table. An unreadable table is no proof that the host owns no address: it leaves the
+/// policy unavailable.
+pub(crate) fn addresses() -> io::Result<Addresses> {
     addresses_at(Path::new("/proc/net"))
 }
 
-fn addresses_at(directory: &Path) -> io::Result<Vec<IpAddr>> {
+fn addresses_at(directory: &Path) -> io::Result<Addresses> {
     let read = |file: &str| {
         let path = directory.join(file);
         fs::read_to_string(&path)
@@ -281,11 +292,15 @@ fn addresses_at(directory: &Path) -> io::Result<Vec<IpAddr>> {
         Err(problem) if problem.kind() == io::ErrorKind::NotFound && ipv6_unavailable() => String::new(),
         Err(problem) => return Err(problem),
     };
-    let mut found: Vec<IpAddr> = crate::infer::local_addresses(&ipv4).into_iter().map(IpAddr::V4).collect();
-    found.extend(ipv6_addresses(&ipv6).into_iter().map(IpAddr::V6));
-    found.sort_unstable();
-    found.dedup();
-    Ok(found)
+    let mut own: Vec<IpAddr> = crate::infer::local_addresses(&ipv4).into_iter().map(IpAddr::V4).collect();
+    own.extend(ipv6_addresses(&ipv6).into_iter().map(IpAddr::V6));
+    own.sort_unstable();
+    own.dedup();
+    let mut broadcast: Vec<ipnet::IpNet> =
+        crate::infer::broadcast_routes(&ipv4).into_iter().map(ipnet::IpNet::V4).collect();
+    broadcast.sort_unstable();
+    broadcast.dedup();
+    Ok(Addresses { own, broadcast })
 }
 
 fn ipv6_unavailable() -> bool {
@@ -402,10 +417,13 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let ipv4 = directory.path().join("fib_trie");
         let ipv6 = directory.path().join("if_inet6");
-        fs::write(&ipv4, "Main:\n  +-- 203.0.113.0/24 2 0 2\n     |-- 203.0.113.9\n        /32 host LOCAL\n").unwrap();
+        let trie = "Main:\n  +-- 203.0.113.0/24 2 0 2\n     |-- 203.0.113.9\n        /32 host LOCAL\n\
+                    |-- 203.0.113.255\n        /32 link BROADCAST\n";
+        fs::write(&ipv4, trie).unwrap();
         fs::write(&ipv6, "20010db8000000000000000000000009 01 00 00 80 lo\n").unwrap();
-        let expected: Vec<IpAddr> = ["203.0.113.9", "2001:db8::9"].map(|address| address.parse().unwrap()).into();
-        assert_eq!(addresses_at(directory.path()).unwrap(), expected);
+        let own: Vec<IpAddr> = ["203.0.113.9", "2001:db8::9"].map(|address| address.parse().unwrap()).into();
+        let broadcast = vec!["203.0.113.255/32".parse().unwrap()];
+        assert_eq!(addresses_at(directory.path()).unwrap(), Addresses { own, broadcast });
         fs::remove_file(&ipv4).unwrap();
         let problem = addresses_at(directory.path()).unwrap_err();
         assert_eq!(problem.kind(), io::ErrorKind::NotFound);
@@ -418,7 +436,7 @@ mod tests {
         assert!(problem.to_string().contains("if_inet6"), "{problem}");
         fs::remove_dir(&ipv6).unwrap();
         if ipv6_unavailable() {
-            assert_eq!(addresses_at(directory.path()).unwrap(), Vec::<IpAddr>::new());
+            assert_eq!(addresses_at(directory.path()).unwrap(), Addresses::default());
         } else {
             assert_eq!(addresses_at(directory.path()).unwrap_err().kind(), io::ErrorKind::NotFound);
         }
