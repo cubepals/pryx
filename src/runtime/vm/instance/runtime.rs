@@ -38,24 +38,11 @@ impl VmRuntime {
         if !force && !already_exited && !live.shutdown_requested {
             live.shutdown_requested = true;
             let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-            let request = vm_shutdown::request_with_grace(
-                &agent::key(&entry.spec)?,
-                &live.nonce,
-                &boot.sandbox,
-                boot.epoch,
-                signal,
-                grace,
-            )
-            .map_err(error)?;
+            let key = agent::key(&entry.spec)?;
+            let request = vm_shutdown::request_with_grace(&key, &live.nonce, &boot.sandbox, boot.epoch, signal, grace)
+                .map_err(error)?;
             let bundle = self.bundle().await?;
-            // Submit once. A lost acknowledgement cannot cancel an accepted guest shutdown.
-            let _ = super::super::transport::request(
-                &bundle.root().join("bin/vm-transport"),
-                &serde_json::json!({"socket":live.channel,"port":vm_shutdown::PORT,"shutdown":request}),
-                deadline.saturating_duration_since(Instant::now()),
-                pryx_agent::vm_boot::MAX_BYTES,
-            )
-            .await;
+            live.shutdown_exit = requested_exit(&bundle, &live.channel, request, &key.public_key(), deadline).await;
         }
         let exited = if already_exited {
             true
@@ -256,9 +243,50 @@ pub(super) fn stopped_status(entry: &Entry, lease: &Path) -> Result<ContainerSta
     Ok(if entry.code == UNKNOWN_EXIT_CODE { ContainerStatus::Dead } else { ContainerStatus::Exited })
 }
 pub(super) fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeError> {
+    if let Some(code) = live.shutdown_exit {
+        return Ok(code);
+    }
     let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
     let public_key = agent::key(&entry.spec)?.public_key();
     let proof = shutdown_proof(&live.serial, &public_key, &live.nonce, &boot.sandbox, boot.epoch)?;
+    exit_status(&proof)
+}
+
+/// A verified stop reply can be used after actual monitor exit, independent of serial capture.
+pub(super) async fn requested_exit(
+    bundle: &Bundle,
+    channel: &Path,
+    request: vm_shutdown::Request,
+    key: &str,
+    deadline: Instant,
+) -> Option<i64> {
+    let mut message = serde_json::json!({"socket":channel,"port":vm_shutdown::PORT,"shutdown":request});
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    let collect_proof = bundle.bootstrap().metadata.vm_shutdown_proof;
+    if collect_proof {
+        let millis = u32::try_from(remaining.as_millis()).unwrap_or(u32::MAX).max(1);
+        message["shutdownProofTimeoutMs"] = millis.into();
+    }
+    // Submit once. A lost reply cannot cancel an accepted shutdown; its serial proof can still be used.
+    let (status, body) = super::super::transport::request(
+        &bundle.root().join("bin/vm-transport"),
+        &message,
+        remaining,
+        pryx_agent::vm_boot::MAX_BYTES,
+    )
+    .await
+    .ok()?;
+    if !collect_proof || status != hyper::StatusCode::ACCEPTED {
+        return None;
+    }
+    let proof = serde_json::from_slice::<vm_observation::Proof>(&body).ok()?;
+    if !vm_observation::verify(&proof, key, &request.nonce, &request.sandbox, request.epoch) {
+        return None;
+    }
+    exit_status(&proof.observation).ok()
+}
+
+fn exit_status(proof: &vm_observation::Observation) -> Result<i64, RuntimeError> {
     match (proof.code, proof.signal) {
         (Some(code), _) => Ok(i64::from(code)),
         (_, Some(signal)) => Ok(crate::runtime::exit_by(signal)),

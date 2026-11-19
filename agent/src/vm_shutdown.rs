@@ -3,14 +3,16 @@
 //! Boot-scoped shutdown requests reach trusted PID 1 over a host-CID-only vsock listener.
 //! A published kernel need not have a keyboard driver. Workload HTTP tokens, serial output
 //! and another boot's request cannot authorize a disk flush or certify its completion.
+//! After flushing, init returns the signed proof on the authenticated shutdown stream.
 use crate::{
     auth::{self, SigningKey},
     process_observation::nonce_valid,
+    vm_observation::Proof,
 };
 use serde::{Deserialize, Serialize};
 use std::{io, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};
+use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener, VsockStream};
 
 pub const PORT: u32 = 11828;
 const CONTEXT: &str = "pryx VM shutdown request v1";
@@ -134,7 +136,7 @@ impl Listener {
         nonce: &str,
         sandbox: &str,
         epoch: u64,
-    ) -> io::Result<Accepted> {
+    ) -> io::Result<(Accepted, VsockStream)> {
         loop {
             let (mut socket, address) = self.0.accept().await?;
             if address.cid() != VMADDR_CID_HOST {
@@ -146,7 +148,7 @@ impl Listener {
             )
             .await;
             if let Ok(Ok(Some(accepted))) = received {
-                return Ok(accepted);
+                return Ok((accepted, socket));
             }
         }
     }
@@ -171,12 +173,26 @@ async fn transaction(
         .ok()
         .filter(|request| verify(request, public_key, nonce, sandbox, epoch));
     let Some(request) = request else { return Ok(None) };
-    let mut acknowledgement = serde_json::to_vec(&true)?;
-    acknowledgement.push(b'\n');
     // A lost acknowledgement never cancels an authenticated shutdown already accepted.
-    let _ = socket.write_all(&acknowledgement).await;
-    let _ = AsyncWriteExt::shutdown(socket).await;
+    let _ = socket.write_all(b"true\n").await;
     Ok(Some(request.accepted()))
+}
+
+/// The receipt keeps reset from overtaking proof transfer. Older hosts close after acceptance.
+pub(crate) async fn send_proof(socket: &mut (impl AsyncRead + AsyncWrite + Unpin), proof: &Proof) -> io::Result<()> {
+    let mut line = serde_json::to_vec(proof)?;
+    if line.len() as u64 >= MAX_BYTES {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "VM shutdown proof exceeds its bound"));
+    }
+    line.push(b'\n');
+    tokio::time::timeout(Duration::from_secs(1), async {
+        socket.write_all(&line).await?;
+        if socket.read_u8().await? != 1 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid VM shutdown proof receipt"));
+        }
+        Ok(())
+    })
+    .await?
 }
 
 #[cfg(test)]
@@ -260,6 +276,59 @@ mod tests {
                     .await
                     .expect("A complete JSON request must not wait for peer EOF");
             assert_eq!(accepted.unwrap(), Some(Accepted { signal: selected, grace: DEFAULT_GRACE }));
+        }
+    }
+
+    #[tokio::test]
+    async fn the_signed_proof_uses_the_accepted_stream_and_waits_for_its_receipt() {
+        let (key, _) = SigningKey::generate().unwrap();
+        let random = ring::rand::SystemRandom::new();
+        let nonce = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(ring::rand::generate::<[u8; 32]>(&random).unwrap().expose());
+        let mut request = serde_json::to_vec(&request(&key, &nonce, "one", 3)).unwrap();
+        request.push(b'\n');
+        let proof = crate::vm_observation::sign(
+            &key,
+            crate::vm_observation::Observation {
+                nonce: nonce.clone(),
+                sandbox: "one".into(),
+                epoch: 3,
+                kernel: "guest-kernel".into(),
+                code: Some(0),
+                signal: None,
+                disk_synced: true,
+            },
+        );
+        for receipt in [Some(1), Some(0), None] {
+            let (host, mut guest) = tokio::net::UnixStream::pair().unwrap();
+            let mut host = tokio::io::BufReader::new(host);
+            host.get_mut().write_all(&request).await.unwrap();
+            assert!(transaction(&mut guest, &key.public_key(), &nonce, "one", 3).await.unwrap().is_some());
+            let mut acceptance = Vec::new();
+            host.read_until(b'\n', &mut acceptance).await.unwrap();
+            assert_eq!(acceptance, b"true\n");
+            let Some(receipt) = receipt else {
+                drop(host);
+                assert!(send_proof(&mut guest, &proof).await.is_err());
+                continue;
+            };
+
+            let delivery = send_proof(&mut guest, &proof);
+            tokio::pin!(delivery);
+            let mut line = Vec::new();
+            tokio::select! {
+                result = &mut delivery => panic!("Proof delivery finished without a receipt: {result:?}"),
+                result = host.read_until(b'\n', &mut line) => assert!(result.unwrap() > 0),
+            }
+            let delivered = serde_json::from_slice(&line).unwrap();
+            assert!(crate::vm_observation::verify(&delivered, &key.public_key(), &nonce, "one", 3));
+            tokio::select! {
+                biased;
+                result = &mut delivery => panic!("Proof delivery finished without a receipt: {result:?}"),
+                _ = std::future::ready(()) => (),
+            }
+            host.get_mut().write_all(&[receipt]).await.unwrap();
+            assert_eq!(delivery.await.is_ok(), receipt == 1);
         }
     }
 

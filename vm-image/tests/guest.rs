@@ -126,20 +126,6 @@ impl Guest {
     }
 }
 
-fn verify_shutdown(log: &str, key: &SigningKey, encoded: &str, token: &str, nonce: &str, sandbox: &str, kernel: &str) {
-    for secret in [encoded, token] {
-        assert!(!log.contains(secret), "Bootstrap credential reached serial output");
-    }
-    let proofs = log
-        .lines()
-        .filter_map(|line| line.strip_prefix(vm_observation::PREFIX))
-        .filter_map(|line| serde_json::from_str::<Proof>(line).ok())
-        .collect::<Vec<_>>();
-    assert_eq!(proofs.len(), 1, "Expected exactly one clean shutdown proof; see retained serial log");
-    assert!(vm_observation::verify(&proofs[0], &key.public_key(), nonce, sandbox, 1));
-    assert_eq!(proofs[0].observation.kernel, kernel);
-}
-
 struct NetworkFixture {
     proxy: tokio::process::Child,
     http: tokio::task::JoinHandle<()>,
@@ -508,18 +494,21 @@ async fn boot(
     // action assertion, then ask trusted PID 1 explicitly to flush and power off.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     let shutdown = vm_shutdown::request(&key, &nonce, sandbox, 1);
-    let (status, _) = tokio::time::timeout_at(
+    let (status, body) = tokio::time::timeout_at(
         deadline,
         request(
             &guest.client,
             json!({"socket": guest.channel,
-            "port": vm_shutdown::PORT, "shutdown": shutdown}),
+            "port": vm_shutdown::PORT, "shutdown": shutdown, "shutdownProofTimeoutMs": 15_000}),
         ),
     )
     .await
     .unwrap()
     .unwrap();
     assert_eq!(status, StatusCode::ACCEPTED);
+    let proof: Proof = serde_json::from_slice(&body).expect("Signed shutdown proof on the private stream");
+    assert!(vm_observation::verify(&proof, &key.public_key(), &nonce, sandbox, 1));
+    assert_eq!(proof.observation.kernel, kernel);
     let status = tokio::time::timeout_at(deadline, monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
     tokio::time::timeout_at(deadline, monitor.finish_serial()).await.unwrap().unwrap();
@@ -530,7 +519,9 @@ async fn boot(
         fixture.proxy.kill().await.unwrap();
     }
     let log = fs::read_to_string(&serial_path).unwrap();
-    verify_shutdown(&log, &key, &encoded, &token, &nonce, sandbox, &kernel);
+    for secret in [&encoded, &token] {
+        assert!(!log.contains(secret), "Bootstrap credential reached serial output");
+    }
     assert!(checked(tools, writes).await, "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
         "streamingBinaryAndDeclaredTcp": true, "monitorConfined": true, "monitorLeaseHeldUntilExit": true,

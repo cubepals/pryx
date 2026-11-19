@@ -7,7 +7,7 @@ use super::*;
 use crate::runtime::vm::{disk, image, jail};
 use hyper::Method;
 use pryx_agent::{process, vm_monitor, vm_shutdown};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 
 struct Launch {
@@ -149,27 +149,15 @@ impl Host<'_> {
     }
     async fn shutdown(&self, launch: &Launch, monitor: &mut Machine, spec: &ContainerSpec) {
         let agent = spec.agent.as_ref().unwrap();
-        let request = vm_shutdown::request(&agent::key(spec).unwrap(), &launch.boot.nonce, &agent.sandbox, agent.epoch);
-        super::super::transport::request(
-            &self.bundle.root().join("bin/vm-transport"),
-            &json!({"socket":launch.channel, "port":vm_shutdown::PORT, "shutdown":request}),
-            launch::BOOT_TIMEOUT,
-            pryx_agent::vm_boot::MAX_BYTES,
-        )
-        .await
-        .unwrap();
-        tokio::time::timeout(launch::BOOT_TIMEOUT, monitor.wait()).await.unwrap().unwrap();
+        let key = agent::key(spec).unwrap();
+        let request = vm_shutdown::request(&key, &launch.boot.nonce, &agent.sandbox, agent.epoch);
+        let deadline = tokio::time::Instant::now() + launch::BOOT_TIMEOUT;
+        let proof = runtime::requested_exit(&self.bundle, &launch.channel, request, &key.public_key(), deadline).await;
+        tokio::time::timeout_at(deadline, monitor.wait()).await.unwrap().unwrap();
         monitor.finish_serial().await.unwrap();
         assert!(!monitor.serial_truncated());
         diagnostics::retain(&launch.serial, &spec.env.iter().map(|(_, value)| value.clone()).collect::<Vec<_>>());
-        runtime::shutdown_proof(
-            &launch.serial,
-            &agent::key(spec).unwrap().public_key(),
-            &launch.boot.nonce,
-            &agent.sandbox,
-            agent.epoch,
-        )
-        .unwrap();
+        assert!(proof.is_some(), "Root guest shutdown must deliver its signed proof on the private stream");
     }
 }
 

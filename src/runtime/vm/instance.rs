@@ -156,6 +156,7 @@ struct Live {
     channel: PathBuf,
     nonce: String,
     shutdown_requested: bool,
+    shutdown_exit: Option<i64>,
     killing: bool,
     /// How long each stage of this boot took.
     #[cfg_attr(not(test), allow(dead_code))]

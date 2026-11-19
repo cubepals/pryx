@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -26,6 +27,8 @@ import (
 
 const maxRequestBytes = 512 * 1024
 const maxResponseBytes = 4 * 1024 * 1024
+const maxShutdownProofBytes = 4 * 1024
+const shutdownAdmissionTimeout = 5 * time.Second
 
 type request struct {
 	Socket     string          `json:"socket"`
@@ -41,6 +44,8 @@ type request struct {
 	Sleep      json.RawMessage `json:"sleep"`
 	Monitor    *monitorAction  `json:"monitor"`
 	Forward    *forwarding     `json:"forward"`
+
+	ShutdownProofTimeoutMs uint32 `json:"shutdownProofTimeoutMs"`
 }
 
 func run(source io.Reader) error {
@@ -56,6 +61,9 @@ func run(source io.Reader) error {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
 		return fmt.Errorf("Invalid private agent request")
+	}
+	if input.ShutdownProofTimeoutMs != 0 && (input.Shutdown == nil || input.Forward != nil || input.Monitor != nil) {
+		return fmt.Errorf("A proof timeout requires a private shutdown request")
 	}
 	if input.Forward != nil {
 		return forward(input)
@@ -126,27 +134,71 @@ func shutdown(input request) error {
 	if input.Sleep != nil {
 		line = input.Sleep
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	var proofDeadline time.Time
+	if input.ShutdownProofTimeoutMs != 0 {
+		proofDeadline = time.Now().Add(time.Duration(input.ShutdownProofTimeoutMs) * time.Millisecond)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), shutdownAdmissionDeadline(proofDeadline))
 	defer cancel()
 	connection, err := vsock.DialContext(ctx, input.Socket, input.Port)
 	if err != nil {
 		return err
 	}
 	defer connection.Close()
-	if err := connection.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	body, err := exchangeShutdown(connection, line, proofDeadline)
+	if err != nil {
 		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": http.StatusAccepted, "body": body})
+}
+
+func shutdownAdmissionDeadline(proofDeadline time.Time) time.Time {
+	deadline := time.Now().Add(shutdownAdmissionTimeout)
+	if !proofDeadline.IsZero() && proofDeadline.Before(deadline) {
+		return proofDeadline
+	}
+	return deadline
+}
+
+func exchangeShutdown(connection net.Conn, line json.RawMessage, proofDeadline time.Time) ([]byte, error) {
+	if err := connection.SetDeadline(shutdownAdmissionDeadline(proofDeadline)); err != nil {
+		return nil, err
 	}
 	if err := json.NewEncoder(connection).Encode(line); err != nil {
-		return err
+		return nil, err
 	}
+	decoder := json.NewDecoder(io.LimitReader(connection, maxResponseBytes))
 	var accepted bool
-	if err := json.NewDecoder(io.LimitReader(connection, maxResponseBytes)).Decode(&accepted); err != nil {
-		return err
+	if err := decoder.Decode(&accepted); err != nil {
+		return nil, err
 	}
 	if !accepted {
-		return fmt.Errorf("Guest init refused the request")
+		return nil, fmt.Errorf("Guest init refused the request")
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": http.StatusAccepted, "body": []byte{}})
+	if proofDeadline.IsZero() {
+		return []byte{}, nil
+	}
+	if err := connection.SetDeadline(proofDeadline); err != nil {
+		return nil, err
+	}
+	// The proof can start in the same read as the boolean acknowledgement. Keep those bytes
+	// and consume the two line boundaries before acknowledging delivery to guest init.
+	stream := bufio.NewReaderSize(io.MultiReader(decoder.Buffered(), connection), maxShutdownProofBytes)
+	boundary, err := stream.ReadByte()
+	if err != nil || boundary != '\n' {
+		return nil, fmt.Errorf("Incomplete VM shutdown acknowledgement")
+	}
+	frame, err := stream.ReadSlice('\n')
+	if err != nil {
+		return nil, fmt.Errorf("Reading VM shutdown proof: %w", err)
+	}
+	proof := frame[:len(frame)-1]
+	if len(proof) == 0 || proof[0] != '{' || !json.Valid(proof) {
+		return nil, fmt.Errorf("Invalid VM shutdown proof response")
+	}
+	// The receipt lets init reset early. Losing it cannot revoke the fully received proof.
+	_, _ = connection.Write([]byte{1})
+	return proof, nil
 }
 
 func main() {

@@ -34,6 +34,11 @@ async fn actual_monitor_shutdown_threads_exit_cleanly() {
     runtime.stop(&id, &spec.stop_signal, Duration::from_secs(15)).await.unwrap();
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().exit_code, i64::from(libc::EXIT_SUCCESS));
     let mut live = live.lock().await;
+    assert_eq!(
+        live.shutdown_exit,
+        Some(i64::from(libc::EXIT_SUCCESS)),
+        "Use the private shutdown proof for this bundle"
+    );
     let status = live.monitor.exited().unwrap().unwrap();
     assert!(status.success(), "Monitor failed after a verified orderly guest stop: {status:?}");
     drop(live);

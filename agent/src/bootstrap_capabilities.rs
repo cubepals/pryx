@@ -68,6 +68,8 @@ pub struct Capabilities {
     #[serde(default)]
     pub vm_shutdown_signals: bool,
     #[serde(default)]
+    pub vm_shutdown_proof: bool,
+    #[serde(default)]
     pub vm_firewall_version: u16,
     #[serde(default)]
     pub vm_firewall_directory: String,
@@ -124,6 +126,7 @@ pub fn probe() -> Capabilities {
         vm_stream_version: crate::vm_boot::STREAM_VERSION,
         vm_files_version: VM_FILES_VERSION,
         vm_shutdown_signals: true,
+        vm_shutdown_proof: true,
         vm_firewall_version: crate::vm_boot::FIREWALL_VERSION,
         vm_firewall_directory: crate::vm_boot::FIREWALL_DIRECTORY.into(),
         vm_firewall_program: crate::vm_boot::FIREWALL_PROGRAM.into(),

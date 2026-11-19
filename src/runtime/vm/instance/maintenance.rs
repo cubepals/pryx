@@ -138,6 +138,7 @@ impl VmRuntime {
                     channel,
                     nonce,
                     shutdown_requested: false,
+                    shutdown_exit: None,
                     killing: false,
                     stages: super::launch::Stages::default(),
                     #[cfg(test)]
@@ -203,14 +204,10 @@ impl Inner {
     async fn close(mut self) -> Result<(), RuntimeError> {
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let boot = self.entry.spec.agent.as_ref().ok_or_else(|| error("VM file service identity is missing"))?;
-        let request = vm_shutdown::request(&agent::key(&self.entry.spec)?, &self.live.nonce, &boot.sandbox, boot.epoch);
-        let _ = super::super::transport::request(
-            &self.bundle.root().join("bin/vm-transport"),
-            &serde_json::json!({"socket":self.live.channel,"port":vm_shutdown::PORT,"shutdown":request}),
-            deadline.saturating_duration_since(Instant::now()),
-            pryx_agent::vm_boot::MAX_BYTES,
-        )
-        .await;
+        let key = agent::key(&self.entry.spec)?;
+        let request = vm_shutdown::request(&key, &self.live.nonce, &boot.sandbox, boot.epoch);
+        self.live.shutdown_exit =
+            runtime::requested_exit(&self.bundle, &self.live.channel, request, &key.public_key(), deadline).await;
         let exited = tokio::time::timeout_at(deadline, self.live.monitor.wait()).await;
         let result = match exited {
             Ok(status) => status.map(|_| ()).map_err(error),
