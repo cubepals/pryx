@@ -7,6 +7,11 @@ on:
   # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
+    inputs:
+      measure_pryx:
+        description: Record paired VM boot timings and balloon reporting counters
+        type: boolean
+        default: false
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -59,7 +64,7 @@ jobs:
         startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
         startsWith(github.head_ref, 'codex/')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.measure_pryx && 45 || 30 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -313,14 +318,30 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          PRYX_MEASURE_BOOT: ${{ inputs.measure_pryx }}
         run: |
-          python3 templates/vm-tools/agent_acceptance.py \
-            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
-            --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
-            --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
-            --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
-            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
-            --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+          guest_fixture() {
+            python3 templates/vm-tools/agent_acceptance.py \
+              --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+              --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
+              --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
+              --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+              --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" "$@"
+          }
+          guest_fixture --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+          if [ "$PRYX_MEASURE_BOOT" = true ]; then
+            guest_fixture --work "$RUNNER_TEMP/vm-boot-benchmark" --measure-boot
+            cat "$RUNNER_TEMP/vm-boot-benchmark/vm-boot-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain paired VM boot and page reporting measurements
+        if: ${{ !cancelled() && inputs.measure_pryx }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-boot-benchmark
+          path: |
+            ${{ runner.temp }}/vm-boot-benchmark/vm-boot-benchmark.json
+            ${{ runner.temp }}/vm-boot-benchmark/vm-boot-benchmark.md
+          if-no-files-found: error
       - name: Retain bounded runtime diagnostics separately
         if: always()
         uses: ./.github/actions/upload-evidence

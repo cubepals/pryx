@@ -1,8 +1,9 @@
 # pryx baseline measurements
 
-Dispatch CI and Any host with `measure_pryx=true` on the commit being measured. CI measures process, container, gVisor and Wasm through disposable one-box deployments. Any host measures VM sandboxes through the signed ordinary-user installation. Both retain raw JSON and a Markdown summary. The artifacts identify the commit, run and host.
+Dispatch CI, Any host and VM experiments with `measure_pryx=true` on the commit being measured. CI measures process, container, gVisor and Wasm through disposable one-box deployments. Any host measures VM sandboxes through the signed ordinary-user installation. VM experiments measures guest boot and free-page reporting on KVM. The runs retain raw JSON and Markdown summaries with source and host information.
 
 - Single-sandbox cohorts measure latency to a running sandbox, wake latency, no-op exec and public SDK file throughput. File samples use the same four-MiB dataset and verify the read bytes.
 - Idle sandbox memory is paired deployment PSS measured immediately before create and after the sandbox reaches running. VM helper samples identify process roles and report PSS per observed process. The launcher execs Firecracker in place, so a steady-state launcher sample may be absent.
 - Creation waves request 1, 10 or 50 sandboxes at once. Latency percentiles use completed waves. The raw report records admission refusals and the number that reached running in each wave.
 - CI measures an idle development HTTP server in an isolated cgroup. The zswap ratio uses paired logical and compressed byte deltas after reclaim. The report records the observed reason when the host cannot produce a stable sample.
+- The KVM experiment alternates ordinary and quiet boots of the same guest. The free-page cohort checks the pinned kernel configuration, then measures the monitor's reported pages and discarded bytes with a size-zero balloon.
