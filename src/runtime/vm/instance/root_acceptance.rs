@@ -152,7 +152,7 @@ impl Host<'_> {
         let key = agent::key(spec).unwrap();
         let request = vm_shutdown::request(&key, &launch.boot.nonce, &agent.sandbox, agent.epoch);
         let deadline = tokio::time::Instant::now() + launch::BOOT_TIMEOUT;
-        let proof = runtime::requested_exit(&self.bundle, &launch.channel, request, &key.public_key(), deadline).await;
+        let proof = runtime::requested_exit(self.bundle, &launch.channel, request, &key.public_key(), deadline).await;
         tokio::time::timeout_at(deadline, monitor.wait()).await.unwrap().unwrap();
         monitor.finish_serial().await.unwrap();
         assert!(!monitor.serial_truncated());
