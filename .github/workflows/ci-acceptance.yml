@@ -1,0 +1,555 @@
+name: CI acceptance
+
+# CI's acceptance of the installed product, called by ci.yml in the same run: one job builds the
+# debug daemon and the release image once, and the end-to-end suites and the one-box install take
+# both from it. Not a workflow of its own: it has no trigger but ci.yml's call, and ci.yml decides
+# when it runs. A called workflow gets neither the caller's env nor its concurrency (github.workflow
+# would name the caller and the call would wait on itself), so it sets its own env and permissions
+# and no concurrency.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The daemon the suites run (debug: only debug builds take PRYXD_TEST_VERSION) and the release
+  # image, built once from this commit. The image is saved once under every tag the suites use. Its
+  # one artifact is this run's alone: no job downloads another run's, and only this job makes it.
+  build:
+    name: Build the daemon and release image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      - name: Build the current daemon
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+        run: |
+          cargo build --locked
+          install -D -m 0755 target/debug/pryxd "$RUNNER_TEMP/ci-release-build/pryxd-debug"
+          cargo clean
+      - name: Build the release image
+        run: |
+          docker build -t pryx-release .
+          docker run --rm pryx-release --version
+          docker tag pryx-release pryx-static-test
+          docker tag pryx-release pryx-one-box-release
+          docker save pryx-release pryx-static-test pryx-one-box-release \
+            | gzip -1 > "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz"
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -- * > SHA256SUMS && du -h -- *)
+      # A rerun of this job replaces its own artifact: upload-evidence overwrites on its retry.
+      - uses: ./.github/actions/upload-evidence
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build/
+          compression-level: '0'
+          if-no-files-found: error
+          retention-days: '3'
+
+  e2e:
+    name: Control end to end
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+      PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test:local
+      S3_TEST_ENDPOINT: http://127.0.0.1:9000
+      S3_TEST_CONTAINER: pryx-s3
+      PRYXD_SUDO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: rustup toolchain install
+      - run: bun install --frozen-lockfile
+      - name: Pull the test images
+        run: |
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full; do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
+          docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
+      - name: Build an image without shell or utilities
+        run: |
+          printf 'FROM scratch\n' > "$RUNNER_TEMP/empty.Dockerfile"
+          docker build -t alpine:pryx-empty -f "$RUNNER_TEMP/empty.Dockerfile" "$RUNNER_TEMP"
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras ca-certificates git curl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
+      - name: Start an S3 store
+        run: >-
+          docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
+          -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Fetch the build job's daemon and release image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build
+          digest-mismatch: error
+      # An artifact keeps no file mode, so the daemon is installed executable.
+      - name: Take the static daemon for isolated nodes from the release image
+        id: static
+        run: |
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -c SHA256SUMS)
+          install -D -m 0755 "$RUNNER_TEMP/ci-release-build/pryxd-debug" target/debug/pryxd
+          gzip -dc "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz" | docker load
+          rm "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz"
+          id=$(docker create pryx-static-test)
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm "$id"
+          sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
+          docker builder prune --all --force
+          df -h .
+      - name: Check live provider credentials
+        # Live infrastructure credentials are only read by a trusted main push. Do not use
+        # a prior step's mutable environment flag as the trust decision.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+        run: |
+          if [ -n "$HETZNER_TOKEN" ]; then
+            echo 'HAS_HETZNER=true' >> "$GITHUB_ENV"
+          else
+            echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
+          fi
+      # The box installs the released CLI and joins only on a release-signed bootstrap offer, so
+      # control hands it the release's own pryxd and pryx-agent with their signature, not this
+      # run's build. join.sh and daemon.json are this checkout's: a change to either needs a new
+      # release before the live step can pass again. The release of this version is published
+      # only after this run passes (release.yml), so a commit that bumps the version has no
+      # release yet: the live step skips, visibly, and the next push to main runs it on the
+      # release. Requiring it here would block the release that unblocks it.
+      - name: Fetch the release-signed bootstrap
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          if gh release view "v$version" -R "$GITHUB_REPOSITORY" > /dev/null 2> "$RUNNER_TEMP/release.err"; then
+            gh release download "v$version" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/release" \
+              -p pryxd -p pryx-agent -p pryxd.bootstrap.sig -p SHA256SUMS
+            (cd "$RUNNER_TEMP/release" && sha256sum -c --ignore-missing --quiet SHA256SUMS)
+            chmod 0755 "$RUNNER_TEMP/release/pryxd" "$RUNNER_TEMP/release/pryx-agent"
+            echo 'HAS_RELEASE_BOOTSTRAP=true' >> "$GITHUB_ENV"
+          elif grep -q 'release not found' "$RUNNER_TEMP/release.err"; then
+            echo "::notice::Skipping Hetzner live provisioning because v$version isn't released yet; its release follows this run, and the next push to main runs the live step on it"
+          else
+            cat "$RUNNER_TEMP/release.err"
+            exit 1
+          fi
+      - name: Hetzner acquire, sandbox and release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true' && env.HAS_RELEASE_BOOTSTRAP == 'true'
+        env:
+          PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/release/pryxd
+          PRYX_AGENT_BIN: ${{ runner.temp }}/release/pryx-agent
+        run: bun test control/e2e/hetzner.e2e.test.ts
+      - name: Compose service and persistent credentials
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun control/bench/compose-image.ts
+      - name: Prepare Python agent acceptance
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          python3 -m venv .venv-agent-python
+          .venv-agent-python/bin/pip install -e sdk/python
+      # These carry the same condition as the suite they feed: a live Hetzner failure above must
+      # not skip them, or the suite runs without its images and fails for the wrong reason.
+      - name: Prepare native tool host policy
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          sudo modprobe fuse
+          if [ -r /sys/module/apparmor/parameters/enabled ] && [ "$(cat /sys/module/apparmor/parameters/enabled)" = Y ]; then
+            if ! command -v apparmor_parser > /dev/null; then
+              sudo apt-get update
+              sudo apt-get install -y apparmor
+            fi
+            sudo apparmor_parser -r deploy/pryx-native-tools.apparmor
+            echo 'PRYX_NATIVE_TOOLS_APPARMOR=pryx-native-tools' >> "$GITHUB_ENV"
+          fi
+          sudo install -m 600 deploy/native-tools-seccomp.json /usr/local/lib/pryx/native-tools-seccomp.json
+          npm ci --ignore-scripts --prefix templates/browser
+      # The templates' base images come from registries that refuse a pull now and then (a mirror
+      # under a burst, Microsoft's registry answering 503), and a build that fails on its FROM
+      # line fails the whole suite. Each base is pulled first, with the same retries as above;
+      # the Dockerfiles name them by digest, so the build then finds every base local.
+      - name: Pull the template base images
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          while read -r image; do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done < <(sed -n 's/^FROM \([^ ]*[.][^ ]*\).*/\1/p' templates/*/Dockerfile | sort -u)
+      - name: Build native tool templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          mkdir -p templates/native-tools/cache
+          while IFS=$'\t' read -r name url digest; do
+            archive="templates/native-tools/cache/$name.download"
+            curl --config .github/download.curlrc -fsSL "$url" -o "$archive"
+            printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
+          done < <(jq -r '.[] | [.name, .url, .sha256] | @tsv' templates/native-tools/artifacts.json)
+          docker build -t alpine:pryx-native-tools -f templates/native-tools/Dockerfile .
+          docker build -t alpine:pryx-desktop --build-arg NATIVE_IMAGE=alpine:pryx-native-tools templates/desktop
+          docker build -t alpine:pryx-rclone-tools --build-arg NATIVE_IMAGE=alpine:pryx-native-tools -f templates/native-tools/rclone.Dockerfile templates/native-tools
+          docker build -t alpine:pryx-browser templates/browser
+      - name: Build the interpreter templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          docker build -t alpine:pryx-python-interpreter templates/python-interpreter
+          docker build -t alpine:pryx-node-interpreter templates/node-interpreter
+      - run: bun run e2e --reporter=junit --reporter-outfile "$RUNNER_TEMP/e2e.xml"
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
+          PRYX_INTERPRETER_IMAGE_MEASUREMENTS: ${{ runner.temp }}/interpreter-create-to-image.json
+          PRYX_NATIVE_MEASUREMENTS: ${{ runner.temp }}/native-tools-measurements.json
+          PRYX_COMPARE_LINKS: ${{ runner.temp }}/compare-links.json
+          PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
+      - name: Save native tool measurements and citations
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: native-tools-measurements
+          path: |
+            ${{ runner.temp }}/native-tools-measurements.json
+            ${{ runner.temp }}/compare-links.json
+            ${{ runner.temp }}/e2e.xml
+          if-no-files-found: error
+      - name: Summarize native tool measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/native-tools-measurements.json" ]; then
+            jq '.after.summary' "$RUNNER_TEMP/native-tools-measurements.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save interpreter measurements
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: interpreter-measurements
+          path: |
+            ${{ runner.temp }}/interpreter-measurements.json
+            ${{ runner.temp }}/interpreter-create-to-image.json
+          if-no-files-found: error
+      - name: Summarize interpreter measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/interpreter-measurements.json" ]; then
+            jq '.summary' "$RUNNER_TEMP/interpreter-measurements.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+
+      - name: K11 agent suite on the wasm tier
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts control/e2e/field.e2e.test.ts
+        env:
+          PRYX_TEST_TIER: wasm
+          PRYXD_SUDO: '0'
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ runner.temp }}/pryxd
+      - name: Two isolated nodes as root
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: sudo -E env "PATH=$PATH" "$(command -v bun)" test control/e2e/fleet-two-node.e2e.test.ts
+
+      - name: Install the pinned celld public release
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: celld
+        env:
+          PRYX_ASSET_API_TOKEN: ${{ github.token }}
+        run: |
+          export CURL_HOME="$RUNNER_TEMP/pryx-upstream-curl"
+          install -d -m 700 "$CURL_HOME"
+          install -m 600 .github/download.curlrc "$CURL_HOME/.curlrc"
+          while IFS=$'\t' read -r name url digest; do
+            archive="$RUNNER_TEMP/$name.gz"
+            curl -sSL -H 'Accept: application/octet-stream' \
+              -H "Authorization: Bearer $PRYX_ASSET_API_TOKEN" "$url" -o "$archive"
+            printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
+          done < <(jq -r '.[] | [.name, .url, .sha256] | @tsv' integrations/celld/upstream/releases.json)
+          unset PRYX_ASSET_API_TOKEN
+          gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"
+          chmod +x "$RUNNER_TEMP/celld"
+          "$RUNNER_TEMP/celld" --version
+      - name: Build the versioned sandbox-agent template
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: docker build -t "$PRYX_SANDBOX_AGENT_IMAGE" integrations/rivet/template
+      - name: Build the public Rivet and agentOS patches
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun integrations/rivet/upstream/check.ts "$RUNNER_TEMP/pryx-rivet-patches"
+      - name: Build the public celld engine patch
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          CURL_HOME: ${{ runner.temp }}/pryx-upstream-curl
+          RUSTY_V8_ARCHIVE: ${{ runner.temp }}/rusty-v8.gz
+        run: bun integrations/celld/upstream/check.ts "$RUNNER_TEMP/pryx-celld-patch"
+      - name: Rivet self-hosted actor and celld Worker
+        if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
+        env:
+          CELLD_BIN: ${{ runner.temp }}/celld
+          CELLD_ESBUILD: ${{ github.workspace }}/node_modules/.bin/esbuild
+          PRYX_CELLD_MEASUREMENTS: ${{ runner.temp }}/celld-native-measurements.json
+          PRYX_DOCKER_SPIKE_REPORT: ${{ runner.temp }}/docker-api-spike.json
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+        run: bun run integration:e2e
+
+      - name: Save native celld measurements
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: celld-native-measurements
+          path: |
+            ${{ runner.temp }}/celld-native-measurements.json
+            ${{ runner.temp }}/docker-api-spike.json
+          if-no-files-found: error
+
+      - name: Configure the isolated lease test host
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: lease-host
+        run: |
+          sudo python3 - <<'PYCFG'
+          import json
+          from pathlib import Path
+          p = Path('/etc/docker/daemon.json')
+          config = json.loads(p.read_text()) if p.exists() else {}
+          config['exec-opts'] = ['native.cgroupdriver=cgroupfs']
+          p.write_text(json.dumps(config))
+          PYCFG
+          sudo systemctl restart docker
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Store cut, watchdog and conditional recovery
+        if: ${{ !cancelled() && steps.lease-host.outcome == 'success' }}
+        env:
+          PRYX_LEASE_E2E: '1'
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYX_LEASE_MEASUREMENTS: ${{ runner.temp }}/store-lease-measurements.json
+        run: bun test control/e2e/store-lease.e2e.test.ts
+      - name: Lease measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/store-lease-measurements.json" ]; then cat "$RUNNER_TEMP/store-lease-measurements.json" >> "$GITHUB_STEP_SUMMARY"; fi
+      # K26: the native tool and interpreter templates on the gvisor tier, with runsc at
+      # deploy/gvisor.json's pin registered with this runner's Docker. Last: registering restarts it.
+      - name: Register gVisor's runsc for the tool templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: gvisor-host
+        run: |
+          sudo deploy/gvisor.sh
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Native tool and interpreter templates on the gvisor tier
+        if: ${{ !cancelled() && steps.gvisor-host.outcome == 'success' }}
+        env:
+          PRYX_TEST_GVISOR: '1'
+          PRYX_GVISOR_TOOLS: ${{ runner.temp }}/gvisor-tools.json
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
+        run: bun test control/e2e/gvisor-tools.e2e.test.ts
+      - name: gVisor tool template results
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/gvisor-tools.json" ]; then cat "$RUNNER_TEMP/gvisor-tools.json"; cat "$RUNNER_TEMP/gvisor-tools.json" >> "$GITHUB_STEP_SUMMARY"; fi
+
+  one-box:
+    name: One box and Action
+    needs: build
+    env:
+      PRYX_HTTP_DIAGNOSTICS: '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - name: Fetch the build job's daemon and release image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build
+          digest-mismatch: error
+      # The image archive is the one the host install below loads again.
+      - name: Take the static agent release asset from the release image
+        run: |
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -c SHA256SUMS)
+          install -m 0755 "$RUNNER_TEMP/ci-release-build/pryxd-debug" dist/pryxd
+          mv "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz" "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          id=$(docker create pryx-one-box-release)
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd-k14"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm -v "$id"
+          docker image rm pryx-release pryx-static-test pryx-one-box-release
+      - name: Prepare the unreleased build artifacts
+        run: |
+          # Placement still needs real disk above its host floor.
+          # The image archive and SDK fixtures coexist with the host's five GiB disk reserve.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+          head -c 64 /dev/zero > dist/pryxd.sig
+          head -c 64 /dev/zero > dist/pryxd.bootstrap.sig
+          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryxd.bootstrap.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
+          docker pull -q mirror.gcr.io/library/alpine:3.22
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker pull -q mirror.gcr.io/library/node:22
+          docker tag mirror.gcr.io/library/node:22 node:22
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL PRYX_DOMAIN PRYX_PROBE_DIAGNOSTICS"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: One-command quickstart and repeat install
+        id: up
+        run: |
+          started=$(date +%s)
+          export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          export PRYX_PROBE_DIAGNOSTICS=1
+          export PRYX_DOMAIN=sandboxes.example.com
+          # Only the download origin is replaced for this unreleased build.
+          output=$(curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sudo sh)
+          key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
+          [ -n "$key" ]
+          printf '::add-mask::%s\n' "$key"
+          printf 'key=%s\n' "$key" >> "$GITHUB_OUTPUT"
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          made=$(pryx sandbox create --image alpine:3.22 --idle 5m)
+          id=$(printf '%s' "$made" | jq -r .id)
+          pryx sandbox rm "$id"
+          [ "$(printf '%s\n' "$output" | grep -c '^export PRYX_')" = 3 ]
+          second=$(sudo pryx up --domain sandboxes.example.com)
+          if printf '%s\n' "$second" | grep -Fq "$key"; then echo 'Repeated the initial key'; exit 1; fi
+          [ "$(printf '%s\n' "$second" | grep -c '^export PRYX_')" = 3 ]
+          echo "One-box elapsed: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run hello through the compiled CLI
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          [ "$(dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+      - uses: ./action
+        with:
+          url: http://127.0.0.1:8082
+          key: ${{ steps.up.outputs.key }}
+          image: alpine:3.22
+          run: echo hello
+          snapshot: 'true'
+        env:
+          PRYX_ACTION_CLI: ${{ github.workspace }}/dist/pryx
+      - name: Python against the one-box control
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          python3 -m venv .venv-python
+          .venv-python/bin/pip install -e sdk/python
+          .venv-python/bin/python -m unittest discover -s sdk/python/test -v
+          .venv-python/bin/python sdk/python/e2e/handles.py
+          bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
+          bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
+      # K31: the installed unit's pryxd proved kernel network policy for process sandboxes, as
+      # the root installed acceptance on any-host checks too.
+      - name: Kernel network policy in the installed server's pryxd
+        run: sh deploy/server-network-policy.sh
+
+      - name: Install and repeat the release image on the host
+        if: ${{ !cancelled() && steps.up.outcome == 'success' }}
+        run: |
+          trap 'sudo python3 control/tools/image-diagnostics.py /var/lib/pryx-image' ERR
+          sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
+          docker image rm mirror.gcr.io/library/node:22
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          rm "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          df -h .
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          curl -fsS http://127.0.0.1:8080/healthz | jq -e '.isolation == "container"'
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+
+      - name: Service journals on failure
+        if: failure()
+        run: |
+          sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+          free -m
+          ps -eo pid,ppid,comm,rss --sort=-rss | head -20
+          sudo journalctl -k --since '-5 min' --no-pager -n 100 | grep -Ei 'oom|killed process|out of memory' || true
+          bun -e '
+            import { edgeConfig } from "./edge/src/config.ts"
+            import { SECOND_MS } from "./control/src/durations.ts"
+            const config = edgeConfig({ PRYX_EDGE_TOKEN: "diagnostics".repeat(4) })
+            try {
+              const response = await fetch("http://" + config.metricsHost + ":" + config.metricsPort + "/metrics", {
+                signal: AbortSignal.timeout(5 * SECOND_MS),
+              })
+              if (!response.ok) throw new Error("Metrics unavailable")
+              console.log(await response.text())
+            } catch { console.log("Edge metrics unavailable") }
+          '
