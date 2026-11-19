@@ -77,7 +77,11 @@ fn check_delegated(root: &Path) -> Result<(), Unavailable> {
 /// What `delegate` would find for this caller, with nothing moved or turned on: the controllers
 /// its subtree's root has to give. For `pryxd probe`, which isn't the daemon.
 pub(crate) fn inspect() -> Result<Delegated, Unavailable> {
-    let root = subtree_root(&own()?);
+    inspect_at(&own()?)
+}
+
+fn inspect_at(own: &Path) -> Result<Delegated, Unavailable> {
+    let root = subtree_root(own);
     check_delegated(&root)?;
     let controllers = fs::read_to_string(root.join("cgroup.controllers")).map_err(|error| {
         unavailable(format!("{}: {error}", root.join("cgroup.controllers").display()), DELEGATE_ACTION)
@@ -187,9 +191,11 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("cgroup.controllers"), "cpu memory pids\n").unwrap();
         fs::write(root.path().join("cgroup.subtree_control"), "cpu memory pids\n").unwrap();
-        let delegated = delegate_at(&root.path().join(DAEMON), 1).unwrap();
-        assert_eq!(delegated.root, root.path());
-        assert_eq!(delegated.controllers, [MEMORY, CPU, PIDS]);
+        let own = root.path().join(DAEMON);
+        for delegated in [inspect_at(&own).unwrap(), delegate_at(&own, 1).unwrap()] {
+            assert_eq!(delegated.root, root.path());
+            assert_eq!(delegated.controllers, [MEMORY, CPU, PIDS]);
+        }
         assert!(!root.path().join(DAEMON).exists(), "nothing was moved");
     }
 
@@ -206,14 +212,28 @@ mod tests {
     #[test]
     fn a_daemon_that_shares_its_cgroup_moves_nobody_and_says_so() {
         let root = tempfile::tempdir().unwrap();
-        fs::write(root.path().join("cgroup.controllers"), "cpu memory pids\n").unwrap();
+        let controllers = "cpu memory pids\n";
+        let pid = std::process::id();
+        let members = format!("{pid}\n{}\n", pid + 1);
+        fs::write(root.path().join("cgroup.controllers"), controllers).unwrap();
         fs::write(root.path().join("cgroup.subtree_control"), "").unwrap();
-        fs::write(root.path().join("cgroup.procs"), "1\n4242\n").unwrap();
-        let refused = delegate_at(root.path(), 4242).unwrap_err();
+        fs::write(root.path().join("cgroup.procs"), &members).unwrap();
+
+        let inspected = inspect_at(root.path());
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 3, "inspection added a cgroup entry");
+        assert_eq!(fs::read_to_string(root.path().join("cgroup.controllers")).unwrap(), controllers);
+        assert_eq!(fs::read_to_string(root.path().join("cgroup.subtree_control")).unwrap(), "");
+        assert_eq!(fs::read_to_string(root.path().join("cgroup.procs")).unwrap(), members);
+
+        let refused = delegate_at(root.path(), pid).unwrap_err();
         assert!(refused.evidence.contains("1 process(es) besides this daemon"), "{}", refused.evidence);
         assert_eq!(refused.action, ALONE_ACTION);
         assert!(!root.path().join(DAEMON).exists(), "no leaf was made and nobody moved");
         assert_eq!(fs::read_to_string(root.path().join("cgroup.subtree_control")).unwrap(), "");
+
+        let inspected = inspected.expect_err("inspection reported unavailable limits as usable");
+        assert_eq!(inspected.evidence, refused.evidence);
+        assert_eq!(inspected.action, refused.action);
     }
 
     /// In a file tree standing in for cgroupfs: the daemon alone moves itself into its leaf, then
@@ -223,10 +243,17 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("cgroup.controllers"), "cpuset cpu memory pids\n").unwrap();
         fs::write(root.path().join("cgroup.subtree_control"), "memory\n").unwrap();
-        fs::write(root.path().join("cgroup.procs"), "4242\n").unwrap();
-        let delegated = delegate_at(root.path(), 4242).unwrap();
+        let pid = std::process::id();
+        let member = format!("{pid}\n");
+        fs::write(root.path().join("cgroup.procs"), &member).unwrap();
+        let inspected = inspect_at(root.path()).unwrap();
+        assert_eq!(inspected.controllers, [MEMORY, CPU, PIDS]);
+        assert!(!root.path().join(DAEMON).exists(), "inspection made a leaf");
+        assert_eq!(fs::read_to_string(root.path().join("cgroup.subtree_control")).unwrap(), "memory\n");
+        assert_eq!(fs::read_to_string(root.path().join("cgroup.procs")).unwrap(), member);
+        let delegated = delegate_at(root.path(), pid).unwrap();
         assert_eq!(delegated.controllers, [MEMORY, CPU, PIDS]);
-        assert_eq!(fs::read_to_string(root.path().join(DAEMON).join("cgroup.procs")).unwrap(), "4242");
+        assert_eq!(fs::read_to_string(root.path().join(DAEMON).join("cgroup.procs")).unwrap(), pid.to_string());
         assert_eq!(fs::read_to_string(root.path().join("cgroup.subtree_control")).unwrap(), "+cpu +pids");
     }
 }
