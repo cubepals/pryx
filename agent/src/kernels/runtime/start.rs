@@ -53,7 +53,7 @@ impl Session {
                 if let Some(root) = bundle
                     .as_ref()
                     .map(|root| root.join("kernels/python/ipython").into_os_string())
-                    .or_else(|| std::env::var_os("IPYTHONDIR"))
+                    .or_else(|| crate::process_environment::var_os("IPYTHONDIR"))
                 {
                     command.extend([
                         "--config".into(),

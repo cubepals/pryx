@@ -27,7 +27,8 @@ impl Bootstrap {
         let cid = self.vm_cid.ok_or("VM file service is missing its guest CID")?;
         guest_identity(cid)?;
         let bindings = self.bindings(false)?;
-        let encoded = std::env::var(&self.secret_env).map_err(|_| "Agent signing material is missing")?;
+        let encoded =
+            crate::process_environment::var(&self.secret_env).map_err(|_| "Agent signing material is missing")?;
         let key = SigningKey::from_encoded(&encoded)?;
         let temporary = PathBuf::from("/tmp");
         let agent = Arc::new(Agent {

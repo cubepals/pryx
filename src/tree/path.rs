@@ -80,7 +80,7 @@ impl DataDir {
     }
 
     fn directory(&self, parts: &[&str], create: bool) -> io::Result<OwnedFd> {
-        let mut dir = rustix::io::dup(&self.0)?;
+        let mut dir = rustix::io::fcntl_dupfd_cloexec(&self.0, 0)?;
         for part in parts {
             let mut created = false;
             if create {
@@ -270,6 +270,27 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::os::unix::fs::symlink;
+
+    #[test]
+    fn directory_handles_do_not_cross_command_exec() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = DataDir::open(dir.path()).unwrap();
+        let handle = data.directory_handle(".", false).unwrap();
+        let identity = fs::fstat(&handle).unwrap();
+        let result = std::process::Command::new("python3")
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .args([
+                "-c",
+                "import errno,os,sys\ntry: info=os.fstat(int(sys.argv[1]))\nexcept OSError as error: assert error.errno==errno.EBADF\nelse: assert (info.st_dev,info.st_ino)!=(int(sys.argv[2]),int(sys.argv[3])), 'owned directory survived exec'",
+                &handle.as_raw_fd().to_string(),
+                &identity.st_dev.to_string(),
+                &identity.st_ino.to_string(),
+            ])
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    }
 
     #[test]
     fn files_remain_under_the_open_root() {
