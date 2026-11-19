@@ -6,7 +6,7 @@ import type { Isolation } from '../src/isolation.ts'
 import { type ConcurrentOutcome, concurrentAttempt } from './tiers/concurrent.ts'
 import { measure, percentile, REPETITIONS, type Samples } from './tiers/report.ts'
 
-const FILE_BYTES = 4 * 1024 * 1024
+export const BASELINE_FILE_BYTES = 4 * 1024 * 1024
 const WAVE_SIZES = [1, 10, 50] as const
 const WAVES_PER_SIZE = 5
 
@@ -109,7 +109,7 @@ export async function collectBaseline(
 }
 
 async function hotSamples(box: Sandbox, samples: Samples) {
-  const data = new Uint8Array(FILE_BYTES)
+  const data = new Uint8Array(BASELINE_FILE_BYTES)
   for (let offset = 0; offset < data.length; offset += 65_536)
     crypto.getRandomValues(data.subarray(offset, offset + 65_536))
   const path = 'baseline-payload'
@@ -122,12 +122,12 @@ async function hotSamples(box: Sandbox, samples: Samples) {
   })
   await measure(samples, 'file_write_ms', async () => {
     await box.write(path, data)
-    return async () => assert.equal((await box.files.stat(path)).size, FILE_BYTES)
+    return async () => assert.equal((await box.files.stat(path)).size, BASELINE_FILE_BYTES)
   })
   await measure(samples, 'file_read_ms', async () => {
     const received = await box.files.readBytes(path)
     return async () => {
-      assert.equal(received.length, FILE_BYTES)
+      assert.equal(received.length, BASELINE_FILE_BYTES)
       assert.equal(Bun.hash(received), digest)
     }
   })
@@ -137,7 +137,7 @@ async function hotSamples(box: Sandbox, samples: Samples) {
     async () => {
       await box.wake()
       assert.equal(box.state, 'running')
-      return async () => assert.equal((await box.files.stat(path)).size, FILE_BYTES)
+      return async () => assert.equal((await box.files.stat(path)).size, BASELINE_FILE_BYTES)
     },
     async () => {
       await box.sleep()
@@ -147,7 +147,7 @@ async function hotSamples(box: Sandbox, samples: Samples) {
 
   for (const mode of ['read', 'write'] as const) {
     const durations = samples[`file_${mode}_ms`] ?? []
-    samples[`file_${mode}_bytes_per_second`] = durations.map((ms) => (FILE_BYTES * 1_000) / ms)
+    samples[`file_${mode}_bytes_per_second`] = durations.map((ms) => (BASELINE_FILE_BYTES * 1_000) / ms)
   }
 }
 

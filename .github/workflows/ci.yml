@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: '23 5 * * 1'
   workflow_dispatch:
+    inputs:
+      measure_pryx:
+        description: Collect the standard-runner sandbox baseline
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -684,6 +689,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope == 'full'
     uses: ./.github/workflows/ci-acceptance.yml
+    with:
+      measure_pryx: ${{ inputs.measure_pryx || false }}
     secrets: inherit
 
   image:

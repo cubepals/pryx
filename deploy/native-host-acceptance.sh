@@ -29,6 +29,14 @@ cleanup() {
     sudo cp /home/pryxtools/vm-installed-measurements.json "$RUNNER_TEMP/vm-installed-measurements.json" || result=1
     sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/vm-installed-measurements.json" || result=1
   fi
+  if [ "${PRYX_MEASURE_VM:-off}" = on ]; then
+    for suffix in json md; do
+      if sudo test -f "/home/pryxtools/pryx-vm-baseline.$suffix"; then
+        sudo cp "/home/pryxtools/pryx-vm-baseline.$suffix" "$RUNNER_TEMP/pryx-vm-baseline.$suffix" || result=1
+        sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/pryx-vm-baseline.$suffix" || result=1
+      fi
+    done
+  fi
   if [ -n "$pryx_vm_memory" ]; then
     sudo kill "$pryx_vm_memory" 2>/dev/null || true
     wait "$pryx_vm_memory" || true
@@ -92,6 +100,7 @@ cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
   PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
   PRYX_VM_MEMORY_SOCKET="$pryx_vm_socket" PRYX_VM_MEASUREMENTS=/home/pryxtools/vm-installed-measurements.json \
+  PRYX_MEASURE_VM="${PRYX_MEASURE_VM:-off}" \
   PRYX_VM_SOURCE="${PRYX_VM_SOURCE:-}" PRYX_VM_CI_URL="${PRYX_VM_CI_URL:-}" PRYX_VM_HOST_PUBLIC_ADDRESS="$pryx_vm_public" \
   PRYX_NATIVE_BROWSER=on PRYX_NATIVE_VM="${PRYX_NATIVE_VM:-off}" PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"

@@ -7,6 +7,8 @@ import { writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { cpus, release, totalmem } from 'node:os'
 import { type LocalInstallation, supervisor } from '../cli/src/up-local-record.ts'
+import { writeBaseline } from '../control/bench/baseline-report.ts'
+import { collectBaseline } from '../control/bench/pryx-baseline.ts'
 import { snapshots } from '../control/bench/tiers/operations.ts'
 import { DATA_BYTES, measure, percentile, REPETITIONS, type Samples } from '../control/bench/tiers/report.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
@@ -32,15 +34,19 @@ async function memory(socket: string, root: number) {
   return value.pssBytes
 }
 
-function make(sdk: Pryx) {
+function vmRequest() {
   assert(inputs[0])
-  return sdk.sandbox({
-    isolation: 'vm',
+  return {
+    isolation: 'vm' as const,
     image: inputs[0].reference,
     units: 1,
     idle: (10 * MINUTE_MS) / SECOND_MS,
     sparePorts: 0,
-  })
+  }
+}
+
+function make(sdk: Pryx) {
+  return sdk.sandbox(vmRequest())
 }
 
 /** Each cohort as docs/tiers.md names it, so the job log carries every figure the artifact does. */
@@ -82,6 +88,18 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
   const ci = process.env.PRYX_VM_CI_URL
   const identity = supervisor(installed)
   assert(path && socket && identity && source && ci)
+  if (process.env.PRYX_MEASURE_VM === 'on') {
+    const prefix = '/home/pryxtools/pryx-vm-baseline'
+    await collectBaseline(
+      { sdk, memory: () => memory(socket, identity.pid) },
+      'vm',
+      vmRequest(),
+      (result) => {
+        writeBaseline(prefix, source, ci, 'Signed ordinary-user VM installation', [result])
+      },
+    )
+    return
+  }
   const samples: Samples = {
     cold_create_running_ms: [],
     create_first_output_ms: [],
