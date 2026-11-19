@@ -100,6 +100,7 @@ impl HostPids {
             match std::fs::read_to_string(self.path.join("cgroup.events")) {
                 Ok(events) if events.lines().any(|line| line == "populated 0") => return,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+                Err(error) if error.raw_os_error() == Some(libc::ENODEV) => (),
                 Err(error) => panic!("cannot prove the stopped target's cgroup is empty: {error}"),
                 Ok(_) => (),
             }
@@ -127,6 +128,22 @@ fn present(value: std::io::Result<u64>) -> Option<u64> {
     match value {
         Ok(count) => Some(count),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        // kernfs can retire a node after the pathname lookup or after open.
+        Err(error) if error.raw_os_error() == Some(libc::ENODEV) => None,
         Err(error) => panic!("lost target kernel cgroup evidence: {error}"),
     }
+}
+
+#[test]
+fn a_retiring_counter_supplies_no_refusal_evidence() {
+    assert_eq!(present(Ok(17)), Some(17));
+    for error in [libc::ENOENT, libc::ENODEV] {
+        assert_eq!(present(Err(std::io::Error::from_raw_os_error(error))), None);
+    }
+}
+
+#[test]
+#[should_panic(expected = "lost target kernel cgroup evidence")]
+fn unreadable_counters_still_fail_the_test() {
+    present(Err(std::io::Error::from_raw_os_error(libc::EACCES)));
 }
