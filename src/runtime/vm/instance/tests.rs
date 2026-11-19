@@ -243,7 +243,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(restored.exit_code, 0);
         assert_eq!(restored.env, original_spec.env.iter().cloned().collect());
         let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
-        let copy_lease = runtime.data_copy_lease(sandbox, &data).await.unwrap();
+        let copy_lease = assert_continuous_copy_lease(&runtime, &id, sandbox, &data).await;
         assert!(runtime.start(&id).await.is_err(), "A copy lease must fence another writable guest");
         let copy = temporary.path().join(format!("copy{index}"));
         crate::tree::copy_tree(&data, &copy, None, &[], &mut |_| Ok(())).unwrap();
@@ -295,6 +295,24 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     println!(
         "Actual runtime seam: both OCI images, 2-vCPU boot, exec, clean stop, cold wake, copied-disk fork isolation and remove passed"
     );
+}
+
+async fn assert_continuous_copy_lease(runtime: &VmRuntime, id: &str, sandbox: &str, data: &Path) -> Box<dyn Send> {
+    use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
+
+    let path = runtime.lease(&runtime.entry(id).unwrap()).unwrap();
+    let events = inotify::init(CreateFlags::CLOEXEC | CreateFlags::NONBLOCK).unwrap();
+    inotify::add_watch(&events, &path, WatchFlags::OPEN | WatchFlags::CLOSE_WRITE).unwrap();
+    let lease = runtime.data_copy_lease(sandbox, data).await.unwrap();
+    let mut buffer = [std::mem::MaybeUninit::uninit(); 128];
+    let mut reader = inotify::Reader::new(events, &mut buffer);
+    assert_eq!(reader.next().unwrap().events(), ReadFlags::OPEN);
+    assert_eq!(
+        reader.next().unwrap_err(),
+        rustix::io::Errno::AGAIN,
+        "Snapshot preparation and verification must not close or reopen the lease"
+    );
+    lease
 }
 
 /// One dead helper retires only its own guest: it reads dead and the tier still lists.

@@ -3,8 +3,9 @@
 //! made here: the programs look up the longest matching prefix and take the first port range
 //! that matches, so each prefix carries its own ranges and those of every wider prefix, in the
 //! order they apply. The host's protections come first and a request's rules can't relax them:
-//! the host's own addresses reach only the sandbox's own sockets, link-local, multicast and
-//! this-host aliases are refused, and private addresses never on the ports pryxd serves.
+//! the host's own addresses reach only the sandbox's own sockets (and never through NAT64, which
+//! leaves the host), link-local, multicast, broadcast and this-host aliases are refused, and
+//! private addresses never on the ports pryxd serves.
 //! Pure: the host's addresses, resolvers and ranges are the caller's; the kernel is `attach.rs`.
 use super::object::{MAX_RULES, PORT_ENTRIES, Ports, Rule, TCP, UDP, Verdict};
 use ipnet::{IpNet, Ipv6Net};
@@ -36,6 +37,8 @@ pub(crate) struct Inputs<'a> {
     pub(crate) deny: &'a [Destination],
     /// This host's own addresses.
     pub(crate) host: &'a [IpAddr],
+    /// The prefixes this host's routes broadcast to, which its own sockets hear too.
+    pub(crate) broadcast: &'a [IpNet],
     /// The resolvers /etc/resolv.conf names, reached on DNS's port when the internet is public.
     pub(crate) nameservers: &'a [IpAddr],
     /// The ports pryxd hands out, and its API's.
@@ -132,7 +135,9 @@ fn layers(inputs: &Inputs<'_>) -> Vec<Layer> {
         add(private, Some((inputs.api_port, inputs.api_port)), both, Verdict::Deny, Precedence::Served);
     }
     let refused = ["0.0.0.0/8", "224.0.0.0/3", "::/96", "ff00::/8"].into_iter().map(|net| net.parse().unwrap());
-    for refused in refused.chain(inputs.link_local.iter().copied()).chain(inputs.metadata.iter().copied()) {
+    let link = inputs.link_local.iter().chain(inputs.metadata).chain(inputs.broadcast).copied();
+    // Before the host's own addresses: a broadcast address that is also one is refused.
+    for refused in refused.chain(link) {
         add(refused, None, both, Verdict::Deny, Precedence::Host);
     }
     let own = ["127.0.0.0/8".parse().unwrap(), host(Ipv6Addr::LOCALHOST.into())];
@@ -162,7 +167,9 @@ fn layers(inputs: &Inputs<'_>) -> Vec<Layer> {
     layers
 }
 
-/// The NAT64 twin of a layer about an IPv4 prefix.
+/// The NAT64 twin of a layer about an IPv4 prefix. A host address's twin is refused: it leaves
+/// this host for a translator, which can send it back to the address, so no lookup on this host
+/// can tell whose socket it reaches.
 fn translated(layer: &Layer) -> Option<Layer> {
     let mapped = Ipv6Net::new(MAPPED, 96).unwrap();
     if layer.prefix.prefix_len() < 96 || !mapped.contains(&layer.prefix.network()) {
@@ -170,7 +177,8 @@ fn translated(layer: &Layer) -> Option<Layer> {
     }
     let embedded = u128::from(layer.prefix.network()) & u128::from(u32::MAX);
     let prefix = Ipv6Net::new(Ipv6Addr::from(u128::from(NAT64) | embedded), layer.prefix.prefix_len()).unwrap();
-    Some(Layer { prefix, ..*layer })
+    let verdict = if layer.verdict == Verdict::Owned { Verdict::Deny } else { layer.verdict };
+    Some(Layer { prefix, verdict, ..*layer })
 }
 
 /// One prefix's rule: the port ranges of every layer covering it, highest precedence and then
@@ -240,6 +248,7 @@ mod tests {
             allow,
             deny,
             host: &HOST,
+            broadcast: nets(&["203.0.113.255/32", "127.255.255.255/32"]),
             nameservers: &RESOLVER,
             served: 42000..=42999,
             api_port: 7443,
@@ -285,6 +294,13 @@ mod tests {
             ("64:ff9b::101:101", 443, Verdict::Allow),
             ("203.0.113.9", 42001, Verdict::Owned),
             ("2001:db8::9", 22, Verdict::Owned),
+            // A host address and loopback through NAT64, which leaves the host.
+            ("64:ff9b::cb00:7109", 22, Verdict::Deny),
+            ("64:ff9b::7f00:1", 8080, Verdict::Deny),
+            // A broadcast address: the host's own sockets hear it too.
+            ("203.0.113.255", 161, Verdict::Deny),
+            ("::ffff:203.0.113.255", 161, Verdict::Deny),
+            ("127.255.255.255", 5353, Verdict::Deny),
         ] {
             assert_eq!(decide_in(&policy, address, port, TCP), expected, "{address}:{port}");
         }
@@ -353,6 +369,7 @@ mod tests {
             ("1.1.1.1", 443, Verdict::Allow),
             ("203.0.113.9", 22, Verdict::Owned),
             ("203.0.113.10", 22, Verdict::Allow),
+            ("203.0.113.255", 22, Verdict::Deny),
             ("fd00:ec2::254", 80, Verdict::Deny),
             ("fd00:ec2::253", 53, Verdict::Allow),
         ] {

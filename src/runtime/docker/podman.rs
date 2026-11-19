@@ -191,6 +191,8 @@ pub(super) fn body(spec: &ContainerSpec, info: &RuntimeInfo) -> Result<Create, R
             .map(|(k, v)| (k.clone(), v.clone()))
             .chain([(NETWORK_LABEL.into(), network)])
             .filter(|(key, _)| key != crate::labels::LABEL_INTERNAL_BINDINGS)
+            // Over an image's own: native publication is this engine's ingress, so it declares none.
+            .chain([(crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[]".into())])
             .collect(),
     );
     if info.rootless {
@@ -356,6 +358,7 @@ mod tests {
     fn native_policy_preserves_read_only_mounts_nonzero_ids_and_available_limits() {
         let mut spec = super::super::tests::spec();
         spec.env.push((pryx_agent::contract::FUSE_ENV.into(), "1".into()));
+        spec.labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[{\"forged\":true}]".into());
         let info = RuntimeInfo {
             podman: true,
             rootless: true,
@@ -377,6 +380,7 @@ mod tests {
         assert_eq!(value["no_new_privileges"], true);
         assert_eq!(value["privileged"], false);
         assert_eq!(value["env"][pryx_agent::contract::FUSE_ENV], "0");
+        assert_eq!(value["labels"][crate::labels::LABEL_INTERNAL_BINDINGS], "[]", "over an image's own");
         assert_eq!(value["resource_limits"]["memory"]["limit"], spec.memory_bytes);
         assert_eq!(value["resource_limits"]["memory"]["swap"], spec.memory_bytes);
         let mounts = value["mounts"].as_array().unwrap();

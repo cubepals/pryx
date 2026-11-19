@@ -11,6 +11,9 @@ use std::sync::Mutex;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio_util::io::SyncIoBridge;
 
+#[path = "pty_process.rs"]
+mod process;
+
 pub struct Terminal(Mutex<Box<dyn MasterPty + Send>>);
 
 impl Terminal {
@@ -43,6 +46,7 @@ pub(crate) fn spawn(
     cwd: &Path,
     env: &std::collections::BTreeMap<String, String>,
     secret_env: &str,
+    environment: Option<&std::os::fd::OwnedFd>,
     cols: u16,
     rows: u16,
 ) -> io::Result<Spawned> {
@@ -59,7 +63,12 @@ pub(crate) fn spawn(
     command.env_remove(secret_env);
     command.env_remove(crate::contract::MOUNTS_ENV);
     command.env_remove(crate::process_policy::POLICY_ENV);
-    let child = pair.slave.spawn_command(command).map_err(failed)?;
+    command.env_remove(crate::process_policy::NETWORK_ENV);
+    command.env_remove(crate::process_listeners::LISTENERS_ENV);
+    let child = match environment {
+        Some(socket) => process::spawn(argv, cwd, pair.master.as_ref(), socket)?,
+        None => pair.slave.spawn_command(command).map_err(failed)?,
+    };
     let pid = child.process_id().ok_or(io::Error::other("Terminal has no process id"))?;
     drop(pair.slave);
     let mut reader = pair.master.try_clone_reader().map_err(failed)?;

@@ -39,7 +39,7 @@ impl Registry {
             && let Some(tools) = crate::process_tools::configured()
         {
             tools.supported()?;
-            if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+            if crate::process_environment::var_os(crate::process_policy::NETWORK_ENV).is_some() {
                 return Err(Failure(axum::http::StatusCode::NOT_IMPLEMENTED, "unsupported",
                     "Native kernels on network-none need prebound private channels; ordinary command egress remains denied".into()));
             }

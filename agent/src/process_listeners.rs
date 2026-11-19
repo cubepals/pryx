@@ -7,7 +7,7 @@
 //!
 //! The node names each descriptor with its address in `LISTENERS_ENV`. `adopt` runs first in the
 //! executable: it takes each one out of reach of every later exec, checks it is a listening TCP
-//! socket bound to exactly that address, and removes the variable. With the variable present, a
+//! socket bound to exactly that address, and keeps its metadata out of workload execs. With metadata, a
 //! listener is only ever one of these: a supervisor in its own namespace never binds there,
 //! where nothing could reach it. Without it, binding is unchanged. Not for container or VM
 //! agents, which listen inside their own network.
@@ -32,9 +32,11 @@ static ADOPTED: Mutex<Option<BTreeMap<SocketAddr, OwnedFd>>> = Mutex::new(None);
 /// Takes the listeners the node passed, before anything can exec with them open.
 #[expect(unsafe_code, reason = "Owning descriptors the node passed across exec, once, before any thread")]
 pub fn adopt() -> io::Result<()> {
-    let Some(encoded) = std::env::var_os(LISTENERS_ENV) else { return Ok(()) };
-    // SAFETY: the bootstrap is still single-threaded; no other thread reads the environment.
-    unsafe { std::env::remove_var(LISTENERS_ENV) };
+    let Some(encoded) = crate::process_environment::var_os(LISTENERS_ENV) else { return Ok(()) };
+    if !crate::process_environment::handed() {
+        // SAFETY: the legacy bootstrap is single-threaded; no other thread reads the environment.
+        unsafe { std::env::remove_var(LISTENERS_ENV) };
+    }
     let listed: Vec<Inherited> = serde_json::from_slice(encoded.as_encoded_bytes()).map_err(io::Error::other)?;
     let mut adopted = BTreeMap::new();
     for item in listed {

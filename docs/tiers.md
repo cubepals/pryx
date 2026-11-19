@@ -247,8 +247,11 @@ The server preset installs the pinned static release agent automatically. An ind
 configured gVisor agent must also be a static ELF; a GNU debug build with an image-controlled
 loader is refused. The node keeps a digest-named execute-only copy outside sandbox data, so
 Linux and gVisor protect its memory and descriptors before the process becomes visible. An
-exec's successful cleanup is authenticated; losing its owner retires that same sandbox run,
-while an earlier exec can never retire a later stop/start generation. Node exec removes the
+exec's successful cleanup is authenticated. An exec runs to its own end even when its caller goes
+away; one that ends without that authenticated cleanup, or still runs 30 seconds past its
+deadline, retires that same sandbox run, and a lost engine answer or output stream is reported
+without a kill, since the agent inside keeps the deadline. An earlier exec can never retire a
+later stop/start generation. Node exec removes the
 agent's bootstrap variables and preserves ordinary workload variables. Async work belongs to
 the agent's process API; a completed node exec retains no detached descendants.
 
