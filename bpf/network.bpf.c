@@ -5,7 +5,8 @@
  * the receive hooks put back the address a redirected DNS answer came from; the socket hook
  * refuses what the address hooks don't police and marks the sockets the sandbox made; the
  * ingress hook takes from off this host only the answers to what the sandbox dialled and the
- * ports pryxd published for it; the packet hooks count and check current host-local routes.
+ * ports pryxd published for it; the packet hooks count, check where each connection's SYN and
+ * each datagram lands on this host, and hold what leaves it to the address its header names.
  * Only IP and transport headers are read; pryxd decides every policy rule.
  */
 #include <linux/bpf.h>
@@ -159,17 +160,22 @@ static __always_inline __u16 gateway_port(struct pryx_config *gateway, __u8 verd
 }
 
 /*
- * A destination the sandbox may reach takes what comes back from it. A TCP socket hears only its
- * connection's peer, so the socket is marked; a UDP socket hears anyone who sends to its port,
- * so the peer is remembered for that socket alone.
+ * What an allowed destination may send back. A TCP socket hears only its connection's peer:
+ * every connect marks it initiated, so the packet hook checks where its SYN lands, and only one
+ * to a destination off this host (allow or resolver) lets answers in from off the host, so any
+ * other verdict clears that. A UDP socket hears anyone who sends to its port, so such a peer is
+ * remembered for that socket alone.
  */
-static __always_inline int dialled(struct bpf_sock_addr *ctx, __u32 address[4], __u16 port)
+static __always_inline int dialled(struct bpf_sock_addr *ctx, __u32 address[4], __u16 port, __u8 verdict)
 {
+	__u8 answered = verdict == PRYX_ALLOW || verdict == PRYX_RESOLVER;
 	struct pryx_peer peer = {};
 	struct pryx_socket *own;
 	__u8 seen = 1;
 
 	if (ctx->protocol == IPPROTO_UDP) {
+		if (!answered)
+			return 1;
 		peer.cookie = bpf_get_socket_cookie(ctx);
 		__builtin_memcpy(peer.address, address, sizeof(peer.address));
 		peer.port = port;
@@ -180,7 +186,8 @@ static __always_inline int dialled(struct bpf_sock_addr *ctx, __u32 address[4], 
 	own = bpf_sk_storage_get(&sockets, ctx->sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
 	if (!own)
 		return 0;
-	own->dialled = 1;
+	own->initiated = 1;
+	own->dialled = answered;
 	return 1;
 }
 
@@ -227,16 +234,18 @@ static __always_inline int decide4(struct bpf_sock_addr *ctx)
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
 	if (verdict == PRYX_ALLOW || verdict == PRYX_RESOLVER)
-		return dialled(ctx, address, port) ? 1 : refuse();
+		return dialled(ctx, address, port, verdict) ? 1 : refuse();
 	if (verdict == PRYX_OWNED)
-		return held4(ctx, ctx->user_ip4, port, protocol, PRYX_ROLE_NONE) ? 1 : refuse();
+		return held4(ctx, ctx->user_ip4, port, protocol, PRYX_ROLE_NONE) &&
+		       dialled(ctx, address, port, verdict) ? 1 : refuse();
 	if (verdict < PRYX_GATEWAY_HTTP || verdict > PRYX_GATEWAY_DNS)
 		return refuse();
 	gateway = bpf_map_lookup_elem(&config, &zero);
 	if (!gateway)
 		return refuse();
 	redirect = gateway_port(gateway, verdict);
-	if (!redirect || !held4(ctx, gateway->gateway, redirect, protocol, PRYX_ROLE_GATEWAY))
+	if (!redirect || !held4(ctx, gateway->gateway, redirect, protocol, PRYX_ROLE_GATEWAY) ||
+	    !dialled(ctx, address, port, verdict))
 		return refuse();
 	if (verdict == PRYX_GATEWAY_DNS)
 		remember(ctx, address, port);
@@ -263,13 +272,18 @@ static __always_inline int decide6(struct bpf_sock_addr *ctx)
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
 	if (verdict == PRYX_ALLOW || verdict == PRYX_RESOLVER)
-		return dialled(ctx, address, port) ? 1 : refuse();
+		return dialled(ctx, address, port, verdict) ? 1 : refuse();
 	if (verdict == PRYX_OWNED) {
-		if (mapped(address))
-			return held4(ctx, address[3], port, protocol, PRYX_ROLE_NONE) ? 1 : refuse();
-		__builtin_memcpy(tuple.ipv6.daddr, address, sizeof(tuple.ipv6.daddr));
-		tuple.ipv6.dport = port;
-		return held(ctx, &tuple, sizeof(tuple.ipv6), protocol, PRYX_ROLE_NONE) ? 1 : refuse();
+		if (mapped(address)) {
+			if (!held4(ctx, address[3], port, protocol, PRYX_ROLE_NONE))
+				return refuse();
+		} else {
+			__builtin_memcpy(tuple.ipv6.daddr, address, sizeof(tuple.ipv6.daddr));
+			tuple.ipv6.dport = port;
+			if (!held(ctx, &tuple, sizeof(tuple.ipv6), protocol, PRYX_ROLE_NONE))
+				return refuse();
+		}
+		return dialled(ctx, address, port, verdict) ? 1 : refuse();
 	}
 	if (verdict < PRYX_GATEWAY_HTTP || verdict > PRYX_GATEWAY_DNS)
 		return refuse();
@@ -277,7 +291,8 @@ static __always_inline int decide6(struct bpf_sock_addr *ctx)
 	if (!gateway)
 		return refuse();
 	redirect = gateway_port(gateway, verdict);
-	if (!redirect || !held4(ctx, gateway->gateway, redirect, protocol, PRYX_ROLE_GATEWAY))
+	if (!redirect || !held4(ctx, gateway->gateway, redirect, protocol, PRYX_ROLE_GATEWAY) ||
+	    !dialled(ctx, address, port, verdict))
 		return refuse();
 	if (verdict == PRYX_GATEWAY_DNS)
 		remember(ctx, address, port);
@@ -482,6 +497,8 @@ struct packet {
 	struct pryx_key key;
 	__u32 protocol;
 	__u16 port;
+	/* A TCP segment that opens a connection: only it picks the socket the connection reaches. */
+	__u8 syn;
 };
 
 static __always_inline int packet_ports(struct __sk_buff *skb, struct packet *packet,
@@ -496,6 +513,7 @@ static __always_inline int packet_ports(struct __sk_buff *skb, struct packet *pa
 			return 0;
 		source = tcp.source;
 		packet->port = tcp.dest;
+		packet->syn = tcp.syn;
 	} else if (packet->protocol == IPPROTO_UDP) {
 		struct udphdr udp;
 
@@ -588,34 +606,74 @@ static __always_inline int tcp_response(struct __sk_buff *skb)
 	if (full->state == BPF_TCP_LISTEN)
 		return 1;
 	own = bpf_sk_storage_get(&sockets, full, 0, 0);
-	return !own || !own->dialled;
+	return !own || !own->initiated;
+}
+
+/* Whether a SYN's exact connection waits in TIME-WAIT, where the kernel hands it to a listener. */
+static __always_inline int time_wait(struct __sk_buff *skb, struct bpf_sock_tuple *tuple, __u32 size)
+{
+	struct bpf_sock *sk = bpf_skc_lookup_tcp(skb, tuple, size, BPF_F_CURRENT_NETNS, 0);
+	int waiting;
+
+	if (!sk)
+		return 0;
+	waiting = sk->state == BPF_TCP_TIME_WAIT;
+	bpf_sk_release(sk);
+	return waiting;
 }
 
 static __always_inline __u8 packet_role(struct __sk_buff *skb, struct packet *packet)
 {
+	__u8 role;
+
 	/* Each helper receives a constant tuple size, as the verifier requires. The complete
-	 * source tuple makes wildcard/reuse-port selection the packet's actual destination. */
-	if (skb->protocol == bpf_htons(ETH_P_IP))
+	 * source tuple makes wildcard/reuse-port selection the packet's actual destination. A SYN
+	 * that meets TIME-WAIT is handed to the listener, which only a lookup without the source
+	 * finds: the same lookup the connect hook made. */
+	if (skb->protocol == bpf_htons(ETH_P_IP)) {
+		role = socket_role(skb, &packet->tuple, sizeof(packet->tuple.ipv4), packet->protocol);
+		if (role != PRYX_ROLE_NONE || !packet->syn ||
+		    !time_wait(skb, &packet->tuple, sizeof(packet->tuple.ipv4)))
+			return role;
+		packet->tuple.ipv4.saddr = 0;
+		packet->tuple.ipv4.sport = 0;
 		return socket_role(skb, &packet->tuple, sizeof(packet->tuple.ipv4), packet->protocol);
+	}
+	role = socket_role(skb, &packet->tuple, sizeof(packet->tuple.ipv6), packet->protocol);
+	if (role != PRYX_ROLE_NONE || !packet->syn || !time_wait(skb, &packet->tuple, sizeof(packet->tuple.ipv6)))
+		return role;
+	__builtin_memset(packet->tuple.ipv6.saddr, 0, sizeof(packet->tuple.ipv6.saddr));
+	packet->tuple.ipv6.sport = 0;
 	return socket_role(skb, &packet->tuple, sizeof(packet->tuple.ipv6), packet->protocol);
 }
 
-static __always_inline int local_egress(struct __sk_buff *skb)
+/*
+ * Whether a packet the sandbox made may go where its header now says. On this host (loopback
+ * carries every host-local destination, including an address the address watch has not heard
+ * of yet) a datagram or a connection's SYN reaches only a socket of the sandbox's own, its exact
+ * gateway listener or a configured resolver, and never what a rule denies; a connection's later
+ * segments go to the peer its SYN reached. Off this host (a subnet's broadcast is looped back
+ * to this host's sockets from the link, never from loopback) the header's destination, which a
+ * source route can make other than the one the address hooks saw, must be one the sandbox may
+ * dial there: allowed or a resolver, never this host's own.
+ */
+static __always_inline int sent(struct __sk_buff *skb, struct packet *packet, int local)
 {
-	struct packet packet = {};
-	__u8 role, verdict;
+	__u8 role = PRYX_ROLE_NONE, verdict;
 
-	if (!packet_tuple(skb, &packet))
-		return 0;
-	if (packet.protocol == IPPROTO_TCP && tcp_response(skb))
-		return 1;
-	role = packet_role(skb, &packet);
-	/* A rewritten gateway is an internal transport, not the requested upstream address. */
-	if (role == PRYX_ROLE_GATEWAY)
-		return 1;
-	verdict = classify(&packet.key, bpf_ntohs(packet.port), packet.protocol);
+	if (local) {
+		if (packet->protocol == IPPROTO_TCP && !packet->syn)
+			return 1;
+		role = packet_role(skb, packet);
+		/* A rewritten gateway is an internal transport, not the requested upstream address. */
+		if (role == PRYX_ROLE_GATEWAY)
+			return 1;
+	}
+	verdict = classify(&packet->key, bpf_ntohs(packet->port), packet->protocol);
 	if (verdict == PRYX_RESOLVER)
 		return 1;
+	if (!local)
+		return verdict == PRYX_ALLOW;
 	if (verdict == PRYX_DENY)
 		return 0;
 	return role == PRYX_ROLE_SANDBOX;
@@ -624,11 +682,22 @@ static __always_inline int local_egress(struct __sk_buff *skb)
 SEC("cgroup_skb/egress")
 int egress(struct __sk_buff *skb)
 {
-	count(PRYX_EGRESS, skb->len);
 	/* ip_finish_output/ip6_finish_output set skb->dev from the current kernel route before
-	 * this hook. Every host-local destination uses LOOPBACK_IFINDEX, including a newly
-	 * assigned address the userspace address watcher has not processed yet. */
-	if (skb->ifindex == PRYX_LOOPBACK && !local_egress(skb))
+	 * this hook, and ip_mc_finish_output keeps the link's for a broadcast's local copy. */
+	int local = skb->ifindex == PRYX_LOOPBACK;
+	struct packet packet = {};
+	int allowed;
+
+	count(PRYX_EGRESS, skb->len);
+	if (!packet_tuple(skb, &packet))
+		/* Off this host, only what the host's own IPsec sealed after the address hooks ran:
+		 * no sandbox socket makes these headers. Anything else unread fails closed. */
+		allowed = !local && (packet.protocol == IPPROTO_ESP || packet.protocol == IPPROTO_AH);
+	else if (packet.protocol == IPPROTO_TCP && tcp_response(skb))
+		allowed = 1;
+	else
+		allowed = sent(skb, &packet, local);
+	if (!allowed)
 		return refuse();
 #ifdef PRYX_REJECTED
 	/*

@@ -5260,3 +5260,14 @@ job when publication is authorized. That job has not run in this task.
   Fresh branch proof remains required before landing; the earlier K26 runs above are historical.
 
 - K31 current-base integration preserves the landed exec, OOM, DNS, generation, VM restore and outage-fixture safeguards. Historical K31 runs remain historical; the new kernel-route guard, its pinned-object identity and the complete fresh branch still require current-head CI proof.
+
+- Label trust: inspection reopened private-ingress relays from `blocklyd.internal-bindings` on any
+  container, and a container inherits its image's labels, so an internet-mode image could make
+  pryxd listen on host addresses it named. The two real-engine cases in
+  `tests/docker/engine_labels.rs` were pushed first, without the fix: on hosted rootless Docker,
+  [Rootless engines 44344387294, job 134942731625](https://github.com/cubepals/pryx/actions/runs/44344387294/job/134942731625)
+  failed with "forged-…'s label, which pryxd did not write, opened 127.0.0.1:36509". The fix
+  writes the label on every container (empty unless the sandbox is on Docker's internal network)
+  and believes it only on a non-Podman container attached to one internal, inter-container-off
+  network; a relay unit case covers the trusted, Podman and ordinary-network paths. Hosted proof of
+  the fix is in its pull request. No job or gate is added; the two cases take about a second each.
