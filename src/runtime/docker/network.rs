@@ -19,9 +19,7 @@ pub(super) async fn internal(
         quick("inspect internal network", runtime.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await;
     match inspect {
         Ok(network) => {
-            if network.internal == Some(true)
-                && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
-            {
+            if enforces_private(&network) {
                 return Ok(());
             }
             return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
@@ -42,6 +40,21 @@ pub(super) async fn internal(
     };
     quick("create internal network", runtime.docker()?.create_network(request)).await?;
     Ok(())
+}
+
+/// Whether the network `id` is a gateway-free internal network as `internal` makes and accepts
+/// them. A network that no longer exists is none.
+pub(super) async fn private(runtime: &DockerRuntime, id: &str) -> Result<bool, RuntimeError> {
+    match quick("inspect private network", runtime.docker()?.inspect_network(id, None::<InspectNetworkOptions>)).await {
+        Ok(network) => Ok(enforces_private(&network)),
+        Err(RuntimeError::NotFound(_)) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn enforces_private(network: &bollard::models::NetworkInspect) -> bool {
+    network.internal == Some(true)
+        && network.options.as_ref().and_then(|options| options.get(ICC_OPTION)).map(String::as_str) == Some("false")
 }
 
 pub(super) async fn ensure(

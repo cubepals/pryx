@@ -159,6 +159,41 @@ test(
         expect(proof.ok).toBe(true)
         expect(await proof.text()).toBe('protected')
       })
+      // A caller that goes away loses only the answer: the command runs on inside the sandbox
+      // to its own end, and the sandbox keeps running.
+      await attempt('node-exec-caller-gone', async () => {
+        const box = await c.sdk.sandbox({ image: 'alpine:3.22', isolation: 'gvisor' })
+        boxes.push(box)
+        const row = await one<{ handle: RuntimeHandle }>(
+          c.d.control.db,
+          sql`SELECT handle FROM sandboxes WHERE id = ${box.id}`,
+        )
+        if (!row?.handle) throw new Error('The sandbox has no node handle')
+        const node = await c.d.control.runtime.home(row.handle)
+        if (!node) throw new Error('The sandbox has no node')
+        const ref = decodeHandle(row.handle)
+        const view = await c.d.control.nodes.call<WorkloadView>(node, 'GET', `/v1/workloads/${ref.key}`)
+        const answered = await c.d.control.nodes
+          .call<ExecResponse>(node, 'POST', `/v1/workloads/${ref.key}/exec`, {
+            body: { command: ['sh', '-c', 'sleep 6; echo finished > /data/caller-gone'], timeoutSeconds: 60 },
+            epoch: ref.epoch,
+            timeoutMs: 2 * SECOND_MS,
+          })
+          .then(
+            () => true,
+            () => false,
+          )
+        expect(answered).toBe(false)
+        await Bun.sleep(8 * SECOND_MS)
+        const inspect = Bun.spawn(
+          ['docker', 'inspect', '--format', '{{.State.Running}}', view.locate.containerName],
+          { stdout: 'pipe', stderr: 'pipe' },
+        )
+        const running = await new Response(inspect.stdout).text()
+        expect(await inspect.exited).toBe(0)
+        expect(running.trim()).toBe('true')
+        expect((await box.run(['cat', '/data/caller-gone'])).stdout.trim()).toBe('finished')
+      })
       for (const [name, image, python] of [
         ['python-interpreter', 'alpine:pryx-python-interpreter', true],
         ['node-interpreter', 'alpine:pryx-node-interpreter', false],
@@ -221,6 +256,7 @@ test(
         image: 'ok',
         'node-exec-deadline': 'ok',
         'node-exec-owner-killed': 'ok',
+        'node-exec-caller-gone': 'ok',
         'python-interpreter': 'ok',
         'node-interpreter': 'ok',
         browser: 'ok',

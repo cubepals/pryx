@@ -94,9 +94,13 @@ struct pryx_socket {
 	/* The destination a DNS datagram was redirected from, in network order. */
 	__u16 port;
 	__u32 address[4];
-	/* A TCP socket that dialled a destination off this host: what arrives on it is its answer. */
+	/* A TCP socket whose last connect dialled a destination off this host: what arrives on it
+	 * from off the host is its answer. */
 	__u8 dialled;
-	__u8 reserved[3];
+	/* A TCP socket that connected rather than was accepted: the packet hook checks where its
+	 * SYN goes. */
+	__u8 initiated;
+	__u8 reserved[2];
 };
 
 /* The datagram peers a sandbox's UDP sockets were allowed to send to, the most recent kept. */

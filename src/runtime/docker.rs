@@ -21,7 +21,7 @@
 //! - `container.rs`: container construction and observation types.
 //! - `events.rs`: engine event translation.
 //! - `exec_agent.rs`: durable execute-only exec owner programs.
-//! - `exec_completion.rs`: authenticated exec cleanup and failed-owner retirement.
+//! - `exec_completion.rs`: authenticated exec cleanup, failed-owner retirement and bounded output.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `gvisor.rs`: the gvisor tier's runtime name, availability, ownership and resolvers.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
@@ -647,7 +647,7 @@ impl ContainerRuntime for DockerRuntime {
             Ok(inspect) if !gvisor::owns_container(self.oci_runtime, &inspect) => Ok(None),
             Ok(inspect) => {
                 self.egress.restore(self, &inspect).await?;
-                self.relays.ensure(&inspect).await?;
+                self.relays.ensure(self, &inspect).await?;
                 let mut info = info_from(inspect);
                 let journal = self.journal_context();
                 let docker_history = self.oci_runtime.is_some()

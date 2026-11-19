@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Docker exec attachment, bounded output, exit inspection and timeout tree containment.
+//! Docker exec attachment, exit inspection and timeout tree containment.
 
+use super::exec_completion::{EXIT_POLL, collect_output};
 use super::*;
 use crate::runtime::parse_time;
 
-// Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
-const EXIT_POLL: Duration = Duration::from_millis(4);
 const KILLED_EXIT_WAIT: Duration = Duration::from_secs(1);
 
 impl DockerRuntime {
@@ -26,64 +25,44 @@ impl DockerRuntime {
             .id
             .ok_or_else(|| RuntimeError::Other("exec target has no immutable identity".into()))?;
         let container = identity.as_str();
-        let mut setup = Some(self.starts.lock(container).await);
+        let setup = self.starts.lock(container).await;
         let prepared = prepare(self, container, command, timeout).await?;
         let timeout = prepared.timeout;
         let created = quick("create exec", self.docker()?.create_exec(container, prepared.options())).await?;
         let exec_id = created.id;
-        let mut completion = prepared.session(self, container)?;
-        let started = match quick(
+        let docker = self.docker()?;
+        if let Some(session) = prepared.session(self, container)? {
+            // gVisor's exec is seen to its end, and judged, by its completion (exec_completion.rs).
+            let owned =
+                super::exec_completion::Owned { docker, exec_id, session, setup, limit: timeout, max_output, live };
+            return owned.run().await;
+        }
+        let started = quick(
             "start exec",
-            self.docker()?
-                .start_exec(&exec_id, Some(StartExecOptions { detach: false, tty: false, output_capacity: None })),
+            docker.start_exec(&exec_id, Some(StartExecOptions { detach: false, tty: false, output_capacity: None })),
         )
-        .await
-        {
-            Ok(started) => started,
-            Err(error) => {
-                if let Some(completion) = &mut completion {
-                    drop(setup.take());
-                    return Err(completion.failed().await);
-                }
-                return Err(error);
-            }
-        };
-        let StartExecResults::Attached { mut output, mut input } = started else {
+        .await?;
+        let StartExecResults::Attached { mut output, input } = started else {
             return Err(RuntimeError::Other("exec started detached".into()));
         };
-
-        if let Some(completion) = &mut completion
-            && !completion.establish(&mut output, &mut input).await
-        {
-            drop(setup.take());
-            return Err(completion.failed().await);
-        }
         drop(input);
-        drop(setup.take());
+        drop(setup);
         let mut result = ExecOutput::default();
         let collect = async {
-            collect_output(&mut output, &mut result, max_output, &live, &mut completion).await?;
+            collect_output(&mut output, &mut result, max_output, &live, &mut None).await?;
             // Output can close while the process still runs. The execution deadline covers both.
             result.exit_code = self.exec_exit(&exec_id).await?;
             Ok::<(), RuntimeError>(())
         };
         match tokio::time::timeout(timeout, collect).await {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                if let Some(completion) = &mut completion {
-                    return Err(completion.failed().await);
-                }
-                return Err(e);
-            }
+            Ok(Err(e)) => return Err(e),
             Err(_) => {
                 result.timed_out = true;
                 // Docker has no API to stop an exec (moby/moby#35703). From the host, pryxd
                 // can: find its pid, make sure it is still this container's, and kill its tree.
                 // Under gVisor the exec's processes live in its own kernel, so a host pid names
                 // none of them; that path is never taken there.
-                if let Some(completion) = &mut completion {
-                    return Err(completion.failed().await);
-                }
                 if self.oci_runtime.is_some() {
                     return Err(RuntimeError::Other(super::gvisor::EXEC_TIMEOUT_PROBLEM.into()));
                 }
@@ -93,11 +72,6 @@ impl DockerRuntime {
             }
         }
         drop(output);
-        if let Some(completion) = &mut completion
-            && !completion.complete(&mut result, max_output, &live).await
-        {
-            return Err(completion.failed().await);
-        }
         if result.timed_out {
             if result.killed {
                 match tokio::time::timeout(KILLED_EXIT_WAIT, self.exec_exit(&exec_id)).await {
@@ -304,48 +278,10 @@ async fn prepare(
     Ok(prepared)
 }
 
-/// The engine wait outlasts successful descendant retirement inside the guest.
-const DEADLINE_GRACE: Duration = Duration::from_secs(3);
-
-async fn collect_output<S>(
-    output: &mut S,
-    result: &mut ExecOutput,
-    max_output: usize,
-    live: &Option<tokio::sync::mpsc::Sender<LogChunk>>,
-    completion: &mut Option<super::exec_completion::Session>,
-) -> Result<(), RuntimeError>
-where
-    S: futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
-{
-    while let Some(item) = output.next().await {
-        let item = match item.map_err(map_err)? {
-            LogOutput::StdErr { message } if completion.is_some() => {
-                LogOutput::StdErr { message: completion.as_mut().unwrap().stderr(&message) }
-            }
-            other => other,
-        };
-        let (buffer, truncated, stream, bytes) = match item {
-            LogOutput::StdOut { message } => {
-                (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
-            }
-            LogOutput::StdErr { message } => {
-                (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
-            }
-            _ => continue,
-        };
-        let room = max_output.saturating_sub(buffer.len());
-        buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
-        *truncated |= bytes.len() > room;
-        if let Some(live) = &live {
-            for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
-                if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
-                    break;
-                }
-            }
-        }
-    }
-    Ok(())
-}
+/// How long past its deadline an authenticated exec may still run, retiring what it started,
+/// before its sandbox is retired. Only a supervisor that never exits waits this out: one that
+/// exits, finished or killed, is judged as it exits.
+const DEADLINE_GRACE: Duration = Duration::from_secs(30);
 
 #[cfg(test)]
 mod tests {

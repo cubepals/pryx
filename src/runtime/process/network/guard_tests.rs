@@ -3,7 +3,7 @@
 use super::*;
 use std::{
     io::{BufRead, BufReader, Write},
-    net::{Ipv6Addr, TcpListener, UdpSocket},
+    net::{IpAddr, Ipv6Addr, TcpListener, UdpSocket},
     process::{Child, Command, Stdio},
 };
 
@@ -88,7 +88,7 @@ async fn newly_local_routes_are_refused_on_every_attempt_with_address_refresh_bl
     // whole test. Unlike an eventual-refusal retry, the very first packet must be refused.
     let snapshot = fixture.network.held.lock().unwrap()[&spec.name].host.clone();
     for address in ["198.51.100.79", "2001:db8::79"] {
-        assert!(!snapshot.contains(&address.parse::<IpAddr>().unwrap()));
+        assert!(!snapshot.own.contains(&address.parse::<IpAddr>().unwrap()));
     }
     let ports = [
         tcp4.local_addr().unwrap().port(),
