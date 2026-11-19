@@ -123,17 +123,20 @@ impl ProcessRuntime {
         }
         Ok(())
     }
-    /// Detaches a sandbox's kernel network policy once its processes are gone.
+    /// Detaches a sandbox's kernel network policy once its processes are gone, and removes its
+    /// cgroup, whatever is left in it killed first, whether its policy or its limits made it.
     pub(super) fn release_network(&self, entry: &Entry) -> Result<(), RuntimeError> {
         if let Some(network) = self.network.as_ref().or(self.network_cleanup.as_ref()) {
-            return network.release(&entry.spec.name);
-        }
-        // Observation already owns the entries lock. The caller's generation supplies the
-        // record proof without looking it up again and recursively acquiring that mutex.
-        if entry.network.is_some() {
+            network.release(&entry.spec.name)?;
+        } else if entry.network.is_some() {
+            // Observation already owns the entries lock. The caller's generation supplies the
+            // record proof without looking it up again and recursively acquiring that mutex.
             return Err(error("Kernel network policy cleanup cannot be proved; retain this process journal"));
         }
-        Ok(())
+        match &entry.limits {
+            Some(record) => super::resources::release(&record.cgroup),
+            None => Ok(()),
+        }
     }
     /// Generations that may still run without verified programs: a live supervisor, uncertain
     /// legacy descendants, or an existing/unreadable canonical cgroup after failed cleanup.
@@ -277,7 +280,7 @@ impl ProcessRuntime {
             command.arg("--").args(argv);
         }
         let tmp = temporary_directory(spec, owner)?;
-        let mut policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network, "private_tmp":namespaced.then_some(true), "require_ipc_scope":require_scope.then_some(true)});
+        let mut policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":self.sampled_budget(spec), "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network, "private_tmp":namespaced.then_some(true), "require_ipc_scope":require_scope.then_some(true)});
         // An unset flag is no field at all, as older agents' policies have it.
         policy.as_object_mut().expect("a JSON object").retain(|_, value| !value.is_null());
         if let Some(tools) = tools {
@@ -316,8 +319,10 @@ impl ProcessRuntime {
         {
             return Err(error("this sandbox requires kernel-network-policy, which this host cannot verify"));
         }
-        if entry.spec.nano_cpus.is_some() {
-            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        if entry.spec.nano_cpus.is_some()
+            && let Some(problem) = self.cpu_problem()
+        {
+            return Err(error(problem));
         }
         if self.running(name)? {
             return Ok(());
@@ -363,9 +368,13 @@ impl ProcessRuntime {
             let (record, _) = network.prepare(&entry.spec).await?;
             entry.network = Some(record);
         }
+        // Its limits are in its cgroup before it joins it, as its programs are.
+        entry.limits = self.prepare_limits(&entry)?;
         self.spawn_checkpoint(entry, |entry| {
             if let Some(network) = &self.network {
                 network.spawn_verified(&entry.spec.name, &mut command)
+            } else if let Some(record) = &entry.limits {
+                super::resources::spawn_in(&record.cgroup, &mut command)
             } else {
                 command.spawn().map_err(error)
             }
@@ -480,12 +489,22 @@ impl ProcessRuntime {
                 self.save_in(&mut entries, entry.clone())?;
             }
         }
+        Ok(Some(self.observed_info(entry, alive)))
+    }
+    fn observed_info(&self, entry: Entry, alive: bool) -> ContainerInfo {
         let paused = alive
-            && entry
+            && (entry
                 .pid
                 .and_then(|pid| fs::read_to_string(format!("/proc/{pid}/stat")).ok())
                 .and_then(|s| s.rsplit_once(") ").map(|(_, s)| s.starts_with('T')))
-                .unwrap_or(false);
+                .unwrap_or(false)
+                || entry
+                    .limits
+                    .as_ref()
+                    .is_some_and(|record| crate::cgroup::limits::is_frozen(&record.cgroup).unwrap_or(false)));
+        // What this sandbox started with, never what the host could give a new one.
+        let (memory_enforced, cpu_enforced) =
+            entry.limits.as_ref().map_or((false, false), |record| (record.memory, record.cpu));
         let mut labels = entry.spec.labels;
         labels.insert(
             crate::labels::LABEL_BROWSER_SANDBOX.into(),
@@ -498,10 +517,10 @@ impl ProcessRuntime {
             crate::labels::LABEL_PRIVATE_NETWORK.into(),
             entry.namespaced.is_some_and(|mode| mode.private_network).to_string(),
         );
-        Ok(Some(ContainerInfo {
+        ContainerInfo {
             agent_state: None,
-            memory_enforced: None,
-            cpu_enforced: None,
+            memory_enforced: Some(memory_enforced),
+            cpu_enforced: Some(cpu_enforced),
             cgroup_parent: None,
             id: entry.id,
             name: entry.spec.name,
@@ -522,7 +541,7 @@ impl ProcessRuntime {
             finished_at: parse_time(entry.finished.as_deref()),
             restart_count: 0,
             health: None,
-        }))
+        }
     }
 }
 

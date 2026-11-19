@@ -33,8 +33,11 @@ its own cgroup subtree and `/sys/fs/bpf/pryx` writable. Process sandboxes live i
 when pryxd's unit stops, as VMs do with the VM worker; containers keep running. pryxd logs the
 proof at each start (`kernel network policy`, with `on` and its evidence). The server preset's
 own control plane requires private-network, private-pids, memory-limit and cpu-limit of every
-sandbox, which the process tier doesn't give, so it places none there; a control plane a node
-joins that places process sandboxes gets them policed.
+sandbox. Under this unit the process tier gives memory-limit and cpu-limit
+([process-tier.md](process-tier.md#limits)) but not private-pids (the unit's RestrictNamespaces
+refuses the namespaced mode) nor private-network (an Internet-enabled process sandbox shares the
+host's network stack), so it places none there; a control plane a node joins that places process
+sandboxes gets them policed and limited.
 
 As root, granting it to a user means: the capabilities on its service
 (`AmbientCapabilities=CAP_BPF CAP_NET_ADMIN`), `Delegate=yes`, and

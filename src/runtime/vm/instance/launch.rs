@@ -352,6 +352,7 @@ impl VmRuntime {
                 channel,
                 nonce,
                 shutdown_requested: false,
+                shutdown_exit: None,
                 killing: false,
                 stages,
                 #[cfg(test)]

@@ -220,7 +220,7 @@ are reported with every sandbox; a request can require either.
 | Guarantee | Means | Off when |
 | --- | --- | --- |
 | `separate-users` | The sandbox has a uid no other sandbox has | Process tier without root |
-| `memory-limit`, `cpu-limit` | The kernel enforces the limit | Process and wasm; an engine with no delegated cgroup |
+| `memory-limit`, `cpu-limit` | The kernel enforces the limit | Wasm; the process tier or an engine with no delegated cgroup |
 | `private-network` | Its own network stack | Process tier without namespaces |
 | `host-firewall` | Sandboxes can't reach the host, metadata addresses or other nodes | The firewall isn't loaded |
 | `own-kernel` | A kernel of its own | Everything but `vm` |

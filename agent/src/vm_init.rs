@@ -481,13 +481,16 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     // so the network helper's exit then is the restore's, handled when the hold ends.
     let mut held: Option<crate::vm_sleep::Held> = None;
     let mut agent = child.stdin.take();
-    let (mut result, stop) = loop {
+    let (mut result, stop, proof_channel) = loop {
         let guest = current.boot();
         tokio::select! {
-        result = child.wait() => break (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
-        _ = term.recv() => break (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
-        _ = interrupt.recv() => break (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }),
-        result = shutdown.receive(&current.public_key, &current.nonce, &current.sandbox, current.epoch) => break (None, result?),
+        result = child.wait() => break (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }, None),
+        _ = term.recv() => break (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }, None),
+        _ = interrupt.recv() => break (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }, None),
+        result = shutdown.receive(&current.public_key, &current.nonce, &current.sandbox, current.epoch) => {
+            let (stop, channel) = result?;
+            break (None, stop, Some(channel));
+        }
         error = crate::vm_network::failure(&mut network), if held.is_none() => return Err(error.into()),
         pending = sleep.receive(&guest), if held.is_none() => {
             let pending = pending?;
@@ -580,6 +583,10 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
             disk_synced: true,
         },
     );
+    if let Some(mut channel) = proof_channel {
+        // Keep the serial proof for older hosts and exits without a shutdown stream.
+        let _ = crate::vm_shutdown::send_proof(&mut channel, &proof).await;
+    }
     eprintln!("\n{}{}", crate::vm_observation::PREFIX, serde_json::to_string(&proof)?);
     // Drain the real serial device before the kernel resets its devices, so a
     // complete signed observation precedes the monitor's guest-reset exit.

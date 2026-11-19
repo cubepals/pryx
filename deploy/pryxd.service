@@ -56,10 +56,14 @@ StateDirectory=pryxd
 StateDirectoryMode=0700
 ConfigurationDirectory=pryxd
 
-# The process tier (docs/process-tier.md) gives each sandbox a cgroup of its own below this unit's
-# and attaches its network policy's programs there (docs/bpf.md). Of /sys/fs/cgroup only this
-# unit's subtree is writable, and of /sys only its pin directory; the rest stays read-only.
+# The process tier (docs/process-tier.md) gives each sandbox a cgroup of its own below this unit's,
+# with its memory, CPU and process limits, and attaches its network policy's programs there
+# (docs/bpf.md). Of /sys/fs/cgroup only this unit's subtree is writable, and of /sys only its pin
+# directory; the rest stays read-only. pryxd's own processes live in the pryx-daemon leaf, since
+# a cgroup that gives its children controllers holds no process (systemd 254 and later put them
+# there; before, pryxd moves itself there as the unit's only process).
 Delegate=yes
+DelegateSubgroup=pryx-daemon
 
 NoNewPrivileges=yes
 ProtectSystem=strict

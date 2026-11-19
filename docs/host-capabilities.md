@@ -8,7 +8,9 @@ names what would enable an unavailable capability. A permission failure is `unkn
 evidence that the kernel lacks the capability. Only `on` can become a promised guarantee.
 
 The probe creates a disposable user namespace and uses a capability in its private UTS
-namespace; asks the Landlock ABI; reads the daemon's own cgroup controllers; opens devices;
+namespace; asks the Landlock ABI; reads the daemon's own cgroup controllers, and as
+`process-limits` whether its cgroup could give process sandboxes memory and cpu (a serving pryxd
+reports what it turned on); opens devices;
 and, on x86_64 with KVM access, measures ten real guest HLT exits. Namespace and guest
 children have a two-second deadline. Engine discovery asks for version and info, in order:
 Unix `DOCKER_HOST`, system Docker, user Docker, user Podman, system Podman. The first complete
@@ -33,8 +35,8 @@ The view reads the latest node announcement. A resting sandbox with no node repo
 | Guarantee | Current evidence |
 | --- | --- |
 | `separate-users` | A process uid pool, with an actual credential-drop probe; shared-uid process nodes report false |
-| `memory-limit` | Container engine info reports kernel memory limits and a cgroup driver |
-| `cpu-limit` | Engine info reports CPU quota and weights and a cgroup driver |
+| `memory-limit` | Container engine info reports kernel memory limits and a cgroup driver; on the process tier, `process-limits`: pryxd's cgroup gives each sandbox's own cgroup the memory controller, and that sandbox started with its `memory.max` ([process-tier.md](process-tier.md#limits)) |
+| `cpu-limit` | Engine info reports CPU quota and weights and a cgroup driver; on the process tier, the cpu controller in each sandbox's own cgroup, and its `cpu.max` where it asked for a ceiling (weights stay a container's) |
 | `private-network` | The container backend's separate network namespace, gvisor's included; a namespaced process sandbox started with network none (reported per sandbox, never announced for the process tier) |
 | `host-firewall` | Rootful engine with a readable installed nftables table; refreshed before heartbeats. On the process tier, the `kernel-network-policy` probe (a disposable cgroup, every program loaded by the verifier, attached and removed) and that sandbox's own attached, verified programs ([bpf.md](bpf.md)) |
 | `own-kernel` | False until the virtual-machine tier exists |

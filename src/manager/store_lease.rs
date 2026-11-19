@@ -150,6 +150,9 @@ impl Manager {
             if let Some(capability) = runtime.kernel_network_policy() {
                 report.capabilities.insert(crate::bpf::CAPABILITY.into(), capability);
             }
+            if let Some(capability) = runtime.process_limits() {
+                report.capabilities.insert(crate::runtime::process::resources::CAPABILITY.into(), capability);
+            }
             let available = match self.agent_binary(runtime.as_ref()) {
                 Some(binary) => runtime.native_browser(&binary).await,
                 None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
@@ -227,13 +230,15 @@ impl Manager {
         // and firewall hold for it too; the browser's own sandbox is proved only for containers.
         let container = crate::runtime::engine_tier(tier);
         let vm = tier == crate::protocol::Isolation::Vm.as_str() && info.as_ref().is_some_and(|info| info.own_kernel);
+        // A process sandbox's own cgroup holds its limits where the host delegates the controllers.
+        let limited = container || vm || tier == "process";
         G::ALL
             .into_iter()
             .map(|guarantee| {
                 let on = match guarantee {
                     G::SeparateUsers => tier == "process" && probe.on("separate-users"),
-                    G::MemoryLimit => (container || vm) && info.as_ref().is_some_and(|info| info.memory_limit),
-                    G::CpuLimit => (container || vm) && info.as_ref().is_some_and(|info| info.cpu_limit),
+                    G::MemoryLimit => limited && info.as_ref().is_some_and(|info| info.memory_limit),
+                    G::CpuLimit => limited && info.as_ref().is_some_and(|info| info.cpu_limit),
                     G::PrivateNetwork => container || vm,
                     // Each process sandbox reports its own network; PIDs are the tier's here.
                     G::PrivatePids => {

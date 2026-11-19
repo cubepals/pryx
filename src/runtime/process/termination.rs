@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Freeze a stable descendant set before forced termination. Dedicated UIDs also let the node
+//! Freeze a stable descendant set before forced termination, or kill a sandbox's cgroup whole
+//! where it has one (`resources.rs`). Dedicated UIDs also let the node
 //! retire orphaned compute after a supervisor dies; shared-UID mode cannot signal unrelated
 //! processes and deliberately retains its weaker boundary.
 use super::journal::error;
@@ -70,10 +71,18 @@ impl ProcessRuntime {
     }
     pub(super) async fn terminate_tree(&self, name: &str) -> Result<(), RuntimeError> {
         let entry = self.entry(name)?;
-        let mut targets = self.freeze_tree(name).await?;
-        targets.sort_by_key(|(pid, _)| Some(*pid) == entry.pid);
-        for (pid, ticks) in targets {
-            signal(pid, ticks, Signal::KILL)
+        // A cgroup of its own is killed whole, asleep or not: a frozen process takes no SIGSTOP,
+        // and nothing forks past cgroup.kill.
+        if let Some(record) = &entry.limits
+            && matching_pid(entry.pid, entry.ticks).is_some()
+        {
+            crate::cgroup::fence_cgroup(&record.cgroup).map_err(error)?;
+        } else {
+            let mut targets = self.freeze_tree(name).await?;
+            targets.sort_by_key(|(pid, _)| Some(*pid) == entry.pid);
+            for (pid, ticks) in targets {
+                signal(pid, ticks, Signal::KILL)
+            }
         }
         if let Some(agent) = &entry.spec.agent {
             self.retire_orphans(&agent.sandbox)?

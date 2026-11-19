@@ -40,11 +40,8 @@ impl Manager {
             cpu_cores: s.and_then(|s| s.cores),
             cpu_seconds_total: s.and_then(|s| s.raw.cpu_total_ns).map(|ns| ns as f64 / 1e9),
             cpu_throttled_periods: s.and_then(|s| s.raw.cpu_throttled_periods),
-            cpu_limit_millis: if self.runtime.is_process() || self.runtime.is_wasm() {
-                None
-            } else {
-                record.spec.resources.cpu_millis
-            },
+            // The process tier takes a ceiling only where its cgroup holds it; wasm takes none.
+            cpu_limit_millis: if self.runtime.is_wasm() { None } else { record.spec.resources.cpu_millis },
             memory_bytes: s.and_then(|s| s.raw.memory_usage),
             memory_working_set_bytes: s.and_then(StatsSample::working_set),
             memory_limit_bytes: s.and_then(|s| s.raw.memory_limit),

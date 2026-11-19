@@ -94,7 +94,7 @@ impl ProcessRuntime {
     async fn stop_recorded(&self, network: Option<&Network>) {
         for name in self.names() {
             let Ok(entry) = self.entry(&name) else { continue };
-            if entry.network.is_some() || network.is_some_and(|network| network.pending(&entry.spec.name)) {
+            if had_programs(&entry, network) {
                 self.stop_unverified(&entry, network).await;
             }
         }
@@ -126,5 +126,44 @@ impl ProcessRuntime {
             }
             tokio::time::sleep(POLL).await;
         }
+    }
+}
+
+/// Whether a sandbox may have had programs: its journal says so, or its canonical cgroup exists
+/// while the journal names no other maker, since a crash can precede the record. A cgroup the
+/// journal records limits for was made for them (`resources.rs`), never for programs.
+fn had_programs(entry: &Entry, network: Option<&Network>) -> bool {
+    entry.network.is_some()
+        || (entry.limits.is_none() && network.is_some_and(|network| network.pending(&entry.spec.name)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A start that can't verify programs leaves running a sandbox that never had them, though
+    /// its limits gave it the canonical cgroup, as it did before limits.
+    #[test]
+    fn only_a_sandbox_that_may_have_had_programs_is_stopped_when_they_cant_be_verified() {
+        let root = tempfile::tempdir().unwrap();
+        let host = crate::bpf::host::Host {
+            cgroups: root.path().join("cgroups"),
+            pins: root.path().join("pins"),
+            delegated: false,
+        };
+        let network = Network::new(host, Served { ports: 42000..=42999, api_port: 7443 }, root.path());
+        let spec = super::super::network::fixture_spec(root.path());
+        let mut entry: Entry = serde_json::from_value(serde_json::json!({
+            "id": "limited", "spec": spec, "pid": null, "ticks": null, "code": 0, "started": null, "finished": null
+        }))
+        .unwrap();
+        assert!(!had_programs(&entry, Some(&network)));
+        let (_, cgroup) = network.fixture_paths(&spec.name);
+        std::fs::create_dir_all(&cgroup).unwrap();
+        assert!(had_programs(&entry, Some(&network)), "a crash can precede the journal's record");
+        entry.limits = Some(super::super::resources::Record { cgroup, memory: true, cpu: true, pids: true });
+        assert!(!had_programs(&entry, Some(&network)), "its limits made that cgroup");
+        entry.network = Some(serde_json::from_value(serde_json::json!({ "key": "k", "attachments": [] })).unwrap());
+        assert!(had_programs(&entry, None));
     }
 }

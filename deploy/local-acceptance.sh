@@ -71,6 +71,63 @@ phase=hello
 [ "$(pryx run -- echo hello)" = hello ]
 [ "$(sh -lc 'pryx run -- echo hello')" = hello ]
 echo "seconds_to_hello=$(($(date +%s)-started))"
+if [ "${PRYX_EXPECT_WASM:-0}" != 1 ]; then
+  # Where the host delegates memory and cpu, a process sandbox past its memory.max is OOM-killed
+  # inside its own cgroup and the rest survives, and its cpu.max throttles it; where it doesn't,
+  # the CPU ceiling is refused naming cpu-limit. PRYX_EXPECT_PROCESS_LIMITS=on requires the first.
+  phase=process-limits
+  printf '{"isolation":"process","resources":{"memoryMb":320,"cpuMillis":100}}\n' > "$HOME/limited.json"
+  if pryx sandbox create --spec "$HOME/limited.json" > "$HOME/limited.out" 2>&1; then
+    box=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["id"])' "$HOME/limited.out")
+    python3 - "$box" <<'PY'
+import json, subprocess, sys, time
+deadline = time.monotonic() + 60
+while True:
+    view = json.loads(subprocess.run(['pryx', 'sandbox', 'get', sys.argv[1]], check=True, capture_output=True).stdout)
+    if view['guarantees']['memory-limit'] and view['guarantees']['cpu-limit']:
+        break
+    assert time.monotonic() < deadline, view['guarantees']
+    time.sleep(1)
+PY
+    # Its own cgroup: the one pryx-<key> with a CPU ceiling (control sizes it in whole units).
+    cgroup=$(python3 -c '
+import os
+read = lambda root, name: open(os.path.join(root, name)).read().split()
+found = [root for root, _, files in os.walk("/sys/fs/cgroup") if os.path.basename(root).startswith("pryx-")
+         and "cpu.max" in files and read(root, "cpu.max")[0] != "max"]
+assert len(found) == 1, found
+assert read(found[0], "memory.max")[0] != "max", read(found[0], "memory.max")
+print(found[0])')
+    quota=$(python3 -c 'import sys; q, p = open(sys.argv[1] + "/cpu.max").read().split(); print(int(q) / int(p))' "$cgroup")
+    counter() { sed -n "s/^$2 //p" "$cgroup/$1"; }
+    kills=$(counter memory.events oom_kill)
+    code=0
+    pryx sandbox exec "$box" -- python3 -c 'b = b"x" * (1024 << 20)' > "$HOME/oom.out" 2>&1 || code=$?
+    [ "$code" != 0 ]
+    [ "$(counter memory.events oom_kill)" -gt "$kills" ]
+    [ "$(pryx sandbox exec "$box" -- echo survived)" = survived ]
+    throttled=$(counter cpu.stat nr_throttled)
+    share=$(pryx sandbox exec "$box" -- python3 -c 'import time
+cpu, wall = time.process_time(), time.monotonic()
+while time.monotonic() - wall < 3: pass
+print(round((time.process_time() - cpu) / (time.monotonic() - wall), 3))')
+    # Throttled to its ceiling, with room for the period's edges, and well short of a whole CPU.
+    python3 -c 'import sys; share, quota = map(float, sys.argv[1:]); assert share < min(quota * 1.5, 0.9), (share, quota)' "$share" "$quota"
+    [ "$(counter cpu.stat nr_throttled)" -gt "$throttled" ]
+    kills=$(($(counter memory.events oom_kill) - kills))
+    pryx sandbox rm "$box" > "$HOME/limited-deleted.json"
+    [ "$(pryx run -- echo hello)" = hello ]
+    echo "process_limits=on oom_exit=$code oom_kills=$kills cpu_max=$quota cpu_share=$share host=survived"
+  else
+    grep -q 'cpu-limit' "$HOME/limited.out"
+    if [ "${PRYX_EXPECT_PROCESS_LIMITS:-}" = on ]; then
+      echo 'Process limits were expected on this host' >&2
+      tail -n 5 "$HOME/limited.out" >&2
+      exit 1
+    fi
+    echo 'process_limits=off cpu_ceiling=refused'
+  fi
+fi
 if [ "${PRYX_EXPECT_BOTH_TIERS:-0}" = 1 ]; then
   phase=both-tiers
   [ "$(pryx run --isolation process -- echo hello)" = hello ]

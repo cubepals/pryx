@@ -75,6 +75,13 @@ pub(super) struct Network {
     held: Mutex<HashMap<String, Held>>,
 }
 
+/// A sandbox's name on the host's cgroup and BPF filesystem, distinct per state directory `root`;
+/// its limits (`resources.rs`) are written in the same cgroup.
+pub(super) fn key(root: &Path, name: &str) -> String {
+    let digest = Sha256::new().chain_update(root.as_os_str().as_encoded_bytes()).chain_update(b"\0");
+    hex::encode(digest.chain_update(name.as_bytes()).finalize())[..16].to_owned()
+}
+
 pub(super) fn error(problem: impl std::fmt::Display) -> RuntimeError {
     RuntimeError::Other(format!("Kernel network policy: {problem}"))
 }
@@ -151,10 +158,8 @@ impl Network {
         Self { host, served, root: root.to_path_buf(), held: Mutex::new(HashMap::new()) }
     }
 
-    /// A sandbox's name on the host's cgroup and BPF filesystem, distinct per state directory.
     fn key(&self, name: &str) -> String {
-        let digest = Sha256::new().chain_update(self.root.as_os_str().as_encoded_bytes()).chain_update(b"\0");
-        hex::encode(digest.chain_update(name.as_bytes()).finalize())[..16].to_owned()
+        key(&self.root, name)
     }
 
     fn reach(internal_network: bool, hostnames: bool) -> rules::Reach {

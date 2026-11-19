@@ -67,6 +67,12 @@ impl Manager {
             // What this sandbox started with, never what the host could give a new one.
             let started = |label| observed.and_then(|info| info.labels.get(label)).is_some_and(|on| on == "true");
             guarantees.entry(G::PrivatePids).and_modify(|on| *on &= started(crate::labels::LABEL_PRIVATE_PIDS));
+            for (guarantee, enforced) in [
+                (G::MemoryLimit, observed.and_then(|info| info.memory_enforced)),
+                (G::CpuLimit, observed.and_then(|info| info.cpu_enforced)),
+            ] {
+                guarantees.entry(guarantee).and_modify(|on| *on &= enforced == Some(true));
+            }
             guarantees.insert(G::PrivateNetwork, started(crate::labels::LABEL_PRIVATE_NETWORK));
             // Kernel policy counts for a sandbox only once its own programs are attached and verified.
             guarantees.entry(G::HostFirewall).and_modify(|on| *on &= started(crate::labels::LABEL_NETWORK_POLICY));

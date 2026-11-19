@@ -19,6 +19,9 @@ pub(crate) struct SpecPolicy {
     pub(crate) wasm: bool,
     /// The process tier's programs enforce network policy in the kernel on this host.
     pub(crate) kernel_network: bool,
+    /// Why the process tier can't enforce a CPU ceiling on this host, naming cpu-limit; `None`
+    /// where each sandbox's cgroup holds one.
+    pub(crate) process_cpu_problem: Option<String>,
     pub(crate) allowed_images: Vec<String>,
     pub(crate) min_memory_mb: u32,
     pub(crate) max_memory_mb: u32,
@@ -323,10 +326,16 @@ impl WorkloadSpec {
                     "unenforced memory acceptance requires container isolation",
                 );
             }
-            for (field, present) in [("cpuMillis", r.cpu_millis.is_some()), ("cpuWeight", r.cpu_weight.is_some())] {
-                if present {
-                    problems.add(format!("resources.{field}"), crate::protocol::CPU_LIMIT_PROBLEM);
-                }
+            // A weight stays a container's; a ceiling holds in a process sandbox's own cgroup.
+            let ceiling = match &policy.process_cpu_problem {
+                _ if policy.wasm => Some(crate::protocol::CPU_LIMIT_PROBLEM),
+                problem => problem.as_deref(),
+            };
+            if let Some(problem) = ceiling.filter(|_| r.cpu_millis.is_some()) {
+                problems.add("resources.cpuMillis", problem);
+            }
+            if r.cpu_weight.is_some() {
+                problems.add("resources.cpuWeight", crate::protocol::CPU_LIMIT_PROBLEM);
             }
         }
         if r.memory_mb < policy.min_memory_mb || r.memory_mb > policy.max_memory_mb {
@@ -449,6 +458,7 @@ mod tests {
             process: false,
             wasm: false,
             kernel_network: false,
+            process_cpu_problem: Some(crate::protocol::CPU_LIMIT_PROBLEM.into()),
             allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,
@@ -478,6 +488,37 @@ mod tests {
                 assert!(errors.iter().any(|e| e.field == field), "unenforced {field} was accepted");
             }
         }
+    }
+
+    /// Where each process sandbox's cgroup holds cpu.max, a ceiling is taken; a weight stays a
+    /// container's; without the controller the ceiling is refused with the tier's own reason.
+    #[test]
+    fn a_process_tier_with_cgroup_cpu_takes_ceilings_and_refuses_weights() {
+        let mut p = policy();
+        p.process = true;
+        p.process_cpu_problem = None;
+        let mut v = example_spec();
+        v["image"] = "".into();
+        let fields = |v: &serde_json::Value, p: &SpecPolicy| {
+            spec(v.clone())
+                .validate(p)
+                .err()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| (e.field, e.problem))
+                .collect::<Vec<_>>()
+        };
+        assert!(fields(&v, &p).iter().all(|(field, _)| !field.starts_with("resources.cpu")), "{:?}", fields(&v, &p));
+        v["resources"]["cpuWeight"] = 1024.into();
+        assert_eq!(
+            fields(&v, &p).into_iter().filter(|(field, _)| field.starts_with("resources.cpu")).collect::<Vec<_>>(),
+            [("resources.cpuWeight".to_owned(), crate::protocol::CPU_LIMIT_PROBLEM.to_owned())]
+        );
+        p.process_cpu_problem = Some("cpu-limit is unavailable on this host's process tier: no delegation".into());
+        let refused = fields(&v, &p);
+        assert!(
+            refused.iter().any(|(field, problem)| field == "resources.cpuMillis" && problem.contains("no delegation"))
+        );
     }
 
     #[test]

@@ -44,11 +44,13 @@ function validateImage(tier: Isolation, image?: string) {
 
 /**
  * Why a requested CPU field can't run on its tier: a weight is a container's alone, and a ceiling
- * runs in a container or, as whole vCPUs, in a VM.
+ * runs in a container, in a process sandbox's own cgroup (placement then asks its tier for
+ * cpu-limit) or, as whole vCPUs, in a VM.
  */
 function cpuProblem(spec: SandboxSpec, field: 'cpuMillis' | 'cpuWeight'): string | undefined {
   const value = spec.resources[field]
   if (value == null || spec.isolation === 'container' || spec.isolation === 'gvisor') return undefined
+  if (field === 'cpuMillis' && spec.isolation === 'process') return undefined
   if (field === 'cpuWeight' || spec.isolation !== 'vm') return nodeSchema['x-pryx-resources'].cpuLimitProblem
   return value < VM_CPU_MILLIS || value % VM_CPU_MILLIS ? VM_CPU_PROBLEM : undefined
 }

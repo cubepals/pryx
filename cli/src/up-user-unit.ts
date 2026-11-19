@@ -33,6 +33,10 @@ ${Object.entries(environment)
 Restart=on-failure
 RestartSec=${(2 * SECOND_MS) / SECOND_MS}
 KillMode=process
+# Process sandboxes' memory, CPU and process limits (docs/process-tier.md): this unit's cgroup is
+# pryx's to give each sandbox one of its own, with the service's processes in its pryx-daemon leaf.
+Delegate=yes
+DelegateSubgroup=pryx-daemon
 TimeoutStopSec=${MINUTE_MS / SECOND_MS / 2}
 NoNewPrivileges=yes
 [Install]

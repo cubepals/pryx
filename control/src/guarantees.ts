@@ -39,5 +39,11 @@ export function workloadGuarantees(
     result['private-pids'] &&= observed?.['private-pids'] === true
     result['private-network'] = observed?.['private-network'] === true
   }
+  // A process node with cgroup limits reports what each copy started with: one started before
+  // its host delegated the controllers has none.
+  if (tier === 'process') {
+    for (const name of ['memory-limit', 'cpu-limit'] as const)
+      if (features.includes(`tier-${tier}:${name}`)) result[name] &&= observed?.[name] === true
+  }
   return result
 }

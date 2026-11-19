@@ -24,6 +24,27 @@ test('unannounced guarantees are false and requested names survive runtime trans
   ).toEqual(guarantees(['memory-limit'], 'process'))
 })
 
+test('a process copy keeps the limits it started with, not the ones its node gives now', () => {
+  const features = ['multi-tier', 'tier-process', 'tier-process:memory-limit', 'tier-process:cpu-limit']
+  const both = { 'memory-limit': true, 'cpu-limit': true }
+  expect(workloadGuarantees(features, 'process', both)).toMatchObject(both)
+  expect(workloadGuarantees(features, 'process', { 'memory-limit': true, 'cpu-limit': false })).toMatchObject(
+    {
+      'memory-limit': true,
+      'cpu-limit': false,
+    },
+  )
+  expect(workloadGuarantees(features, 'process', null)).toMatchObject({
+    'memory-limit': false,
+    'cpu-limit': false,
+  })
+  // A node that gives none never promises one, whatever a copy reported.
+  expect(workloadGuarantees(['multi-tier', 'tier-process'], 'process', both)).toMatchObject({
+    'memory-limit': false,
+    'cpu-limit': false,
+  })
+})
+
 test('public create names a missing guarantee and leaves compute untouched', async () => {
   const c = await publicContext()
   try {
