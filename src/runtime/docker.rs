@@ -15,6 +15,7 @@
 //! - `remove.rs`: container retirement and owned receipt cleanup.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
+//! - `metadata.rs`: live engine capability and ownership observation.
 //! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
@@ -27,7 +28,9 @@
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
+//! - `network_mode_tests.rs`: private-loopback admission without a connected bridge.
 //! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
+//! - `relay_exec.rs`: protected rootless internal ingress over Docker exec.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod browser_policy;
@@ -40,8 +43,11 @@ mod exec_agent;
 mod exec_completion;
 pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
+mod metadata;
 mod native_tools;
 mod network;
+#[cfg(test)]
+mod network_mode_tests;
 mod oom;
 mod oom_journal;
 pub(crate) mod ownership;
@@ -49,6 +55,7 @@ mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
+mod relay_exec;
 mod remove;
 mod start;
 mod termination;
@@ -126,6 +133,10 @@ pub struct DockerRuntime {
     info: std::sync::Mutex<Option<RuntimeInfo>>,
     metadata_version: std::sync::Mutex<Option<bollard::models::SystemVersion>>,
     relays: relay::Relays,
+    ingress: relay_exec::Support,
+    // Once verified private ingress permits lazy bridge preparation, connected creates
+    // retain that admission check even if the installed agent subsequently disappears.
+    connected_on_demand: std::sync::atomic::AtomicBool,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
@@ -184,6 +195,8 @@ impl DockerRuntime {
             info: std::sync::Mutex::new(None),
             metadata_version: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
+            ingress: relay_exec::Support::new(crate::config::WorkloadPolicy::default().agent_binary),
+            connected_on_demand: std::sync::atomic::AtomicBool::new(false),
             egress: Default::default(),
             native_tools: Default::default(),
             ownership: Default::default(),
@@ -192,6 +205,11 @@ impl DockerRuntime {
             starts: Default::default(),
             oci_runtime: None,
         })
+    }
+
+    pub fn with_internal_ingress_agent(mut self, binary: &Path) -> Self {
+        self.ingress = relay_exec::Support::new(binary.to_owned());
+        self
     }
 
     /// The gvisor tier: the same engine and policy, with every container started by `runsc`.
@@ -410,7 +428,11 @@ impl ContainerRuntime for DockerRuntime {
         gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
-        self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
+        self.info
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_none_or(|info| !info.rootless || info.podman || info.disconnected_ingress(self.isolation()))
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
@@ -429,103 +451,7 @@ impl ContainerRuntime for DockerRuntime {
         }))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
-        // The maintained client negotiates the compatible API; its clones share that version.
-        // Independent metadata reads run together within the existing discovery deadline.
-        let client = self.docker()?;
-        crate::capability::probe_phase("engine-negotiate");
-        crate::capability::probe_phase("engine-version");
-        let cached = self.metadata_version.lock().unwrap().clone();
-        let version = if let Some(version) = &cached {
-            version.clone()
-        } else {
-            tokio::try_join!(
-                quick("negotiate version", client.clone().negotiate_version()),
-                quick("version", client.version()),
-            )?
-            .1
-        };
-        let podman = version
-            .components
-            .as_ref()
-            .is_some_and(|components| components.iter().any(|component| component.name == PODMAN_ENGINE_COMPONENT));
-        let podman_version = version
-            .components
-            .as_ref()
-            .and_then(|components| components.iter().find(|component| component.name == PODMAN_ENGINE_COMPONENT))
-            .map(|component| component.version.clone())
-            .filter(|version| {
-                !version.is_empty()
-                    && version.split('.').count() == 3
-                    && version.split('.').all(|part| part.parse::<u32>().is_ok())
-            });
-        crate::capability::probe_phase("engine-compatible-info");
-        crate::capability::probe_phase("engine-native-info");
-        let native =
-            async { if let Some(version) = &podman_version { podman::host(self, version).await } else { None } };
-        let (info, native) = tokio::join!(quick("info", client.info()), native);
-        let info = self.checked_metadata(cached.is_some(), &version.version, info, native.is_some())?;
-        // Only stable version negotiation is reused. Controllers, ownership and policy stay live.
-        if podman && native.is_some() && version.version.is_some() && version.version == info.server_version {
-            *self.metadata_version.lock().unwrap() = Some(version.clone());
-        }
-        let runtimes: Vec<String> = info.runtimes.clone().unwrap_or_default().into_keys().collect();
-        let mut result = RuntimeInfo {
-            own_kernel: false,
-            runtimes,
-            podman,
-            podman_version,
-            container_policy_problem: (podman && native.is_none()).then(|| PODMAN_POLICY_PROBLEM.into()),
-            rootless: info
-                .security_options
-                .as_ref()
-                .is_some_and(|options| options.iter().any(|option| option == ROOTLESS_SECURITY_OPTION)),
-            local_process_ids: None,
-            unprivileged_ports: None,
-            memory_limit: info.memory_limit == Some(true)
-                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
-            cpu_limit: info.cpu_cfs_quota == Some(true)
-                && info.cpu_shares == Some(true)
-                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
-            pids_limit: info.pids_limit == Some(true)
-                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
-            version: version.version,
-            api_version: version.api_version,
-            cgroup_version: info.cgroup_version.map(|v| v.to_string()),
-            cgroup_driver: info.cgroup_driver.map(|v| v.to_string()),
-            storage_driver: info.driver,
-            security_options: info.security_options.unwrap_or_default(),
-            live_restore: info.live_restore_enabled,
-            log_driver: info.logging_driver,
-            default_runtime: info.default_runtime,
-            memory_sleep: false,
-        };
-        podman::enforcement(&mut result, native.as_ref());
-        if self.oci_runtime.is_some() {
-            gvisor::enforcement(&mut result);
-        }
-        if result.rootless {
-            let visible = termination::peer(&self.socket).await.is_ok();
-            result.local_process_ids = Some(visible);
-            // ip(7): ports below ip_unprivileged_port_start require CAP_NET_BIND_SERVICE.
-            // The host-side rootless port helper needs all nonzero ports available.
-            result.unprivileged_ports = visible
-                .then(|| {
-                    std::fs::read_to_string("/proc/sys/net/ipv4/ip_unprivileged_port_start")
-                        .ok()
-                        .and_then(|value| value.trim().parse::<u16>().ok())
-                        .map(|first| first <= 1)
-                })
-                .flatten();
-        }
-        crate::capability::probe_phase("engine-info-complete");
-        if result.container_policy_problem.is_none() {
-            result.container_policy_problem = ownership::problem(self, &result).await;
-        }
-        if result.container_policy_problem.is_none() && self.oci_runtime.is_some() {
-            result.container_policy_problem = gvisor::problem(&result);
-        }
-        *self.info.lock().unwrap() = Some(result.clone());
-        Ok(result)
+        self.metadata().await
     }
 
     async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {

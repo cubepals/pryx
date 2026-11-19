@@ -194,6 +194,7 @@ fn container(config: &Config, socket: &std::path::Path) -> anyhow::Result<Docker
         config.docker.native_fuse,
         config.docker.native_tools_apparmor.as_deref(),
     )?;
+    docker = docker.with_internal_ingress_agent(&config.workloads.agent_binary);
     docker.ownership =
         super::docker::ownership::Policy { user: config.workloads.user, owner: config.workloads.data_owner };
     Ok(docker)

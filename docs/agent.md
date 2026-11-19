@@ -95,8 +95,10 @@ Activity stays in agent memory and is checkpointed once per second. Existing nod
 carry activity and assignments to control and edge polling. Idle upkeep honors recent activity
 and active streams; the sandbox's absolute TTL still applies.
 
-`network: 'none'` uses an internal Docker bridge with inter-container communication disabled;
-agent access from the node and edge remains available. `box.network('internet' | 'none')`
+`network: 'none'` removes outbound connectivity while retaining private node and edge ingress.
+Rootful Docker and Podman use isolated internal bridges; supported rootless Docker uses a
+loopback-only namespace and the protected agent's private exec transport. Missing support is
+refused by name. `box.network('internet' | 'none')`
 changes the policy while retaining persistent data. It replaces compute, so running processes
 and terminals end. The SDK invalidates the old capability. Hostname policy is described below.
 

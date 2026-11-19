@@ -40,6 +40,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let workload_environment = pryx_agent::process_environment::parse_workload(&mut arguments)?;
     // First: no later exec may inherit a listener the node passed to this supervisor.
     pryx_agent::process_listeners::adopt()?;
+    if arguments.first().is_some_and(|a| a == pryx_agent::exec_ingress::MODE) {
+        return pryx_agent::exec_ingress::run(&arguments[1..]);
+    }
     if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::CLEAN_MODE) {
         return pryx_agent::exec_deadline::clean(&arguments[1..]);
     }

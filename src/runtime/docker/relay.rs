@@ -3,10 +3,10 @@
 //! and do not publish ports. Relays bind the same host-policy addresses, reach only the selected
 //! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart,
 //! from bindings pryxd wrote alone: an image's label of the same name opens nothing.
-use super::{ContainerRuntime, DockerRuntime};
 use crate::{
     protocol::Proto,
-    runtime::{PortBinding, RuntimeError},
+    runtime::docker::DockerRuntime,
+    runtime::{ContainerRuntime, PortBinding, RuntimeError},
 };
 use bollard::models::ContainerInspectResponse;
 use std::{
@@ -19,14 +19,14 @@ use tokio::{
     net::{TcpListener, TcpStream, UdpSocket},
     sync::{Mutex, Semaphore, mpsc},
 };
-use tokio_util::sync::{CancellationToken, DropGuard};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use crate::labels::LABEL_INTERNAL_BINDINGS;
+use crate::labels::{LABEL_INTERNAL_BINDINGS, LABEL_RECORD, LabelRecord};
 const MAX_CONNECTIONS: usize = 256;
-const DATAGRAM_BYTES: usize = u16::MAX as usize;
+const DATAGRAM_BYTES: usize = pryx_agent::exec_ingress::DATAGRAM_BYTES;
 const UDP_IDLE: Duration = Duration::from_secs(60);
 pub(super) struct Relays {
-    held: Mutex<HashMap<String, (String, DropGuard)>>,
+    held: Mutex<HashMap<String, Lease>>,
     capacity: Arc<Semaphore>,
 }
 impl Default for Relays {
@@ -39,7 +39,31 @@ fn error(error: impl std::fmt::Display) -> RuntimeError {
 }
 impl Relays {
     pub(super) async fn stop(&self, name: &str) {
-        self.held.lock().await.retain(|id, (held_name, _)| id != name && held_name != name);
+        let mut held = self.held.lock().await;
+        let ids: Vec<_> = held
+            .iter()
+            .filter(|(id, lease)| id.as_str() == name || lease.name == name)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in ids {
+            if let Some(lease) = held.remove(&id) {
+                lease.retire().await;
+            }
+        }
+    }
+    /// Retire any lease whose host declaration disappeared or cannot be authenticated.
+    async fn verified_bindings(
+        &self,
+        info: &ContainerInspectResponse,
+        id: &str,
+        encoded: &str,
+    ) -> Result<Vec<PortBinding>, RuntimeError> {
+        let bindings = declared(info, encoded);
+        match &bindings {
+            Ok(bindings) if !bindings.is_empty() => {}
+            _ => self.stop(id).await,
+        }
+        bindings
     }
     pub(super) async fn ensure(
         &self,
@@ -57,101 +81,194 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
-        // Read, not yet believed: an empty list asks for nothing, whoever wrote it.
-        let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
-        if bindings.as_ref().is_ok_and(Vec::is_empty) || self.held.lock().await.contains_key(id) {
+        let metadata = runtime.info.lock().unwrap().clone();
+        let metadata = match metadata {
+            Some(metadata) => metadata,
+            None => runtime.info().await?,
+        };
+        // Native Podman always owns its published ingress, including containers made before
+        // empty binding labels were written. An inherited image label is never a relay lease.
+        if metadata.podman {
+            self.stop(id).await;
             return Ok(());
         }
-        if !written_by_host(runtime, info).await? {
+        let bindings = self.verified_bindings(info, id, encoded).await?;
+        if bindings.is_empty() {
             return Ok(());
         }
-        let bindings = bindings.map_err(error)?;
+        let start = info.state.as_ref().and_then(|state| state.started_at.clone());
         let mut held = self.held.lock().await;
-        if held.contains_key(id) {
+        if held.get(id).is_some_and(|lease| lease.start == start) {
             return Ok(());
         }
-        held.retain(|_, (previous, _)| previous != name);
-        let ip = info
-            .network_settings
-            .as_ref()
-            .and_then(|n| n.networks.as_ref())
-            .and_then(|networks| {
-                networks.values().find_map(|n| {
-                    n.ip_address
-                        .as_deref()
-                        .and_then(|v| v.parse::<IpAddr>().ok())
-                        .or_else(|| n.global_ipv6_address.as_deref().and_then(|v| v.parse().ok()))
-                })
+        let previous: Vec<_> = held
+            .iter()
+            .filter(|(previous, lease)| previous.as_str() == id || lease.name == name)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in previous {
+            if let Some(lease) = held.remove(&id) {
+                lease.retire().await;
+            }
+        }
+        let execute = metadata.rootless && !metadata.podman;
+        if execute {
+            super::relay_exec::retire_orphans(runtime, info).await?;
+        }
+        let ip = (!execute)
+            .then(|| {
+                info.network_settings
+                    .as_ref()
+                    .and_then(|n| n.networks.as_ref())
+                    .and_then(|networks| {
+                        networks.values().find_map(|n| {
+                            n.ip_address
+                                .as_deref()
+                                .and_then(|v| v.parse::<IpAddr>().ok())
+                                .or_else(|| n.global_ipv6_address.as_deref().and_then(|v| v.parse().ok()))
+                        })
+                    })
+                    .ok_or_else(|| error("missing private container address"))
             })
-            .ok_or_else(|| error("missing private container address"))?;
+            .transpose()?;
         let cancel = CancellationToken::new();
-        let guard = cancel.clone().drop_guard();
+        let tasks = TaskTracker::new();
+        let lease = Lease { name: name.into(), start, cancel: cancel.clone(), tasks: tasks.clone() };
         for binding in bindings {
-            let target = SocketAddr::new(ip, binding.container_port);
+            let target = if execute {
+                Backend::Exec(super::relay_exec::Target::new(runtime, info, &binding).await?)
+            } else {
+                Backend::Direct(SocketAddr::new(
+                    ip.expect("direct ingress has a private address"),
+                    binding.container_port,
+                ))
+            };
             for host in binding.host_ips {
                 let address = SocketAddr::new(host, binding.host_port);
                 match binding.protocol {
                     Proto::Tcp => tcp(
                         TcpListener::bind(address).await.map_err(error)?,
-                        target,
+                        target.clone(),
                         cancel.clone(),
                         self.capacity.clone(),
+                        tasks.clone(),
                     ),
                     Proto::Udp => udp(
                         Arc::new(UdpSocket::bind(address).await.map_err(error)?),
-                        target,
+                        target.clone(),
                         cancel.clone(),
                         self.capacity.clone(),
+                        tasks.clone(),
                     ),
                 }
             }
         }
-        held.insert(id.into(), (name.into(), guard));
+        held.insert(id.into(), lease);
         Ok(())
     }
 }
-
-/// Whether pryxd wrote this container's bindings. It writes them only for a container it put on
-/// its own gateway-free internal network, which the image can't choose, while every container
-/// inherits its image's labels: one on any other network, or none, carries an image's. Native
-/// Podman publishes its own ingress, so no bindings on it are pryxd's.
-async fn written_by_host(runtime: &DockerRuntime, info: &ContainerInspectResponse) -> Result<bool, RuntimeError> {
-    let cached = runtime.info.lock().unwrap().clone();
-    let engine = match cached {
-        Some(engine) => engine,
-        None => runtime.info().await?,
-    };
-    if engine.podman {
-        return Ok(false);
+/// Image defaults are not declarations. Only the immutable host record can authorize a
+/// private lease; historical internet labels are ignored even when their JSON is malformed.
+fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBinding>, RuntimeError> {
+    let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
+    if bindings.as_ref().is_ok_and(Vec::is_empty) {
+        return Ok(Vec::new());
     }
-    let attached: Vec<_> =
-        info.network_settings.as_ref().and_then(|n| n.networks.as_ref()).into_iter().flat_map(|n| n.values()).collect();
-    let [endpoint] = attached.as_slice() else { return Ok(false) };
-    let Some(network) = endpoint.network_id.as_deref().filter(|id| !id.is_empty()) else { return Ok(false) };
-    super::network::private(runtime, network).await
+    let Some(record) = info
+        .config
+        .as_ref()
+        .and_then(|config| config.labels.as_ref())
+        .and_then(|labels| labels.get(LABEL_RECORD))
+        .and_then(|encoded| serde_json::from_str::<LabelRecord>(encoded).ok())
+    else {
+        // pryxd writes its record on every container it makes. Bindings without one are an
+        // image's, or a container's pryxd never made: they open nothing and fail nothing.
+        return Ok(Vec::new());
+    };
+    if record.spec.network != crate::protocol::NetworkMode::None {
+        return Ok(Vec::new());
+    }
+    let bindings = bindings.map_err(|_| error("network-policy private binding record is malformed"))?;
+    if !bindings.iter().all(|binding| {
+        record.ports.iter().any(|port| {
+            port.container_port == binding.container_port
+                && port.host_port == binding.host_port
+                && port.protocol == binding.protocol
+        })
+    }) {
+        return Err(error("network-policy private bindings do not match the host-written port record"));
+    }
+    Ok(bindings)
 }
-fn tcp(listener: TcpListener, target: SocketAddr, cancel: CancellationToken, capacity: Arc<Semaphore>) {
-    tokio::spawn(async move {
+
+#[derive(Clone)]
+enum Backend {
+    Direct(SocketAddr),
+    Exec(Arc<super::relay_exec::Target>),
+}
+struct Lease {
+    name: String,
+    start: Option<String>,
+    cancel: CancellationToken,
+    tasks: TaskTracker,
+}
+impl Lease {
+    async fn retire(self) {
+        self.cancel.cancel();
+        self.tasks.close();
+        self.tasks.wait().await;
+    }
+}
+impl Drop for Lease {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
+fn tcp(
+    listener: TcpListener,
+    target: Backend,
+    cancel: CancellationToken,
+    capacity: Arc<Semaphore>,
+    tasks: TaskTracker,
+) {
+    tasks.clone().spawn(async move {
         loop {
             let accepted = tokio::select! { () = cancel.cancelled() => break, result = listener.accept() => result };
             let Ok((mut incoming, _)) = accepted else { break };
             let Ok(permit) = capacity.clone().try_acquire_owned() else { continue };
             let cancel = cancel.clone();
-            tokio::spawn(async move {
-                let _permit = permit;
+            let target = target.clone();
+            tasks.spawn(async move {
                 let _ = incoming.set_nodelay(true);
                 let forward = async {
-                    let mut outgoing = TcpStream::connect(target).await?;
-                    outgoing.set_nodelay(true)?;
-                    tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing, 8192, 8192).await
+                    match target {
+                        Backend::Direct(address) => {
+                            let _permit = permit;
+                            let mut outgoing = TcpStream::connect(address).await?;
+                            outgoing.set_nodelay(true)?;
+                            tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing, 8192, 8192).await
+                        }
+                        Backend::Exec(target) => {
+                            let mut outgoing = target.connect(Some(permit)).await?;
+                            tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing.stream, 8192, 8192)
+                                .await
+                        }
+                    }
                 };
                 tokio::select! { () = cancel.cancelled() => {}, _ = forward => {} }
             });
         }
     });
 }
-fn udp(front: Arc<UdpSocket>, target: SocketAddr, cancel: CancellationToken, capacity: Arc<Semaphore>) {
-    tokio::spawn(async move {
+fn udp(
+    front: Arc<UdpSocket>,
+    target: Backend,
+    cancel: CancellationToken,
+    capacity: Arc<Semaphore>,
+    tasks: TaskTracker,
+) {
+    tasks.clone().spawn(async move {
         let mut peers: HashMap<SocketAddr, (u64, mpsc::Sender<Vec<u8>>)> = HashMap::new();
         let (done_tx, mut done_rx) = mpsc::channel(MAX_CONNECTIONS);
         let mut generation = 0u64;
@@ -177,9 +294,19 @@ fn udp(front: Arc<UdpSocket>, target: SocketAddr, cancel: CancellationToken, cap
                 let done = done_tx.clone();
                 let front = front.clone();
                 let cancel = cancel.clone();
-                tokio::spawn(async move {
-                    let _permit = permit;
-                    let work = udp_peer(front, peer, target, rx);
+                let target = target.clone();
+                tasks.spawn(async move {
+                    let work = async {
+                        match target {
+                            Backend::Direct(target) => {
+                                let _permit = permit;
+                                udp_peer(front, peer, target, rx).await
+                            }
+                            Backend::Exec(target) => {
+                                super::relay_exec::datagrams(&target, front, peer, rx, UDP_IDLE, permit).await
+                            }
+                        }
+                    };
                     tokio::select! { () = cancel.cancelled() => {}, _ = work => {} }
                     let _ = done.send((peer, generation)).await;
                 });
@@ -222,7 +349,13 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let cancel = CancellationToken::new();
-        tcp(listener, backend.local_addr().unwrap(), cancel.clone(), Arc::new(Semaphore::new(1)));
+        tcp(
+            listener,
+            Backend::Direct(backend.local_addr().unwrap()),
+            cancel.clone(),
+            Arc::new(Semaphore::new(1)),
+            TaskTracker::new(),
+        );
         let mut client = TcpStream::connect(address).await.unwrap();
         let (mut server, _) = backend.accept().await.unwrap();
         client.write_all(b"private").await.unwrap();
@@ -236,42 +369,20 @@ mod tests {
         cancel.cancel();
         assert_eq!(tokio::time::timeout(Duration::from_secs(1), client.read(&mut reply)).await.unwrap().unwrap(), 0);
     }
-    /// An engine whose one network is internal or not, as asked; nothing else is asked of it.
-    fn engine(internal: bool) -> (tempfile::TempDir, DockerRuntime, tokio::task::JoinHandle<()>) {
-        use axum::{Json, Router, extract::Request, routing::any};
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("engine.sock");
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
-        let app = Router::new().fallback(any(move |request: Request| async move {
-            assert!(request.uri().path().ends_with("/networks/attached"), "{}", request.uri());
-            Json(bollard::models::NetworkInspect {
-                internal: Some(internal),
-                options: Some(HashMap::from([(super::super::ICC_OPTION.to_owned(), "false".to_owned())])),
-                ..Default::default()
-            })
-        }));
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let runtime = DockerRuntime::new(&path).unwrap();
-        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo::default());
-        (directory, runtime, server)
-    }
-
-    /// A running container on the network `attached`, carrying `label` as its bindings.
-    fn container(label: &str) -> ContainerInspectResponse {
+    /// A running container carrying the supplied bindings and optional node record.
+    fn container(label: &str, record: Option<&str>) -> ContainerInspectResponse {
         use bollard::models::{ContainerConfig, ContainerState, EndpointSettings, NetworkSettings};
-        let endpoint = EndpointSettings {
-            network_id: Some("attached".into()),
-            ip_address: Some(std::net::Ipv4Addr::LOCALHOST.to_string()),
-            ..Default::default()
-        };
+        let endpoint =
+            EndpointSettings { ip_address: Some(std::net::Ipv4Addr::LOCALHOST.to_string()), ..Default::default() };
+        let mut labels = HashMap::from([(LABEL_INTERNAL_BINDINGS.to_owned(), label.to_owned())]);
+        if let Some(record) = record {
+            labels.insert(LABEL_RECORD.to_owned(), record.to_owned());
+        }
         ContainerInspectResponse {
             id: Some("owned".into()),
             name: Some("/owned".into()),
             state: Some(ContainerState { running: Some(true), ..Default::default() }),
-            config: Some(ContainerConfig {
-                labels: Some(HashMap::from([(LABEL_INTERNAL_BINDINGS.to_owned(), label.to_owned())])),
-                ..Default::default()
-            }),
+            config: Some(ContainerConfig { labels: Some(labels), ..Default::default() }),
             network_settings: Some(NetworkSettings {
                 networks: Some(HashMap::from([("attached".to_owned(), endpoint)])),
                 ..Default::default()
@@ -280,54 +391,63 @@ mod tests {
         }
     }
 
-    /// One loopback listener the kernel chose, released at once, as bindings name it.
-    fn bindings() -> (u16, String) {
-        let port =
-            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port();
-        let binding = PortBinding {
-            container_port: 9,
-            protocol: Proto::Tcp,
-            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
-            host_port: port,
-        };
-        (port, serde_json::to_string(&[binding]).unwrap())
-    }
-
     async fn listens(port: u16) -> bool {
         TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.is_ok()
     }
 
     #[tokio::test]
-    async fn only_bindings_pryxd_wrote_open_host_listeners() {
+    async fn only_matching_private_records_open_host_listeners() {
         let relays = Relays::default();
-        // pryxd's own, on its gateway-free internal network: they listen, and a corrupt one is said.
-        let (_internal, runtime, server) = engine(true);
-        let (port, label) = bindings();
-        relays.ensure(&runtime, &container(&label)).await.unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = DockerRuntime::new(&directory.path().join("unused.sock")).unwrap();
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo::default());
+        let port =
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port();
+        let binding = PortBinding {
+            container_port: 8080,
+            protocol: Proto::Tcp,
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            host_port: port,
+        };
+        let label = serde_json::to_string(std::slice::from_ref(&binding)).unwrap();
+        let record = crate::labels::private_record("fixture", std::slice::from_ref(&binding));
+        relays.ensure(&runtime, &container(&label, Some(&record))).await.unwrap();
         assert!(listens(port).await);
-        relays.stop("owned").await;
-        assert!(relays.ensure(&runtime, &container("forged")).await.is_err());
-        // Native Podman publishes its own ingress: the same label there is never pryxd's.
+        let mut mismatch = binding;
+        mismatch.container_port += 1;
+        let mismatched = serde_json::to_string(&[mismatch]).unwrap();
+        assert!(relays.ensure(&runtime, &container(&mismatched, Some(&record))).await.is_err());
+        assert!(!listens(port).await, "a mismatched record must retire its listener");
+        assert!(relays.ensure(&runtime, &container("malformed", Some(&record))).await.is_err());
+
+        let mut historical: LabelRecord = serde_json::from_str(&record).unwrap();
+        historical.spec.network = crate::protocol::NetworkMode::Internet;
+        historical.spec_digest = historical.spec.digest();
+        let historical = serde_json::to_string(&historical).unwrap();
+        for untrusted in [None, Some(historical.as_str())] {
+            relays.ensure(&runtime, &container(&label, untrusted)).await.unwrap();
+            assert!(!listens(port).await);
+            relays.ensure(&runtime, &container("malformed", untrusted)).await.unwrap();
+        }
+
         *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo { podman: true, ..Default::default() });
-        let (port, label) = bindings();
-        relays.ensure(&runtime, &container(&label)).await.unwrap();
-        assert!(!listens(port).await, "a Podman container's label opened a listener");
-        server.abort();
-        // On any other network the label is its image's: nothing listens, and nothing fails.
-        let (_ordinary, runtime, server) = engine(false);
-        let (port, label) = bindings();
-        relays.ensure(&runtime, &container(&label)).await.unwrap();
-        assert!(!listens(port).await, "an image's label opened a listener");
-        relays.ensure(&runtime, &container("forged")).await.unwrap();
-        server.abort();
+        relays.ensure(&runtime, &container(&label, Some(&record))).await.unwrap();
+        assert!(!listens(port).await, "Podman owns its published ingress");
     }
+
     #[tokio::test]
     async fn udp_relay_keeps_each_peers_reply_address() {
         let backend = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let front = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let address = front.local_addr().unwrap();
         let cancel = CancellationToken::new();
-        udp(front, backend.local_addr().unwrap(), cancel.clone(), Arc::new(Semaphore::new(2)));
+        udp(
+            front,
+            Backend::Direct(backend.local_addr().unwrap()),
+            cancel.clone(),
+            Arc::new(Semaphore::new(2)),
+            TaskTracker::new(),
+        );
         for text in [b"one", b"two"] {
             let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
             client.send_to(text, address).await.unwrap();

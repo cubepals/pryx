@@ -158,6 +158,12 @@ impl Drop for Session {
     }
 }
 
+/// Failed private transports retire only the exact start they served, using this same
+/// serialized, single-submission engine authority as exec completion.
+pub(super) async fn retire_container(docker: Docker, container: String, start: OffsetDateTime, starts: Starts) -> bool {
+    retire(Target { docker, container, start, starts }).await
+}
+
 // Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
 pub(super) const EXIT_POLL: Duration = Duration::from_millis(4);
 // While output is still open, a long-running exec needs only a few engine requests a second.

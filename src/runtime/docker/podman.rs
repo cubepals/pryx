@@ -189,10 +189,9 @@ pub(super) fn body(spec: &ContainerSpec, info: &RuntimeInfo) -> Result<Create, R
         spec.labels
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
-            .chain([(NETWORK_LABEL.into(), network)])
             .filter(|(key, _)| key != crate::labels::LABEL_INTERNAL_BINDINGS)
             // Over an image's own: native publication is this engine's ingress, so it declares none.
-            .chain([(crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[]".into())])
+            .chain([(NETWORK_LABEL.into(), network), (crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[]".into())])
             .collect(),
     );
     if info.rootless {
@@ -358,6 +357,12 @@ mod tests {
     fn native_policy_preserves_read_only_mounts_nonzero_ids_and_available_limits() {
         let mut spec = super::super::tests::spec();
         spec.env.push((pryx_agent::contract::FUSE_ENV.into(), "1".into()));
+        spec.ports.push(crate::runtime::PortBinding {
+            container_port: 8080,
+            host_port: crate::protocol::DEFAULT_PORT_RANGE[0],
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            protocol: crate::protocol::Proto::Tcp,
+        });
         spec.labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[{\"forged\":true}]".into());
         let info = RuntimeInfo {
             podman: true,
@@ -383,6 +388,8 @@ mod tests {
         assert_eq!(value["labels"][crate::labels::LABEL_INTERNAL_BINDINGS], "[]", "over an image's own");
         assert_eq!(value["resource_limits"]["memory"]["limit"], spec.memory_bytes);
         assert_eq!(value["resource_limits"]["memory"]["swap"], spec.memory_bytes);
+        assert_eq!(value["portmappings"][0]["host_port"], spec.ports[0].host_port);
+        assert_eq!(value["portmappings"][0]["container_port"], spec.ports[0].container_port);
         let mounts = value["mounts"].as_array().unwrap();
         assert_eq!(mounts.iter().filter(|mount| mount["destination"] == spec.mount_path).count(), 1);
         assert!(mounts.iter().all(|mount| mount.get("Target").is_none()));
@@ -393,6 +400,82 @@ mod tests {
         assert!(value["resource_limits"]["memory"].is_null());
         assert!(value["resource_limits"]["cpu"].is_null());
         assert!(value["resource_limits"]["pids"].is_null());
+    }
+
+    #[tokio::test]
+    async fn native_restore_ignores_image_private_bindings_and_keeps_its_native_listener() {
+        use axum::{Json, Router, routing::get};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("native.sock");
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let published = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let reserved = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let forged_port = reserved.local_addr().unwrap().port();
+        drop(reserved);
+        let mut spec = super::super::tests::spec();
+        spec.internal_network = true;
+        spec.ports.push(crate::runtime::PortBinding {
+            container_port: 8080,
+            host_port: published.local_addr().unwrap().port(),
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            protocol: crate::protocol::Proto::Tcp,
+        });
+        let mut forged = spec.ports.clone();
+        forged[0].host_port = forged_port;
+        let encoded = serde_json::to_string(&forged).unwrap();
+        spec.labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), encoded.clone());
+        let metadata = RuntimeInfo { podman: true, rootless: true, ..Default::default() };
+        let native = body(&spec, &metadata).unwrap();
+        assert_eq!(native.spec.portmappings.as_ref().unwrap()[0].host_port, Some(spec.ports[0].host_port));
+        let mut labels = HashMap::from([(crate::labels::LABEL_INTERNAL_BINDINGS.into(), encoded.clone())]);
+        labels.extend(native.spec.labels.unwrap());
+        assert_eq!(labels[crate::labels::LABEL_INTERNAL_BINDINGS], "[]");
+        // Historical native containers omitted the override and could inherit an image's
+        // binding. Generic restoration must still leave native published ingress alone.
+        labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), encoded);
+        let inspected = bollard::models::ContainerInspectResponse {
+            id: Some("native".into()),
+            name: Some("/native".into()),
+            config: Some(bollard::models::ContainerConfig { labels: Some(labels), ..Default::default() }),
+            state: Some(bollard::models::ContainerState {
+                running: Some(true),
+                status: Some(bollard::models::ContainerStateStatusEnum::RUNNING),
+                started_at: Some(
+                    OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap(),
+                ),
+                ..Default::default()
+            }),
+            network_settings: Some(bollard::models::NetworkSettings {
+                networks: Some(HashMap::from([(
+                    "native".into(),
+                    bollard::models::EndpointSettings {
+                        ip_address: Some(std::net::Ipv4Addr::LOCALHOST.to_string()),
+                        ..Default::default()
+                    },
+                )])),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let app = Router::new().route(
+            "/{*path}",
+            get(move || {
+                let inspected = inspected.clone();
+                async move { Json(inspected) }
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runtime = DockerRuntime::new(&path).unwrap();
+        *runtime.info.lock().unwrap() = Some(metadata);
+        runtime.inspect("native").await.unwrap().unwrap();
+        let unclaimed = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, forged_port))
+            .expect("an image binding must never create a host listener during native restore");
+        drop(unclaimed);
+        assert!(
+            std::net::TcpListener::bind(published.local_addr().unwrap()).is_err(),
+            "native published listener remains owned"
+        );
+        server.abort();
     }
 
     #[tokio::test]

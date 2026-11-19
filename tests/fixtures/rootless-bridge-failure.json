@@ -1,0 +1,5 @@
+{
+  "statusCode": 500,
+  "message": "cannot restrict inter-container communication or run without the userland proxy: stat /proc/sys/net/bridge/bridge-nf-call-iptables: no such file or directory: set environment variable DOCKER_IGNORE_BR_NETFILTER_ERROR=1 to ignore",
+  "source": "Rootless engines 43892128361, job 133385870411, Docker 29.9.2"
+}

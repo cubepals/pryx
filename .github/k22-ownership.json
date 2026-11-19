@@ -1,0 +1,11 @@
+{
+  "comment": "CI-only second attempts; no engine configuration or host FUSE policy is changed. Standard rootless Docker refusals remain until actual tests prove a supported mapping.",
+  "fuseOverlayfs": {
+    "version": "1.18",
+    "commit": "899cdaab386dc37b3dddc1c5d9cc3c093960e7cd",
+    "url": "https://github.com/containers/fuse-overlayfs/releases/download/v1.18/fuse-overlayfs-x86_64",
+    "sha256": "56b0ae0aeb8abb308b068af2f137ed8d1bd239f4f27e21672ff0def861eea1e8",
+    "licence": "GPL-3.0-or-later (separate diagnostic program; source headers permit GPL-2.0-or-later)",
+    "licenceUrl": "https://github.com/containers/fuse-overlayfs/blob/899cdaab386dc37b3dddc1c5d9cc3c093960e7cd/fuse-overlayfs.1.md"
+  }
+}

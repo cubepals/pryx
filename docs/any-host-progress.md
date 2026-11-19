@@ -12,7 +12,7 @@ and cancellation inventories mean their CI artifacts; no raw output is kept in t
 | K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
-| K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
+| K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings: three approaches in K22, the second attempt's diagnostics, and two more in the third try (below); a daemon-namespace fuse-overlayfs view maps the workload in the diagnostic, but it is not built into the runtime, so `data-owner-mapping` stays a named refusal. Rootless Docker internal ingress is no longer parked: the third try's protected exec transport passes on hosted standard rootless Docker, and it serves `network: "none"` wherever data-owner mapping holds | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
 | K25 | done | `82af8d2075c22b1e1cb2aad5a44b29bed2781b77` | Review source `d0e9d3b`: [CI 44069435258](https://github.com/cubepals/pryx/actions/runs/44069435258) and [PR CI 44069444293](https://github.com/cubepals/pryx/actions/runs/44069444293) retain only the exact-base chrono advisory exception below; [Any host 44069435249](https://github.com/cubepals/pryx/actions/runs/44069435249) (all 17 jobs), [Rootless 44069435293](https://github.com/cubepals/pryx/actions/runs/44069435293) and [VM 44069435292](https://github.com/cubepals/pryx/actions/runs/44069435292) passed. Original milestone figures remain recorded below | Installed acceptance as the signed ordinary user and as root through the server preset and its VM worker, on the node configuration as the install wrote it (its allowlist admits the bundle's pinned images by digest): Alpine and Debian, run, file round trip, declared edge port, sleep and edge cold wake, snapshot and fork, delete, guarantee checks (host file, pryxd signal, own kernel), default-network firewall, one hostname egress rule; thirty samples of every docs/tiers.md cohort with no failed start; purge after the VM run; whole VM job on real KVM (jailer, root lifecycle with both policies, node API, OCI, agent); no-KVM `no_room` in normal CI Review fixes cover whole virtio serials, bootable layer bounds, parsed image admission, host-local packet refusal, per-VM monitor IDs and image/lease retention. | Main and release; moving between unlike VM nodes remains outside the K25 brief | None | Complete; review fixes landed in PR 31 |
@@ -5261,6 +5261,186 @@ job when publication is authorized. That job has not run in this task.
   Fresh branch proof remains required before landing; the earlier K26 runs above are historical.
 
 - K31 current-base integration preserves the landed exec, OOM, DNS, generation, VM restore and outage-fixture safeguards. Historical K31 runs remain historical; the new kernel-route guard, its pinned-object identity and the complete fresh branch still require current-head CI proof.
+- K22 second attempt resumes both parked Docker side pieces after the preceding engine work.
+  The original ownership attempts remain failures: default, host and keep-id do not map the
+  ordinary nonzero workload onto standard rootless Docker's original host-owned data. The
+  original ingress attempts remain failures: host-to-private-bridge routing is inaccessible,
+  published ports on an internal bridge are empty, and daemon-namespace entry is denied on
+  the local different-UID engine. None is repeated as a proposed fix without new evidence.
+- Rootless ingress now uses the engine's authenticated exec attachment to the immutable
+  container/start and declared loopback port. Its actual injected static agent announces the
+  additive ingress version, is execute-only before process creation, receives blank bootstrap
+  environment values and starts no children. Hyper/h2 retains stream shutdown; Tokio's bounded
+  framing retains UDP packets and one stable socket per frontend peer. Old/readable agents and
+  undeclared ports refuse. Listener retirement cancels and joins the owned tasks; a lost or
+  stopped helper retires only its original start, without a mutation retry.
+- The first raw-engine fixture fails only because the local engine lacks the CI image alias;
+  select the manifest's pinned digest directly. The corrected real local Docker fixture passes
+  in 5.06 seconds: exact delayed 96-KiB TCP reply after write EOF, empty/small/65,500-byte UDP
+  packets with distinct stable peer ports, undeclared-target refusal, and completed/active-pipe
+  disconnects whose helpers exit before fallback retirement while the original start stays
+  running. This is ingress proof on a custom matching map, not standard Docker ownership proof.
+  A bounded transport regression also reproduces idempotent start returning Engine 304,
+  orphan adoption and one retirement; it passes in 0.01 seconds after raw start confirmation is
+  separated from relay reconstruction to remove a recursive generation-lock wait.
+- New ownership attempts are engine per-bind ID mapping, kernel ID-mapped binds with a plain
+  bind control, and maintained fuse-overlayfs views including the same-user daemon namespace.
+  The local Engine rejects the ID-map option, both local bind controls are denied, and the
+  ordinary FUSE helper refuses allow_other under the existing host policy. The local daemon is
+  owned by another host UID with a custom map; its namespace denial cannot settle the standard
+  same-user candidate. The pinned, licence-recorded helper and bounded diagnostics run only
+  in the existing Docker matrix job, with no engine install, host policy change, workload UID0,
+  subordinate-ID chown or volume copy/sync. The named data-owner-mapping refusal stays in place.
+  The integrated local diagnostics confirm the unsupported option and FUSE policy refusal,
+  preserve the cross-UID namespace result as not run, and report no ownership invariant failure.
+  Default and alternate workload probes retain nonzero UID/GID 1000 and 1001; only the trusted
+  host namespace helper uses namespace UID0. Static-agent and real-transport coverage add an
+  estimated two to four minutes to that job, plus at most three minutes for ownership work and
+  bounded cleanup; no new job or gate. Standard hosted proof and fresh review remain pending.
+- Final local ingress acceptance passes in 24.90 seconds, adding a real stopped helper,
+  fresh-node idempotent-start adoption with bounded retirement, restart under the same immutable
+  container ID, old-target refusal and healthy new-target attachment. The finite frontend
+  budget now follows helper cleanup until exit or exact-start retirement is confirmed; unknown
+  live owners keep their permit withheld for that runtime's lifetime. Real active/stalled-pipe
+  checks assert permit retention and release. The full workspace run completes 595 passes,
+  56 ignored and the same four previously recorded local vm_monitor Landlock ABI failures;
+  every daemon case, the actual Wasm case and the new ingress/lock regressions pass. No assertion
+  or host policy is weakened. Strict all-target Clippy, Rust/original/expanded mixed-source
+  structure, formatting, full actionlint with ShellCheck and whitespace checks pass. Hosted
+  checks remain pending on this source.
+- K22 final review catches two diagnostic cleanup errors before publication: readiness can
+  fail after a FUSE helper starts but before ownership reaches the caller, and an arbitrary
+  mountpoint failure cannot prove a view is gone. Setup now owns retirement immediately after
+  launch, checks tool prerequisites before launch, and requires util-linux's documented
+  not-a-mountpoint result. Unmount, termination, observation and log closure are all attempted;
+  unconfirmed cleanup is latched as an invariant failure before temporary-directory teardown
+  can mask it. Seven bounded stub controls pass, including readiness deadline/subprocess
+  failure, spawn failure, missing tool, unknown mount observation and failed cleanup masked by
+  a later filesystem error. The real local ownership diagnostic still reports the same truthful
+  unsupported-option/FUSE-policy/cross-UID results. No Rust source or assertion changes.
+- First standard Docker ingress run on b6887d4 fails before transport in Rootless engines
+  43892128361/job 133385870411: creating the ICC-disabled internal bridge takes 10.04 seconds
+  and the engine reports missing bridge netfilter support. No ignore variable, host module or
+  firewall change is applied. The protected fixed-loopback transport does not need a bridge:
+  verified plain rootless Docker now selects the maintained `none` driver for private creates.
+  Reconciliation defers unused connected bridges in both single and multi-tier nodes; internet
+  creates still enforce strict ICC policy before compute and preserve the original failure.
+  Rootful Docker, Podman, gvisor and legacy-agent private admission retain their paths.
+- The same trace finds an image-label trust gap: an internet image can inherit a forged
+  internal-bindings label unless create explicitly overwrites it. Host-owned declarations now
+  always replace it, with an empty list for internet, and empty relays create no listener. New
+  captured-error manager/wire controls cover private creates, internet refusal and successful
+  connected admission with a forged label; the actual-engine fixture uses production network
+  selection and the hardened body builder, observes no network address, restores relays without
+  an IP and keeps TCP/UDP, peer identity, cleanup, stalled owner and generation checks. Additional
+  controlled host and neighbour services test private loopback separation. Rust validation is
+  pending the shared build slot; earlier passes do not validate these new bytes.
+- Standard ownership diagnostics in that same run verify the same-user daemon identity (UID
+  1001). The engine rejects per-bind ID mapping; plain kernel bind succeeds while ID-map attach
+  fails; caller FUSE still refuses allow_other. Inside the daemon namespace, maintained FUSE
+  mounting and the first nonzero workload write succeed for both UID 1000 and 1001, but each
+  second-write check exits 1. This is partial mapping proof, not an unsupported-candidate verdict
+  or full store consistency. The original named ownership refusal remains while the second
+  write and required store/snapshot/restart invariants are investigated after ingress.
+  Pinned source inspection shows timeout zero disables directory and open-file keep-cache;
+  it does not establish why the assertion failed. The fixture now emits only static assertion
+  phase labels for identity, host-read, marker rewrite, chmod and resulting UID/mode. An eighth
+  bounded Python control distinguishes a stale expected host read without printing its bytes;
+  both successful host writes remain asserted. No mapping prerequisite or assertion is relaxed.
+- K22 restore review extends the reserved-label boundary to historical containers. A new-create
+  overwrite alone cannot authenticate an inherited label already on disk. Generic relays now
+  require the host-written workload record to name network none and its allocated ports to
+  match; historical internet bindings are ignored, including malformed image JSON. A missing or
+  conflicting private record yields a named network-policy refusal. Native Podman always keeps
+  its own published ingress, with an explicit empty label on new containers and no generic
+  proxy during historical restore. Real kernel listener controls cover old rootful/rootless
+  internet forgeries and native Podman forgeries, alongside positive native port mappings.
+- Signed structural checkpoints 54d524c and 15428bc move existing policy observations/fixture
+  compilation and the durable label record without changing their bodies or manager export.
+  New declaration parsing and lease retirement are separate concerns. The original matching-
+  owner regression also catches an overbroad connected-bridge recheck; preserve its assertion
+  and scope the retained admission check to a runtime that observed verified private support.
+  A later installed-agent loss still cannot bypass that runtime's deferred bridge admission.
+- Final local source passes 598 workspace tests with 56 ignored and the same four previously
+  recorded vm_monitor Landlock ABI failures. Every daemon case and the actual Wasm case pass;
+  all 43 Docker unit/transport cases pass, including the unchanged matching-owner assertion.
+  The exact final canonical-record NoNIC fixture passes in 25.83 seconds and removes all owned
+  containers: production network selection/body, no IP/default route, host-loopback denial,
+  tagged neighbour service, retained TCP half-close, stable/distinct UDP peers, bounded cleanup,
+  stopped-owner adoption and old-generation refusal. Strict all-target Clippy, all three source
+  structure checks, formatting, full actionlint/ShellCheck, eight Python controls and whitespace
+  pass with no suppressed check or baseline increase. These are local custom-map ingress and
+  transport proofs; standard ownership remains a named refusal pending full consistency proof,
+  and exact-head hosted workflows/fresh review are still required before landing.
+- Follow-up source review catches a monitoring regression before publication: deferring bridge
+  creation also skipped an existing connected bridge's periodic isolation check. Single and
+  multi-tier reconciliation now inspect it read-only, retain the original unsafe-ICC issue and
+  propagate observation errors; an absent unused bridge is still not created. Added manager
+  wire controls exercise startup and periodic monitoring, unsafe internet refusal, recovery and
+  inspection failure, including an admitted internet workload. The unsafe-create control checks
+  the runtime's typed refusal and retains both no-compute and no-bridge-replacement assertions.
+  Exact-source validation completes 598 workspace passes, 56 ignored and the same four recorded
+  local vm_monitor Landlock ABI failures. The real NoNIC fixture passes in 25.62 seconds and its
+  owned containers are gone. Strict all-target workspace Clippy, all three structure checks,
+  formatting, actionlint with ShellCheck, eight Python controls and whitespace checks pass.
+  Standard data ownership still refuses by name; hosted proof and final review remain required.
+
+- The next standard ingress run on ae07802 reaches the first neighbour attachment and fails
+  with a generic generation-unavailable error (Rootless engines 43926265774/job133506447026).
+  Its helper still required only kernel dumpability zero, while Linux can load an unreadable
+  executable in the equally non-user-readable root-only state. Private ingress now reuses
+  K26's owning guard: ordinary dumpability refuses, and protected zero/root-only states are
+  forced and read back as zero before HTTP/2 or private I/O. The earlier trace did not retain
+  that helper's exact state or stderr, so this is a source-backed compatibility fix rather
+  than a uniquely established historical cause. The existing rootless step reports only the
+  fixed kernel policy for subsequent hosted evidence; no sysctl or host setting changes.
+  The exact merged-source local NoNIC acceptance passes in 24.88 seconds with its newly built
+  static agent and an empty owned-container readback; both shared-owner policy tests pass.
+  Strict workspace/all-target Clippy, Rust/original/expanded structure, formatting, actionlint
+  with ShellCheck and eight Python controls pass. The merged Bun check passes 453 tests with
+  one existing skip. The full Rust run records 602 passes and 56 ignored: four unchanged local
+  vm_monitor Landlock ABI failures remain, alongside a DNS paired-port allocation collision
+  and a resume-abandonment persistence race outside this change. Those failures are retained
+  as separate prerequisites; the unchanged failing suite was not rerun to seek green. Their
+  fixes must reach the final base, and all exact-head hosted workflows must pass before landing.
+
+- K22 third try, on the current base (2026-11-18). The second attempt's K22 commits (`b6887d4`,
+  `54d524c`, `15428bc`, `ae07802`, `b907361` and the `07161d6` move they need) are carried onto
+  any-host; its K26 commits are left out, since PR 45 superseded them. `start.rs` now holds the
+  immutable-ID generation only across the one start mutation and its read-only confirmation, on
+  the plain path and on the journal path alike, and releases it before inspection reopens relays.
+  Hosted CI had not run the bridge-less version on a current base before this.
+- Internal ingress, attempt 1 of this try: the protected exec transport on hosted standard rootless
+  Docker 29.9.2 at `5d4a583`,
+  [Rootless engines 44352210462, job 134970607706](https://github.com/cubepals/pryx/actions/runs/44352210462/job/134970607706):
+  `engine_private_exec_ingress` passes in 35.01 s. That is TCP with a delayed reply after
+  half-close, UDP packets with stable per-peer sockets, refusal of an undeclared port, no address
+  or default route, separation from host loopback and from a neighbour, helper retirement, and
+  adoption of a stopped owner after a restart. The case is data-less: on standard rootless Docker
+  every sandbox is still refused at `data-owner-mapping` before it gets this far. Where the
+  engine maps the workload onto the data owner, `network: "none"` is served by this transport.
+- Data-owner mapping, attempt 1 of this try: the second attempt's diagnostics on the same job.
+  The engine rejects a bind `idmap` option. A kernel idmapped bind fails to attach. A FUSE view in
+  the caller's namespace is refused `allow_other`. A fuse-overlayfs view in the daemon's own
+  namespace passes the first nonzero write for UID 1000 and 1001, but its second check fails at
+  `host-read`. The cause: the diagnostic rewrote the overlay's upper layer behind the live mount,
+  which overlays leave undefined.
+- Data-owner mapping, attempt 2: `b3d910c` writes the host's change through the mounted view as
+  namespace root (the data's owner),
+  [Rootless engines 44358915507, job 134994552420](https://github.com/cubepals/pryx/actions/runs/44358915507/job/134994552420).
+  For UID 1000 and 1001, both workload writes pass. A copy of the backing taken as the node user
+  keeps the workload's mode-0600 bytes, still owned by the node user. So a daemon-namespace view
+  does map the nonzero workload onto host-owned data. It is a diagnostic, and nothing in the
+  runtime uses it. To build it into the runtime, pryxd would have to:
+  - run one fuse-overlayfs helper (GPL, as a separate program) per sandbox in the daemon's user and
+    mount namespaces;
+  - keep every host-side write to running data going through that view;
+  - recover the helpers after a pryxd, rootlesskit or engine restart;
+  - and still be proven against a live store lease and against snapshot and fork of existing data.
+
+  `data-owner-mapping` stays a named refusal before data or compute. An engine whose map gives the
+  workload the data owner's identity (Podman keep-id, or a rootless daemon mapped that way) turns
+  it on.
 - Download retries: VM inventory, the native installer and process tools share
   `templates/archive_retry.py`, and locked Go module reads run again under the same policy.
   Local checks: the policy's own 10 cases, process tools' 14, VM inventory's 9 (3 of which fail
@@ -5305,3 +5485,4 @@ job when publication is authorized. That job has not run in this task.
   and believes it only on a non-Podman container attached to one internal, inter-container-off
   network; a relay unit case covers the trusted, Podman and ordinary-network paths. Hosted proof of
   the fix is in its pull request. No job or gate is added; the two cases take about a second each.
+  With the K22 merge, the host-written network-none record and matching ports authorize the relay.

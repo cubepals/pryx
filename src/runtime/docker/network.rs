@@ -5,14 +5,23 @@
 //! egress stay in their existing modules; this owns no workload placement or data policy.
 use super::*;
 
+/// Docker Engine HostConfig.NetworkMode: `none` creates a private loopback-only namespace.
+/// https://docs.docker.com/engine/network/drivers/none/
+pub(super) const DISCONNECTED_NETWORK: &str = "none";
+
 pub(super) async fn internal(
     runtime: &DockerRuntime,
     name: &str,
     labels: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
-    if podman::selected(runtime).await? {
+    let cached = runtime.info.lock().unwrap().clone();
+    let info = match cached {
+        Some(info) => info,
+        None => runtime.info().await?,
+    };
+    if info.podman || info.disconnected_ingress(runtime.isolation()) {
         // Native create validates a private bridge for each workload; this shared placeholder
-        // is never attached to one and has no part in enforcing its network policy.
+        // is never attached to one. Protected rootless exec ingress attaches no network at all.
         return Ok(());
     }
     let inspect =
@@ -40,16 +49,6 @@ pub(super) async fn internal(
     };
     quick("create internal network", runtime.docker()?.create_network(request)).await?;
     Ok(())
-}
-
-/// Whether the network `id` is a gateway-free internal network as `internal` makes and accepts
-/// them. A network that no longer exists is none.
-pub(super) async fn private(runtime: &DockerRuntime, id: &str) -> Result<bool, RuntimeError> {
-    match quick("inspect private network", runtime.docker()?.inspect_network(id, None::<InspectNetworkOptions>)).await {
-        Ok(network) => Ok(enforces_private(&network)),
-        Err(RuntimeError::NotFound(_)) => Ok(false),
-        Err(error) => Err(error),
-    }
 }
 
 fn enforces_private(network: &bollard::models::NetworkInspect) -> bool {

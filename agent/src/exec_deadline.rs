@@ -77,7 +77,7 @@ fn launch_error_code(problem: &std::io::Error) -> Option<ExecutionExitCode> {
     }
 }
 
-fn protect_owner(behavior: rustix::process::DumpableBehavior) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn protect_owner(behavior: rustix::process::DumpableBehavior) -> Result<(), Box<dyn std::error::Error>> {
     use rustix::process::{DumpableBehavior, dumpable_behavior, set_dumpable_behavior};
     // Linux exec uses fs.suid_dumpable for an unreadable image. Both zero and root-only
     // protect it from the workload's uid from creation; gVisor currently always uses zero.

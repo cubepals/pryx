@@ -24,6 +24,7 @@
 //! - `process_environment_tests.rs`: sealed descriptor and owned-map boundary controls.
 //! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
 //! - `exec_completion.rs`: authenticated private exec cleanup completion.
+//! - `exec_ingress.rs`: protected fixed-target Docker exec ingress.
 //! - `exec_deadline.rs`: a node exec's deadline kept inside the sandbox's own kernel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
@@ -137,6 +138,8 @@ pub mod transfer_target;
 pub mod exec_completion;
 #[cfg(feature = "server")]
 pub mod exec_deadline;
+#[cfg(feature = "server")]
+pub mod exec_ingress;
 #[cfg(feature = "server")]
 pub mod process_environment;
 #[cfg(feature = "server")]
