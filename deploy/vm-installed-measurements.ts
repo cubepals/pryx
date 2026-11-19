@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
-import { cpus, release, totalmem } from 'node:os'
+import { cpus, homedir, release, totalmem } from 'node:os'
+import { join } from 'node:path'
 import { type LocalInstallation, supervisor } from '../cli/src/up-local-record.ts'
 import { writeBaseline } from '../control/bench/baseline-report.ts'
 import { collectBaseline } from '../control/bench/pryx-baseline.ts'
@@ -15,23 +16,30 @@ import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
 import type { Pryx, Sandbox } from '../sdk/typescript/src/index.ts'
 import inputs from '../templates/vm-tools/image-inputs.json'
 
-async function memory(socket: string, root: number) {
+const VM_HELPER_ROLES = ['launcher', 'firecracker', 'network-proxy', 'vm-transport'] as const
+type HelperPss = Record<(typeof VM_HELPER_ROLES)[number], { pssBytes: number | null; processes: number }>
+
+async function memoryReport(socket: string, root: number, vmHelpers = false) {
   const observation = await new Promise<string>((resolve, reject) => {
     const client = createConnection(socket)
     let bytes = ''
     client.setTimeout(30 * SECOND_MS, () => client.destroy(new Error('VM PSS observation deadline')))
     client.on('error', reject)
-    client.on('connect', () => client.end(JSON.stringify({ root })))
+    client.on('connect', () => client.end(JSON.stringify({ root, ...(vmHelpers ? { vmHelpers } : {}) })))
     client.on('data', (part) => {
       bytes += part.toString()
       if (bytes.length > 64 * 1024) client.destroy(new Error('VM PSS observation exceeds its bound'))
     })
     client.on('end', () => resolve(bytes))
   })
-  const value = JSON.parse(observation) as { pssBytes?: number; processes?: number }
+  const value = JSON.parse(observation) as { pssBytes: number; processes: number; vmHelpers?: HelperPss }
   assert(typeof value.pssBytes === 'number' && value.pssBytes > 0 && Number.isFinite(value.pssBytes))
   assert(typeof value.processes === 'number' && value.processes >= 1)
-  return value.pssBytes
+  return value
+}
+
+async function memory(socket: string, root: number) {
+  return (await memoryReport(socket, root)).pssBytes
 }
 
 function vmRequest() {
@@ -47,6 +55,39 @@ function vmRequest() {
 
 function make(sdk: Pryx) {
   return sdk.sandbox(vmRequest())
+}
+
+async function helperMemory(sdk: Pryx, socket: string, root: number, samples: Samples) {
+  const repetitions = 5
+  for (const role of VM_HELPER_ROLES) {
+    samples[`vm_${role}_processes`] = []
+    samples[`vm_${role}_pss_bytes_per_process`] = []
+  }
+  for (let sample = 0; sample < repetitions; sample++) {
+    const before = (await memoryReport(socket, root, true)).vmHelpers
+    assert(
+      before && VM_HELPER_ROLES.every((role) => before[role].processes === 0),
+      'VM context contains a live helper',
+    )
+    const box = await make(sdk)
+    try {
+      assert.equal(box.state, 'running')
+      const after = (await memoryReport(socket, root, true)).vmHelpers
+      assert(after, 'VM helper PSS observation missing')
+      for (const role of VM_HELPER_ROLES) {
+        const { pssBytes, processes }: HelperPss[typeof role] = after[role]
+        assert(Number.isInteger(processes) && processes >= 0)
+        samples[`vm_${role}_processes`]?.push(processes)
+        if (processes === 0) assert.equal(pssBytes, null)
+        else {
+          assert(typeof pssBytes === 'number' && Number.isFinite(pssBytes) && pssBytes >= 0)
+          samples[`vm_${role}_pss_bytes_per_process`]?.push(pssBytes / processes)
+        }
+      }
+    } finally {
+      await box.delete()
+    }
+  }
 }
 
 /** Each cohort as docs/tiers.md names it, so the job log carries every figure the artifact does. */
@@ -89,15 +130,20 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
   const identity = supervisor(installed)
   assert(path && socket && identity && source && ci)
   if (process.env.PRYX_MEASURE_VM === 'on') {
-    const prefix = '/home/pryxtools/pryx-vm-baseline'
-    await collectBaseline(
+    const prefix = join(homedir(), 'pryx-vm-baseline')
+    const record = (result: Awaited<ReturnType<typeof collectBaseline>>) =>
+      writeBaseline(prefix, source, ci, 'Signed ordinary-user VM installation', [result])
+    const result = await collectBaseline(
       { sdk, memory: () => memory(socket, identity.pid) },
       'vm',
       vmRequest(),
-      (result) => {
-        writeBaseline(prefix, source, ci, 'Signed ordinary-user VM installation', [result])
-      },
+      record,
     )
+    try {
+      await helperMemory(sdk, socket, identity.pid, result.samples)
+    } finally {
+      record(result)
+    }
     return
   }
   const samples: Samples = {

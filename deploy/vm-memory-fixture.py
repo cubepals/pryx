@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: FSL-1.1-ALv2
-"""Read aggregate PSS for the disposable install account through the existing CI sampler.
+"""Read PSS for the disposable install account through the existing CI sampler.
 
 The parent runner starts this read-only Unix fixture as root so nondumpable monitor processes
 are included. Peers may request only roots owned by that fixed account, never paths or programs.
+An optional boolean selects the sampler's fixed VM executable breakdown.
 This is not installed with pryx and changes no process confinement or kernel setting.
 """
 import argparse
@@ -20,19 +21,25 @@ import sys
 MAX_REQUEST_BYTES = 1024
 
 
-def sample(uid, root, sampler):
+def sample(uid, root, sampler, vm_helpers=False):
     if not isinstance(root, int) or isinstance(root, bool) or root <= 1:
         raise ValueError('Expected an owned live process root')
     status = Path(f'/proc/{root}/status').read_text().splitlines()
     actual = next(line.split()[1:] for line in status if line.startswith('Uid:'))
     if any(int(value) != uid for value in actual):
         raise ValueError('The measurement root belongs to another account')
-    completed = subprocess.run([sys.executable, str(sampler), str(root)], check=True,
+    command = [sys.executable, str(sampler)]
+    if vm_helpers:
+        command.append('--vm-helpers')
+    completed = subprocess.run([*command, str(root)], check=True,
                                capture_output=True, text=True, timeout=30)
     value = json.loads(completed.stdout)
     if root in value['missing'] or value['pssBytes'] <= 0:
         raise ValueError('The owned measurement root disappeared')
-    return {'pssBytes': value['pssBytes'], 'processes': value['processes']}
+    result = {'pssBytes': value['pssBytes'], 'processes': value['processes']}
+    if vm_helpers:
+        result['vmHelpers'] = value['vmHelpers']
+    return result
 
 
 def respond(connection, uid, sampler):
@@ -51,9 +58,12 @@ def respond(connection, uid, sampler):
         if len(body) > MAX_REQUEST_BYTES:
             raise ValueError('The measurement request exceeds its bound')
     request = json.loads(body)
-    if not isinstance(request, dict) or set(request) != {'root'}:
-        raise ValueError('The measurement request must name only an owned process root')
-    return sample(uid, request['root'], sampler)
+    if not isinstance(request, dict) or set(request) not in ({'root'}, {'root', 'vmHelpers'}):
+        raise ValueError('The measurement request must name an owned process root')
+    vm_helpers = request.get('vmHelpers', False)
+    if not isinstance(vm_helpers, bool):
+        raise ValueError('The VM helper observation option must be boolean')
+    return sample(uid, request['root'], sampler, vm_helpers)
 
 
 def main():

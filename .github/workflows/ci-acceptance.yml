@@ -425,14 +425,25 @@ jobs:
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
           PRYX_IMAGE_TEST: pryx-static-test:latest
         run: |
+          python3 -m unittest discover -s control/tools -p 'tier_memory_test.py'
           bun control/bench/baseline-host.ts "$RUNNER_TEMP/pryx-host-baseline"
           cat "$RUNNER_TEMP/pryx-host-baseline.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Measure idle server zswap compression
+        if: inputs.measure_pryx
+        run: |
+          python3 -m unittest discover -s control/tools -p 'baseline_zswap_test.py'
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_TEMP \
+            python3 control/tools/baseline-zswap.py "$RUNNER_TEMP/pryx-zswap-baseline.json" --node "$(command -v node)"
+          jq -r '"| zswap | " + .status + " | " + ((.logicalToCompressedRatio // .reason // "") | tostring) + " |"' \
+            "$RUNNER_TEMP/pryx-zswap-baseline.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain the host baseline
         if: ${{ !cancelled() && inputs.measure_pryx }}
         uses: ./.github/actions/upload-evidence
         with:
           name: pryx-host-baseline
-          path: ${{ runner.temp }}/pryx-host-baseline.*
+          path: |
+            ${{ runner.temp }}/pryx-host-baseline.*
+            ${{ runner.temp }}/pryx-zswap-baseline.json
           if-no-files-found: error
 
   one-box:
