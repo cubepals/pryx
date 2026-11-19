@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { engineTier } from '../src/isolation.ts'
 import { writeBaseline } from './baseline-report.ts'
-import { collectBaseline, type TierBaseline } from './pryx-baseline.ts'
+import { baselineFailureCode, collectBaseline, type TierBaseline } from './pryx-baseline.ts'
 import { context } from './tiers/context.ts'
 
 const [prefix] = process.argv.slice(2)
@@ -15,25 +15,41 @@ process.env.PRYX_TIER_BENCH = '1'
 
 const results = new Map<string, TierBaseline>()
 const failures: string[] = []
+const record = (result: TierBaseline) => {
+  results.set(result.tier, result)
+  writeBaseline(
+    prefix,
+    source,
+    run,
+    'Disposable one-box deployments',
+    'Node children and matching container roots',
+    [...results.values()],
+  )
+}
 for (const tier of ['process', 'container', 'gvisor', 'wasm'] as const) {
+  let phase = 'setup'
   try {
     const installation = await context('one-box', tier)
     try {
+      phase = 'measurements'
       await collectBaseline(
         installation,
         tier,
         { sparePorts: 0, ...(engineTier(tier) ? { image } : {}) },
-        (result) => {
-          results.set(tier, result)
-          writeBaseline(prefix, source, run, 'Disposable one-box deployments', [...results.values()])
-        },
+        record,
       )
     } finally {
       await installation.close()
     }
-  } catch {
+  } catch (error) {
     failures.push(tier)
-    console.error(`Baseline did not complete for ${tier}`)
+    const result = results.get(tier) ?? { tier, samples: {}, concurrentCreates: [], complete: false }
+    const failure = result.failure ?? {
+      phase: result.complete ? 'cleanup' : phase,
+      code: baselineFailureCode(error),
+    }
+    record({ ...result, complete: false, failure })
+    console.error(`Baseline did not complete for ${tier} during ${failure.phase}: ${failure.code}`)
   }
 }
 if (failures.length) throw new Error(`Incomplete baseline tiers: ${failures.join(', ')}`)

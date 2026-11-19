@@ -38,6 +38,7 @@ def main():
     if hashlib.sha256((args.bootstrap / 'bootstrap.erofs').read_bytes()).hexdigest() != bootstrap['imageSha256']:
         raise ValueError('Trusted bootstrap bytes changed after construction')
     environment = os.environ.copy()
+    environment.pop('PRYX_VM_BOOT_BENCHMARK', None)
     environment.update({
         'PRYX_VM_HOST_LAUNCHER': str(args.host_launcher.resolve(strict=True)),
         'PRYX_VM_MONITOR': str(monitor.resolve()), 'PRYX_VM_KERNEL': str(kernel.resolve()),
@@ -67,7 +68,7 @@ def main():
             'balloonBuiltIn': 'CONFIG_VIRTIO_BALLOON=y' in config.splitlines(),
         })
     subprocess.run(['cargo', 'test', '--locked', '--manifest-path', str(ROOT.parent.parent / 'vm-image/Cargo.toml'),
-                    '--test', 'guest', '--', '--ignored', '--nocapture'], env=environment, check=True,
+                    '--test', 'guest', '--', '--include-ignored', '--nocapture'], env=environment, check=True,
                    timeout=540 if args.measure_boot else 360)
 
 

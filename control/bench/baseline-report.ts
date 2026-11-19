@@ -9,6 +9,7 @@ export function writeBaseline(
   source: string,
   run: string,
   deployment: string,
+  memoryScope: string,
   results: readonly TierBaseline[],
 ) {
   const tiers = results.map((result) => ({ ...result, summary: baselineSummary(result.samples) }))
@@ -18,7 +19,8 @@ export function writeBaseline(
     deployment,
     host: { cpu: cpus()[0]?.model, cores: cpus().length, kernel: release(), memoryBytes: totalmem() },
     fileBytes: BASELINE_FILE_BYTES,
-    idleMemory: 'PSS of the deployment after one idle sandbox minus PSS immediately before creation',
+    idleMemory: 'PSS after one idle sandbox minus PSS immediately before creation',
+    memoryScope,
     concurrency: 'Latency includes only waves where every requested sandbox reached running',
     tiers,
   }
@@ -27,11 +29,14 @@ export function writeBaseline(
     '# pryx baseline',
     '',
     `Source ${source}. ${deployment}.`,
+    `PSS scope is ${memoryScope}.`,
     '',
     '| Tier | Metric | Samples | p50 | p95 |',
     '| --- | --- | ---: | ---: | ---: |',
   ]
-  for (const { tier, summary, concurrentCreates } of tiers) {
+  for (const { tier, complete, failure, summary, concurrentCreates } of tiers) {
+    const status = complete ? 'Complete' : failure ? `Partial (${failure.phase}, ${failure.code})` : 'Partial'
+    table.push(`| ${tier} | Measurement status | ${status} | — | — |`)
     for (const [metric, { n, p50, p95 }] of Object.entries(summary)) {
       table.push(`| ${tier} | ${metric} | ${n} | ${p50?.toFixed(2) ?? '—'} | ${p95?.toFixed(2) ?? '—'} |`)
     }

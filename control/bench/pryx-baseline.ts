@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Repeatable public SDK measurements for a single verified tier and installation. */
 import assert from 'node:assert/strict'
-import type { MakeRequest, Pryx, Sandbox } from '../../sdk/typescript/src/index.ts'
+import { type MakeRequest, type Pryx, PryxError, type Sandbox } from '../../sdk/typescript/src/index.ts'
 import type { Isolation } from '../src/isolation.ts'
 import { type ConcurrentOutcome, concurrentAttempt } from './tiers/concurrent.ts'
 import { measure, percentile, REPETITIONS, type Samples } from './tiers/report.ts'
@@ -19,8 +19,15 @@ export interface BaselineContext {
 export interface TierBaseline {
   tier: Isolation
   samples: Samples
-  concurrentCreates: ConcurrentOutcome[]
+  concurrentCreates: Array<Omit<ConcurrentOutcome, 'outcome'> & { outcome: 'complete' | 'api_refused' }>
   complete: boolean
+  failure?: { phase: string; code: string }
+}
+
+export function baselineFailureCode(error: unknown) {
+  if (error instanceof PryxError && /^[a-z][a-z0-9_]{0,63}$/.test(error.code)) return error.code
+  if (error instanceof assert.AssertionError) return 'assertion_failed'
+  return 'unexpected_error'
 }
 
 export async function collectBaseline(
@@ -58,6 +65,7 @@ export async function collectBaseline(
     }
   }
 
+  let phase = 'create'
   try {
     for (let index = 0; index < REPETITIONS; index++) {
       const before = await c.memory()
@@ -75,6 +83,7 @@ export async function collectBaseline(
       checkpoint(result)
     }
 
+    phase = 'exec_files_wake'
     const box = await create()
     try {
       await hotSamples(box, samples)
@@ -83,6 +92,7 @@ export async function collectBaseline(
     }
     checkpoint(result)
 
+    phase = 'concurrent_create'
     for (const count of WAVE_SIZES) {
       const values: number[] = []
       samples[`concurrent_${count}_create_ms`] = values
@@ -92,7 +102,7 @@ export async function collectBaseline(
           tier,
           attempt,
           (outcome) => {
-            concurrentCreates.push(outcome)
+            concurrentCreates.push({ ...outcome, outcome: outcome.refused ? 'api_refused' : 'complete' })
             if (outcome.outcome === 'complete') values.push(outcome.elapsedMs)
           },
           count,
@@ -103,6 +113,9 @@ export async function collectBaseline(
     }
     result.complete = true
     return result
+  } catch (error) {
+    result.failure = { phase, code: baselineFailureCode(error) }
+    throw error
   } finally {
     checkpoint(result)
   }
@@ -114,6 +127,10 @@ async function hotSamples(box: Sandbox, samples: Samples) {
     crypto.getRandomValues(data.subarray(offset, offset + 65_536))
   const path = 'baseline-payload'
   const digest = Bun.hash(data)
+  const verify = (received: Uint8Array) => {
+    assert.equal(received.length, BASELINE_FILE_BYTES)
+    assert.equal(Bun.hash(received), digest)
+  }
   await measure(samples, 'exec_ms', async () => {
     const output = await box.run('true')
     assert.equal(output.code, 0)
@@ -126,10 +143,7 @@ async function hotSamples(box: Sandbox, samples: Samples) {
   })
   await measure(samples, 'file_read_ms', async () => {
     const received = await box.files.readBytes(path)
-    return async () => {
-      assert.equal(received.length, BASELINE_FILE_BYTES)
-      assert.equal(Bun.hash(received), digest)
-    }
+    return async () => verify(received)
   })
   await measure(
     samples,
@@ -137,7 +151,7 @@ async function hotSamples(box: Sandbox, samples: Samples) {
     async () => {
       await box.wake()
       assert.equal(box.state, 'running')
-      return async () => assert.equal((await box.files.stat(path)).size, BASELINE_FILE_BYTES)
+      return async () => verify(await box.files.readBytes(path))
     },
     async () => {
       await box.sleep()

@@ -9,7 +9,7 @@ import { cpus, homedir, release, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { type LocalInstallation, supervisor } from '../cli/src/up-local-record.ts'
 import { writeBaseline } from '../control/bench/baseline-report.ts'
-import { collectBaseline } from '../control/bench/pryx-baseline.ts'
+import { baselineFailureCode, collectBaseline } from '../control/bench/pryx-baseline.ts'
 import { snapshots } from '../control/bench/tiers/operations.ts'
 import { DATA_BYTES, measure, percentile, REPETITIONS, type Samples } from '../control/bench/tiers/report.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
@@ -129,23 +129,6 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
   const ci = process.env.PRYX_VM_CI_URL
   const identity = supervisor(installed)
   assert(path && socket && identity && source && ci)
-  if (process.env.PRYX_MEASURE_VM === 'on') {
-    const prefix = join(homedir(), 'pryx-vm-baseline')
-    const record = (result: Awaited<ReturnType<typeof collectBaseline>>) =>
-      writeBaseline(prefix, source, ci, 'Signed ordinary-user VM installation', [result])
-    const result = await collectBaseline(
-      { sdk, memory: () => memory(socket, identity.pid) },
-      'vm',
-      vmRequest(),
-      record,
-    )
-    try {
-      await helperMemory(sdk, socket, identity.pid, result.samples)
-    } finally {
-      record(result)
-    }
-    return
-  }
   const samples: Samples = {
     cold_create_running_ms: [],
     create_first_output_ms: [],
@@ -260,5 +243,32 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
   } finally {
     persist()
     summarize(samples)
+  }
+  if (process.env.PRYX_MEASURE_VM === 'on') {
+    const prefix = join(homedir(), 'pryx-vm-baseline')
+    const record = (result: Awaited<ReturnType<typeof collectBaseline>>) =>
+      writeBaseline(
+        prefix,
+        source,
+        ci,
+        'Signed ordinary-user VM installation',
+        'Full installed supervisor tree',
+        [result],
+      )
+    const result = await collectBaseline(
+      { sdk, memory: () => memory(socket, identity.pid) },
+      'vm',
+      vmRequest(),
+      (result) => record({ ...result, complete: false }),
+    )
+    try {
+      await helperMemory(sdk, socket, identity.pid, result.samples)
+    } catch (error) {
+      result.complete = false
+      result.failure = { phase: 'vm_helpers', code: baselineFailureCode(error) }
+      throw error
+    } finally {
+      record(result)
+    }
   }
 }

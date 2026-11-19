@@ -6,6 +6,7 @@ use axum::http::StatusCode;
 use serde_json::{Value, json};
 use std::{
     fs,
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -35,7 +36,7 @@ impl Profile {
             }
             Self::Reporting => {
                 let path = directory.join(format!("metrics{round}.jsonl"));
-                fs::File::create_new(&path).unwrap();
+                fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path).unwrap();
                 // Firecracker 1.18's BalloonDeviceConfig accepts free_page_reporting.
                 // The generated SDK model describes only amount, deflate and polling.
                 config["balloon"] = json!({"amount_mib": 0, "deflate_on_oom": false, "free_page_reporting": true});
@@ -88,7 +89,8 @@ pub(super) async fn observe_reports(guest: &Guest, api: &Path, metrics: &Path) -
             "dd if=/dev/zero of=/tmp/pryx-report-pages bs=1048576 count=24 && rm /tmp/pryx-report-pages".into(),
         ])
         .await;
-    let deadline = Instant::now() + REPORT_WINDOW;
+    let started = Instant::now();
+    let deadline = started + REPORT_WINDOW;
     let counters = loop {
         let (status, _) = request(
             &guest.client,
@@ -105,7 +107,7 @@ pub(super) async fn observe_reports(guest: &Guest, api: &Path, metrics: &Path) -
     };
     let state = if counters.observed() { "verified" } else { "unconfirmed" };
     json!({"state": state, "reportDescriptors": counters.reports, "discardRangeBytes": counters.bytes,
-        "reportFailures": counters.failures, "observationWindowMs": REPORT_WINDOW.as_millis()})
+        "reportFailures": counters.failures, "observationWindowMs": started.elapsed().as_millis()})
 }
 
 fn percentile(values: &[f64], fraction: f64) -> f64 {
@@ -130,18 +132,16 @@ pub(super) async fn measure(
     let mut baseline = Vec::with_capacity(PAIRS);
     let mut quiet = Vec::with_capacity(PAIRS);
     let mut savings = Vec::with_capacity(PAIRS);
-    let mut kernel = String::new();
+    let warmup = boot(tools, image, directory, writes, 0, true, Some(Profile::Baseline)).await;
+    let kernel = warmup["kernel"].as_str().unwrap();
     for pair in 0..PAIRS {
         let profiles =
             if pair % 2 == 0 { [Profile::Baseline, Profile::Quiet] } else { [Profile::Quiet, Profile::Baseline] };
         for (index, profile) in profiles.into_iter().enumerate() {
-            let run = boot(tools, image, directory, writes, 2 * pair + index, true, Some(profile)).await;
+            let run = boot(tools, image, directory, writes, 2 * pair + index + 1, true, Some(profile)).await;
             let elapsed = run["readyMs"].as_f64().unwrap();
             assert!(elapsed.is_finite() && elapsed > 0.0);
             let running_kernel = run["kernel"].as_str().unwrap();
-            if kernel.is_empty() {
-                kernel = running_kernel.into();
-            }
             assert_eq!(kernel, running_kernel);
             match profile {
                 Profile::Baseline => baseline.push(elapsed),
@@ -156,13 +156,13 @@ pub(super) async fn measure(
     } else if pins["balloonBuiltIn"] != true {
         json!({"state": "unavailable", "reason": "The pinned guest kernel lacks a built-in virtio balloon driver"})
     } else {
-        let result = boot(tools, image, directory, writes, 2 * PAIRS, true, Some(Profile::Reporting)).await;
-        assert_eq!(result["kernel"].as_str(), Some(kernel.as_str()));
+        let result = boot(tools, image, directory, writes, 2 * PAIRS + 1, true, Some(Profile::Reporting)).await;
+        assert_eq!(result["kernel"].as_str(), Some(kernel));
         result["pageReports"].clone()
     };
     let report = json!({
         "pins": pins, "kernel": kernel, "imageManifestDigest": image.digest,
-        "profile": "ordinary user, prepared OCI image, vsock network",
+        "profile": "ordinary user, prepared OCI image, vsock network", "warmupBoots": 1,
         "interval": "monitor launch to authenticated guest agent readiness",
         "baseline": summary(&baseline), "quiet": summary(&quiet), "pairedSavings": summary(&savings),
         "pageReporting": page_reporting,

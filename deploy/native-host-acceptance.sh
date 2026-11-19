@@ -17,6 +17,32 @@ pryx_vm_memory=
 pryx_vm_socket=
 pryx_vm_public=
 pryx_vm_address="$PWD/deploy/vm-host-public-address.sh"
+copy_vm_baseline() {
+  local name=$1 source="/home/pryxtools/$1" output="$RUNNER_TEMP/$1"
+  if ! sudo -u pryxtools test -e "$source"; then return 0; fi
+  if sudo -u pryxtools python3 - "$source" > "$output.pending" <<'PY'
+import os
+import stat
+import sys
+
+limit = 16 * 1024 * 1024
+with os.fdopen(os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as report:
+    info = os.fstat(report.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_size > limit:
+        raise SystemExit('Invalid VM baseline report')
+    data = report.read(limit + 1)
+    if len(data) > limit:
+        raise SystemExit('VM baseline report exceeds its bound')
+    sys.stdout.buffer.write(data)
+PY
+  then
+    mv -- "$output.pending" "$output"
+  else
+    rm -f -- "$output.pending"
+    echo "Could not retain $name" >&2
+    return 1
+  fi
+}
 cleanup() {
   result=$?
   trap - EXIT
@@ -31,10 +57,7 @@ cleanup() {
   fi
   if [ "${PRYX_MEASURE_VM:-off}" = on ]; then
     for suffix in json md; do
-      if sudo test -f "/home/pryxtools/pryx-vm-baseline.$suffix"; then
-        sudo cp "/home/pryxtools/pryx-vm-baseline.$suffix" "$RUNNER_TEMP/pryx-vm-baseline.$suffix" || result=1
-        sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/pryx-vm-baseline.$suffix" || result=1
-      fi
+      copy_vm_baseline "pryx-vm-baseline.$suffix" || result=1
     done
   fi
   if [ -n "$pryx_vm_memory" ]; then
