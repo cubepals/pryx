@@ -19,11 +19,11 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k0-ci-speedup
-          SOURCE_HEAD: '4db1f8b86b1b1367f11267e4bf875c2531582486'
-          ANY_HOST_HEAD: '80e543bbdb18f9ce52afee835109a77258bdce8e'
-          MERGED_TREE: '2fdcabbad799b4c3adfcaf5f6873c23adaa1a175'
-          SUBJECT: 'Merge current any-host into CI speedup'
+          SOURCE_BRANCH: k0-side-fixes
+          SOURCE_HEAD: '56d23b30ec183258d8c64913a2f4c570ba6b4783'
+          ANY_HOST_HEAD: '652614e8c4a6d38dcb2cea20ec08159f0f8e6ab8'
+          MERGED_TREE: 'ae0f5dece3259883731e80e290e100592ee707b7'
+          SUBJECT: 'Merge current any-host into side fixes'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
