@@ -209,17 +209,30 @@ pub(crate) fn candidates(root: &Path) -> Vec<Candidate> {
 
 /// The addresses /proc/net/fib_trie lists as this host's own: a leaf followed by `/32 host LOCAL`.
 pub(crate) fn local_addresses(trie: &str) -> Vec<Ipv4Addr> {
-    let (mut leaf, mut local) = (None, Vec::new());
-    for line in trie.lines().map(str::trim) {
+    routes(trie).filter(|&(_, length, kind)| length == 32 && kind == "host LOCAL").map(|(ip, ..)| ip).collect()
+}
+
+/// The prefixes /proc/net/fib_trie routes as broadcast, whatever their scope: what is sent there
+/// is delivered to this host's own sockets as well as the link's.
+pub(crate) fn broadcast_routes(trie: &str) -> Vec<ipnet::Ipv4Net> {
+    routes(trie)
+        .filter(|(_, _, kind)| kind.split_whitespace().nth(1) == Some("BROADCAST"))
+        .filter_map(|(ip, length, _)| ipnet::Ipv4Net::new(ip, length).ok())
+        .collect()
+}
+
+/// Each route /proc/net/fib_trie lists under a leaf: the leaf's address, the route's prefix
+/// length, and its scope and type (`host LOCAL`, `link BROADCAST`, ...).
+fn routes(trie: &str) -> impl Iterator<Item = (Ipv4Addr, u8, &str)> {
+    let mut leaf = None;
+    trie.lines().map(str::trim).filter_map(move |line| {
         if let Some(ip) = line.strip_prefix("|-- ") {
             leaf = ip.parse::<Ipv4Addr>().ok();
-        } else if line == "/32 host LOCAL"
-            && let Some(ip) = leaf
-        {
-            local.push(ip);
+            return None;
         }
-    }
-    local
+        let (length, kind) = line.strip_prefix('/')?.split_once(' ')?;
+        Some((leaf?, length.parse().ok()?, kind))
+    })
 }
 
 /// The interface of the narrowest directly connected route (no gateway) holding `ip`, from
@@ -361,6 +374,31 @@ mod tests {
         let (table, inferred) = filled(alone, two.path()).unwrap();
         assert!(table.get("network").is_none(), "loopback, as config.rs defaults it");
         assert_eq!(inferred.iter().map(|i| i.key).collect::<Vec<_>>(), ["capacity.reserved_memory_mb"]);
+    }
+
+    #[test]
+    fn broadcast_routes_are_read_beside_local_addresses_whatever_their_scope() {
+        // As the kernel prints it, the local table's leaves with their routes indented below.
+        let trie = r"
+Main:
+  +-- 0.0.0.0/0 3 0 5
+     |-- 0.0.0.0
+        /0 universe UNICAST
+Local:
+  +-- 10.0.1.0/24 2 0 2
+     |-- 10.0.1.5
+        /32 host LOCAL
+     |-- 10.0.1.255
+        /32 link BROADCAST
+     |-- 10.9.0.0
+        /16 global BROADCAST tos=4
+     |-- 127.255.255.255
+        /32 link BROADCAST
+";
+        assert_eq!(local_addresses(trie), ["10.0.1.5".parse::<Ipv4Addr>().unwrap()]);
+        let expected: Vec<ipnet::Ipv4Net> =
+            ["10.0.1.255/32", "10.9.0.0/16", "127.255.255.255/32"].iter().map(|net| net.parse().unwrap()).collect();
+        assert_eq!(broadcast_routes(trie), expected);
     }
 
     #[test]

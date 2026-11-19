@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! A deny filter layered on the caller's existing seccomp filter. Clone is allowed only without
-//! namespace flags; clone3 returns ENOSYS so libc can use its checked clone fallback.
+//! namespace flags; clone3 returns ENOSYS so libc can use its checked clone fallback. A
+//! reuse-port group's own selection program is refused: the host's kernel network policy checks
+//! the listener the kernel's hash picks, and such a program would pick another.
 use seccompiler::{
     BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
 };
@@ -87,6 +89,7 @@ fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dy
                 .insert(libc::SYS_setgid, vec![argument_rule(0, SeccompCmpOp::Ne, rustix::process::getgid().as_raw())]);
         }
     }
+    rules.insert(libc::SYS_setsockopt, reuseport_program_rules());
     if network_off {
         for syscall in [libc::SYS_connect, libc::SYS_bind, libc::SYS_sendto, libc::SYS_sendmsg, libc::SYS_sendmmsg] {
             rules.insert(syscall, vec![]);
@@ -106,6 +109,20 @@ fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dy
     .try_into()?;
     crate::syscall_abi::apply(&clone3)?;
     Ok(())
+}
+
+/// setsockopt(2) at SOL_SOCKET attaching a classic or extended program to a reuse-port group.
+fn reuseport_program_rules() -> Vec<SeccompRule> {
+    [libc::SO_ATTACH_REUSEPORT_CBPF, libc::SO_ATTACH_REUSEPORT_EBPF]
+        .into_iter()
+        .map(|option| {
+            SeccompRule::new(vec![
+                condition(1, SeccompCmpOp::Eq, libc::SOL_SOCKET as u32),
+                condition(2, SeccompCmpOp::Eq, option as u32),
+            ])
+            .expect("valid setsockopt rule")
+        })
+        .collect()
 }
 
 fn clone_rules() -> Vec<SeccompRule> {
@@ -324,6 +341,29 @@ resource.getrlimit(resource.RLIMIT_NOFILE)
                 .env("PROBES", serde_json::to_string(&probes).unwrap())
                 .output()
                 .unwrap()
+        })
+        .join()
+        .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    #[test]
+    fn a_reuse_port_group_program_is_refused_and_other_socket_options_are_not() {
+        // The filter answers before the kernel reads the option's value, so none is needed.
+        let script = r#"
+import os, socket
+for option in map(int, os.environ['OPTIONS'].split(',')):
+    with socket.socket() as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        try: sock.setsockopt(socket.SOL_SOCKET, option, bytes(16))
+        except PermissionError: pass
+        except OSError as error: raise AssertionError(f'option {option} reached the kernel: {error}')
+        else: raise AssertionError(f'option {option} was accepted')
+"#;
+        let options = format!("{},{}", libc::SO_ATTACH_REUSEPORT_CBPF, libc::SO_ATTACH_REUSEPORT_EBPF);
+        let output = std::thread::spawn(move || {
+            apply(false).unwrap();
+            std::process::Command::new("python3").args(["-c", script]).env("OPTIONS", options).output().unwrap()
         })
         .join()
         .unwrap();

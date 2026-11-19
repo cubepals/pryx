@@ -53,6 +53,7 @@ pub(crate) fn probe_object(programs: &[u8]) -> Result<host::Host, host::Unavaila
         allow: &[],
         deny: &[],
         host: &[],
+        broadcast: &[],
         nameservers: &[],
         served: 0..=0,
         api_port: 0,

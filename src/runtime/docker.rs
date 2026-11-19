@@ -21,7 +21,7 @@
 //! - `container.rs`: container construction and observation types.
 //! - `events.rs`: engine event translation.
 //! - `exec_agent.rs`: durable execute-only exec owner programs.
-//! - `exec_completion.rs`: authenticated exec cleanup and failed-owner retirement.
+//! - `exec_completion.rs`: authenticated exec cleanup, failed-owner retirement and bounded output.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `gvisor.rs`: the gvisor tier's runtime name, availability, ownership and resolvers.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
