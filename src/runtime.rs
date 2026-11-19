@@ -254,6 +254,8 @@ pub struct RuntimeInfo {
     pub(crate) rootless: bool,
     pub(crate) local_process_ids: Option<bool>,
     pub(crate) unprivileged_ports: Option<bool>,
+    #[serde(default)]
+    pub(crate) private_ingress: Option<bool>,
     pub(crate) memory_limit: bool,
     pub(crate) cpu_limit: bool,
     pub(crate) pids_limit: bool,
@@ -276,6 +278,16 @@ pub struct RuntimeInfo {
     /// A VM tier whose restore test passed: it sleeps with memory on this host.
     #[serde(default)]
     pub(crate) memory_sleep: bool,
+}
+
+impl RuntimeInfo {
+    /// A verified private exec pipe reaches loopback without attaching a network device.
+    pub(crate) fn disconnected_ingress(&self, isolation: &str) -> bool {
+        isolation == crate::protocol::Isolation::Container.as_str()
+            && self.rootless
+            && !self.podman
+            && self.private_ingress == Some(true)
+    }
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]

@@ -31,3 +31,89 @@ pub(crate) const LABEL_OCI_RUNTIME: &str = "blocklyd.oci-runtime";
 
 /// Private exec cleanup attestation negotiated from the actual injected agent at creation.
 pub(crate) const LABEL_EXEC_COMPLETION: &str = "blocklyd.exec-completion";
+
+/// Protected fixed-target private ingress negotiated from the injected agent at creation.
+pub(crate) const LABEL_INTERNAL_INGRESS: &str = "blocklyd.internal-ingress";
+
+use crate::protocol::SpecRecord;
+use crate::store::{AllocatedPort, RECORD_VERSION, WorkloadRecord};
+
+/// The record as a label carries it.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LabelRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<crate::protocol::Isolation>,
+    pub version: u32,
+    pub generation: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch: Option<u64>,
+    pub spec_digest: String,
+    pub ports: Vec<AllocatedPort>,
+    pub spec: SpecRecord,
+    pub created_at: String,
+}
+
+impl LabelRecord {
+    pub(super) fn of(record: &WorkloadRecord) -> Self {
+        Self {
+            isolation: record.isolation,
+            version: RECORD_VERSION,
+            generation: record.generation,
+            epoch: record.epoch,
+            spec_digest: record.spec_digest.clone(),
+            ports: record.ports.clone(),
+            spec: record.spec.clone(),
+            created_at: record.created_at.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) use record_fixture::private_record;
+
+#[cfg(test)]
+mod record_fixture {
+    use super::*;
+
+    pub(crate) fn private_record(image: &str, bindings: &[crate::runtime::PortBinding]) -> String {
+        let ports: Vec<_> = bindings
+            .iter()
+            .enumerate()
+            .map(|(index, binding)| {
+                serde_json::json!({
+                    "name": format!("p{index}"), "containerPort": binding.container_port,
+                    "protocol": binding.protocol, "audience": [crate::protocol::Audience::Control]
+                })
+            })
+            .collect();
+        let spec: crate::protocol::WorkloadSpec = serde_json::from_value(serde_json::json!({
+            "image": image, "network": crate::protocol::NetworkMode::None,
+            "resources": {"memoryMb": 256}, "storage": {"mountPath": "/data", "sizeGb": 1}, "ports": ports
+        }))
+        .unwrap();
+        let spec = spec.record();
+        let record = LabelRecord {
+            isolation: Some(crate::protocol::Isolation::Container),
+            version: RECORD_VERSION,
+            generation: 1,
+            epoch: None,
+            spec_digest: spec.digest(),
+            spec,
+            ports: bindings
+                .iter()
+                .enumerate()
+                .map(|(index, binding)| AllocatedPort {
+                    name: format!("p{index}"),
+                    protocol: binding.protocol,
+                    container_port: binding.container_port,
+                    host_port: binding.host_port,
+                })
+                .collect(),
+            created_at: time::OffsetDateTime::UNIX_EPOCH
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap(),
+        };
+        serde_json::to_string(&record).unwrap()
+    }
+}

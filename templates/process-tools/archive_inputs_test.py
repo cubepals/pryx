@@ -234,6 +234,16 @@ def pinned(value):
 
 
 class MirrorTable(unittest.TestCase):
+    def test_pinned_gnu_archives_have_an_independent_mirror(self):
+        lock = archive_inputs.ROOT / 'sources.lock.json'
+        urls = [url for url in pinned(json.loads(lock.read_text()))
+                if urllib.parse.urlsplit(url).hostname == 'ftp.gnu.org']
+        self.assertTrue(urls)
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertTrue(any(urllib.parse.urlsplit(address).hostname != 'ftp.gnu.org'
+                                    for address in archive_inputs.addresses(url)[1:]))
+
     def test_a_mirror_keeps_each_pinned_path(self):
         urls = {url for lock in archive_inputs.ROOT.glob('*.json') for url in pinned(json.loads(lock.read_text()))}
         mirrored = [url for url in urls if len(archive_inputs.addresses(url)) > 1]

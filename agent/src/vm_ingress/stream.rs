@@ -31,7 +31,7 @@ async fn connect(mut request: Request<Incoming>, port: u16) -> Result<Response<E
     Ok(response)
 }
 
-pub(super) async fn serve(
+pub(crate) async fn serve(
     socket: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
     port: u16,
 ) -> io::Result<()> {
