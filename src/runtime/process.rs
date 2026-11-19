@@ -299,13 +299,7 @@ impl ContainerRuntime for ProcessRuntime {
         Ok(observe::matching_pid(entry.pid, entry.ticks).map(|pid| RawStats {
             rx_bytes: counts.map(|counts| counts.ingress[1]),
             tx_bytes: counts.map(|counts| counts.egress[1]),
-            // The kernel's own count where the sandbox has a cgroup with limits.
-            ..self.limits_stats(&entry).unwrap_or_else(|| RawStats {
-                memory_usage: observe::resident_tree(pid),
-                memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
-                pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
-                ..Default::default()
-            })
+            ..self.resource_stats(&entry, pid)
         }))
     }
     fn events(&self, _: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>> {

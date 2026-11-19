@@ -238,22 +238,21 @@ impl ProcessRuntime {
         self.signal_tree(name, rustix::process::Signal::CONT)
     }
 
-    /// What the kernel counted in a sandbox's cgroup, where it has one.
-    pub(super) fn limits_stats(&self, entry: &Entry) -> Option<RawStats> {
-        let record = entry.limits.as_ref()?;
-        let usage = limits::usage(&record.cgroup);
-        Some(RawStats {
+    /// The kernel's cgroup counters, with sampled RSS when a memory count is unavailable.
+    pub(super) fn resource_stats(&self, entry: &Entry, pid: u32) -> RawStats {
+        let usage = entry.limits.as_ref().map(|record| limits::usage(&record.cgroup)).unwrap_or_default();
+        RawStats {
             cpu_total_ns: usage
                 .cpu_micros
                 .and_then(|micros| u64::try_from(std::time::Duration::from_micros(micros).as_nanos()).ok()),
             cpu_throttled_periods: usage.throttled_periods,
-            memory_usage: usage.memory_bytes,
-            memory_inactive_file: usage.inactive_file_bytes,
+            memory_usage: usage.memory_bytes.or_else(|| observe::resident_tree(pid)),
+            memory_inactive_file: usage.memory_bytes.and(usage.inactive_file_bytes),
             memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
             pids: usage.pids,
             pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
             ..Default::default()
-        })
+        }
     }
 }
 
@@ -329,5 +328,38 @@ mod tests {
     #[test]
     fn releasing_a_cgroup_that_is_gone_is_done() {
         release(Path::new("/nonexistent-pryx-cgroup")).unwrap();
+    }
+
+    #[tokio::test]
+    async fn stats_keep_sampled_memory_with_cpu_only_delegation() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(root.path(), crate::config::ProcessConfig::default()).unwrap();
+        let spec = super::super::network::fixture_spec(root.path());
+        let id = "cpu-only";
+        let cgroup = root.path().join("cgroup");
+        fs::create_dir(&cgroup).unwrap();
+        fs::write(cgroup.join("cpu.stat"), "usage_usec 2000\nnr_throttled 7\n").unwrap();
+        fs::write(cgroup.join("memory.stat"), "inactive_file 1024\n").unwrap();
+
+        let mut child = tokio::process::Command::new("sleep").arg("30").kill_on_drop(true).spawn().unwrap();
+        let pid = child.id().unwrap();
+        let entry = serde_json::from_value(serde_json::json!({
+            "id": id, "spec": spec, "pid": pid, "ticks": observe::identity(pid).unwrap(), "code": 0,
+            "limits": Record { cgroup: cgroup.clone(), memory: false, cpu: true, pids: false },
+        }))
+        .unwrap();
+        runtime.save(entry).unwrap();
+
+        let stats = runtime.stats(id).await.unwrap().unwrap();
+        assert!(stats.memory_usage.is_some(), "sampled RSS must survive partial delegation");
+        assert_eq!(stats.memory_inactive_file, None);
+        assert_eq!(stats.cpu_total_ns, Some(2_000_000));
+        assert_eq!(stats.cpu_throttled_periods, Some(7));
+
+        fs::write(cgroup.join("memory.current"), "4096\n").unwrap();
+        let kernel = runtime.stats(id).await.unwrap().unwrap();
+        assert_eq!(kernel.memory_usage, Some(4096));
+        assert_eq!(kernel.memory_inactive_file, Some(1024));
+        child.kill().await.unwrap();
     }
 }
