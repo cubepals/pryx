@@ -5,6 +5,10 @@ A real Node process runs the committed access check and request handlers of desk
 in front of a stand-in for websockify on a Unix socket, which records every request that
 reaches it. Display programs, websockify itself and the edge are outside this test; the hosted
 desktop_application acceptance runs them with the same refusals.
+
+The stand-in closes each connection as late as a loaded host can, and the front's writes after
+a complete request wait until the stand-in has answered and closed, so the front must deliver
+every answer whatever the order the two processes run in.
 """
 from functools import partial
 from http import HTTPStatus
@@ -12,6 +16,7 @@ from http.server import SimpleHTTPRequestHandler
 import json
 from pathlib import Path
 import re
+import socket
 import socketserver
 import subprocess
 import tempfile
@@ -33,7 +38,21 @@ function part(from,to) {
 const code=part('function equal(','let stopping')+
   part('const server = http.createServer(',"writeFileSync(join(config.scratch, 'desktop-ready.json')")+
   ';server.listen(listen);globalThis.server=server;';
-const context={http,net,constants,web,listen,readFileSync:fs.readFileSync,join,Buffer,URL,setTimeout,
+// A loaded host may run websockify between any two of the front's writes: a write after a
+// complete request waits until the stand-in has answered and closed that connection.
+const answered=join(scratch,'..','websockify-closed'), idle=new Int32Array(new SharedArrayBuffer(4));
+const late={...net,createConnection(...options) {
+  const connection=net.createConnection(...options), write=connection.write.bind(connection);
+  let sent=Buffer.alloc(0);
+  connection.write=(chunk,...rest)=>{
+    for (const deadline=Date.now()+5000; sent.includes('\r\n\r\n')&&!fs.existsSync(answered)&&
+      Date.now()<deadline;) Atomics.wait(idle,0,0,5);
+    sent=Buffer.concat([sent,Buffer.from(chunk)]);
+    return write(chunk,...rest);
+  };
+  return connection;
+}};
+const context={http,net:late,constants,web,listen,readFileSync:fs.readFileSync,join,Buffer,URL,setTimeout,
   clearTimeout,createHmac,randomBytes,timingSafeEqual,
   protocol:JSON.parse(fs.readFileSync(join(adapter,'..','protocol.json'),'utf8')),
   config:{scratch,privateToken:'private',maxRequestBytes:65536,timeoutMs:5000},
@@ -108,6 +127,14 @@ class Websockify(SimpleHTTPRequestHandler):
     and treats a request whose Upgrade header names websocket as a WebSocket, whatever
     Connection says (websocketserver.py); this one answers that with an RFB greeting."""
     protocol_version = 'HTTP/1.1'
+    upgraded = False
+
+    def handle(self):
+        super().handle()
+        # Like websockify, it closes once a request asks for that, but a scheduler decides when the
+        # close lands: hold it until the front sends more on this connection or closes it.
+        if not self.upgraded:
+            self.connection.recv(1, socket.MSG_PEEK)
 
     def do_GET(self):
         self.server.seen.append([self.path, self.headers.get('upgrade')])
@@ -117,7 +144,10 @@ class Websockify(SimpleHTTPRequestHandler):
             self.send_header('Connection', 'Upgrade')
             self.end_headers()
             self.wfile.write(b'RFB 003.008\n')
-            self.close_connection = True
+            # Answered and closed before the front's next write can run.
+            self.connection.shutdown(socket.SHUT_RDWR)
+            Path(self.directory, '..', 'websockify-closed').touch()
+            self.close_connection = self.upgraded = True
             return
         super().do_GET()
 

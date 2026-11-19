@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 FROM mirror.gcr.io/library/python:3.12.14-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
 COPY templates/native-tools/*.py templates/native-tools/*.json /opt/pryx/native-tools/
+COPY templates/archive_retry.py /opt/pryx/native-tools/archive_retry.py
 COPY templates/native-tools/notices /opt/pryx/native-tools/notices
 COPY templates/desktop /opt/pryx/desktop
 RUN --mount=type=secret,id=proxy_ca --mount=type=bind,source=templates/native-tools/cache,target=/build-cache \

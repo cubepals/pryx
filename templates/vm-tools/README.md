@@ -10,13 +10,16 @@ serves the tier is pryxd's decision, from its own probe and the installed descri
 Parts (`vm-tools/`):
 
 - `candidates.json`: versioned primary monitor/kernel candidates, upstream archive digests and licences.
-- `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256.
+- `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256, under the templates' one retry policy (`../archive_retry.py`).
+- `inventory_test.py`: real HTTP answers through the HTTPS-only client: outages, mirrors, incomplete bodies, authentication origin, cache and digests.
 - `archive_inspection.py`: bounded streamed member inspection and regular-file staging by content digest.
 - `kernel-selection.json`: exact published kernel/monitor members and required built-in configuration.
 - `spike-inputs.json`: pinned private Go toolchain and separate EROFS builder inputs.
 - `prepare.py`: verify those tool inputs before private extraction.
 - `spike-module-notices.json`: exact dependency versions and complete primary-notice digests.
 - `notices.py`: verify and retain the actual Go dependency closure's complete notices.
+- `go_acquisition.py`: locked Go module reads (`go list`, `go mod download`) run again under the templates' one retry policy; Go keeps its cache and checksums, and compilation and tests never retry.
+- `go_acquisition_check.py` and `testdata/go-acquisition/main.go`: the pinned Go against an owned loopback HTTPS/HTTP2 module proxy: stream reset, 503, 429, 403, 404, checksum and certificate refusals, and the budget's end.
 - `go.mod` and `go.sum`: checksum-pinned Go experiment dependencies.
 - `experiment/experiment.go`: application-owned report port for both fixture programs.
 - `cmd/config/main.go`: configuration through the monitor owner's generated models.
@@ -46,7 +49,7 @@ Parts (`vm-tools/`):
 - `monitor_threads.rs`: actual maintained thread kicks and joins under the compiled native VMM/API/vCPU filters, without KVM.
 - `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
 - `monitor_component.py`: verify source/policy correspondence and embedded BPF before selecting a native build in the whole bundle.
-- `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices.
+- `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices; keeps the retry policy and its test fixture beside the build tools.
 - `monitor-REBUILD.md`: modification and relinking instructions for the separate GNU monitor.
 - `build.sh` and `release.sh`: common build phases and unpublished release assembly.
 - `bundle.py`: separate inventoried static runtime (including the same-source host launcher) and complete corresponding-source archives, using the existing artifact packager.

@@ -589,7 +589,8 @@ jobs:
       # Mirrors refuse bursts when parallel jobs pull at once, so each pull retries.
       - name: Pull the test images
         run: |
-          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22; do
+          sh pryxd/scripts/pull-rustfs.sh
+          for image in mirror.gcr.io/library/alpine:3.22; do
             for wait in 2 5 10 20 40 0; do
               docker pull -q "$image" && break
               [ "$wait" = 0 ] && exit 1
