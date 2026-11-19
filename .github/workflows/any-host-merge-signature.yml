@@ -19,11 +19,11 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k0-ci-followups
-          SOURCE_HEAD: '06e788cd4303daeddf259242b5d4d6a8a3ee668f'
-          ANY_HOST_HEAD: 'fdc2340160cf5346bd0bcde52bce6cfc9049219e'
-          MERGED_TREE: 'ddf36b73cccc5b03579d779a1da100bb56d57e3c'
-          SUBJECT: 'Merge current any-host into CI followups'
+          SOURCE_BRANCH: k31-limits
+          SOURCE_HEAD: '6579b9cdd95aa26c807616c9a6fec12819cbf202'
+          ANY_HOST_HEAD: '6159466fa8aa0c4e3f689bff6aceffa5e5019c3e'
+          MERGED_TREE: '575b34495b26d2ab5dbec55f8045aa4305392271'
+          SUBJECT: 'Merge current any-host into process limits'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
