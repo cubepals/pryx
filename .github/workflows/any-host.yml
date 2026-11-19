@@ -3,17 +3,18 @@ name: Any host
 on:
   schedule:
     - cron: '41 4 * * 2'
+  # A dispatch on a worker branch (k and a digit, or codex/) proves it, with the branch's own copy
+  # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
+  # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
-  # A new workflow cannot be dispatched before main has it. Branch pushes prove this build now.
   push:
-    # Milestone and Codex branches prove a change before it reaches any-host.
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # On a worker branch only its newest push needs proving.
+  # On a worker branch only its newest commit needs proving: its push cancels an older proof.
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
@@ -27,6 +28,8 @@ defaults:
 jobs:
   process-tools:
     name: Relocatable upstream process tools
+    # Every other job but arm64 needs this one, so a worker branch's push skips them all here.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/any-host'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     outputs:
@@ -37,6 +40,7 @@ jobs:
           persist-credentials: false
       - name: Assemble verified upstream runtimes
         run: |
+          python3 -m unittest discover -s templates -p 'archive_retry_test.py'
           python3 -m unittest discover -s templates/process-tools -p '*_test.py'
           python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
       - name: Package the separate lazy tool artifact
@@ -679,6 +683,7 @@ jobs:
   # the process and container tiers, and the tier report with wasm and vm off and why.
   arm64:
     name: arm64 one command and tier report
+    if: github.event_name != 'push' || github.ref == 'refs/heads/any-host'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:

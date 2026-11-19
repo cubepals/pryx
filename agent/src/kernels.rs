@@ -26,7 +26,7 @@ pub const PRESTART_ENV: &str = "PRYX_KERNEL_PRESTART";
 pub(crate) use runtime::DEFAULT_RUN;
 
 pub(crate) async fn prestart(agent: &crate::context::Agent) -> Result<(), crate::context::Failure> {
-    let Ok(languages) = std::env::var(PRESTART_ENV) else { return Ok(()) };
+    let Ok(languages) = crate::process_environment::var(PRESTART_ENV) else { return Ok(()) };
     for name in languages.split(',').filter(|name| !name.is_empty()) {
         let language = match name {
             "python" => events::Language::Python,

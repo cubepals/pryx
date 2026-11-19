@@ -30,12 +30,16 @@ fn temporary_directory(spec: &ContainerSpec, owner: (u32, u32)) -> Result<PathBu
     Ok(tmp)
 }
 
+#[cfg(test)]
+#[path = "power_environment_tests.rs"]
+mod environment_tests;
+
 /// Binds the supervisor's listeners here and hands them to it across exec, named in its
-/// environment by address and descriptor. Each stays close-on-exec in this daemon, so no other
+/// private bootstrap map by address and descriptor. Each stays close-on-exec here, so no other
 /// child ever holds one; only the launched child's copy is opened for its exec.
 fn pass_listeners(
-    command: &mut Command,
     bindings: &BTreeMap<u16, Vec<std::net::IpAddr>>,
+    bootstrap: &mut BTreeMap<String, String>,
 ) -> Result<Vec<std::os::fd::OwnedFd>, RuntimeError> {
     use std::os::fd::{AsRawFd, OwnedFd};
     let mut held: Vec<OwnedFd> = Vec::new();
@@ -51,25 +55,59 @@ fn pass_listeners(
             held.push(fd);
         }
     }
-    command.env(pryx_agent::process_listeners::LISTENERS_ENV, serde_json::to_string(&named).map_err(error)?);
-    let raw: Vec<i32> = held.iter().map(AsRawFd::as_raw_fd).collect();
-    open_across_exec(command, raw);
+    bootstrap
+        .insert(pryx_agent::process_listeners::LISTENERS_ENV.into(), serde_json::to_string(&named).map_err(error)?);
     Ok(held)
 }
 
-#[expect(unsafe_code, reason = "Clearing close-on-exec in the forked child before its exec")]
-fn open_across_exec(command: &mut Command, descriptors: Vec<i32>) {
-    // SAFETY: the closure only calls fcntl, which is async-signal-safe, on descriptors this
-    // daemon owns until the spawn returns; it allocates nothing after the fork.
-    unsafe {
-        command.pre_exec(move || {
-            for fd in &descriptors {
-                let fd = std::os::fd::BorrowedFd::borrow_raw(*fd);
-                rustix::io::fcntl_setfd(fd, rustix::io::FdFlags::empty())?;
-            }
-            Ok(())
-        });
+/// The supervisor's whole environment, guest values and host bootstrap together, queued on its
+/// private socket. The trusted executables that start it see only the host's own defaults.
+fn pass_environment(
+    command: &mut Command,
+    spec: &ContainerSpec,
+    tmp: &std::path::Path,
+    bootstrap: BTreeMap<String, String>,
+    pending: pryx_agent::process_environment::Pending,
+) -> Result<std::os::fd::OwnedFd, RuntimeError> {
+    let defaults = BTreeMap::from([
+        ("PATH".into(), "/usr/local/bin:/usr/bin:/bin".into()),
+        ("HOME".into(), spec.data_dir.to_string_lossy().into_owned()),
+        ("TMPDIR".into(), tmp.to_string_lossy().into_owned()),
+        ("TERM".into(), "xterm-256color".into()),
+    ]);
+    // These host-owned values are the only environment any trusted bootstrap sees.
+    command.env_clear().envs(&defaults);
+    let mut environment = defaults;
+    environment.extend(spec.env.iter().cloned());
+    for name in [pryx_agent::process_listeners::LISTENERS_ENV, pryx_agent::process_policy::NETWORK_ENV] {
+        environment.remove(name);
     }
+    // Host bootstrap settings take precedence over every conflicting workload variable.
+    environment.extend(bootstrap);
+    pending.queue(&environment).map_err(error)
+}
+
+/// The host's bootstrap settings and the descriptors the supervisor keeps across its exec: its
+/// listeners in a network of its own, then its private environment socket.
+fn pass_bootstrap(
+    command: &mut Command,
+    spec: &ContainerSpec,
+    tmp: &std::path::Path,
+    policy: &serde_json::Value,
+    private_network: bool,
+    bindings: &BTreeMap<u16, Vec<std::net::IpAddr>>,
+    pending: pryx_agent::process_environment::Pending,
+) -> Result<Vec<std::os::fd::OwnedFd>, RuntimeError> {
+    let mut bootstrap = BTreeMap::from([(
+        pryx_agent::process_policy::POLICY_ENV.into(),
+        serde_json::to_string(policy).map_err(error)?,
+    )]);
+    if spec.internal_network {
+        bootstrap.insert(pryx_agent::process_policy::NETWORK_ENV.into(), "1".into());
+    }
+    let mut held = if private_network { pass_listeners(bindings, &mut bootstrap)? } else { Vec::new() };
+    held.push(pass_environment(command, spec, tmp, bootstrap, pending)?);
+    Ok(held)
 }
 
 impl ProcessRuntime {
@@ -205,6 +243,8 @@ impl ProcessRuntime {
         let spares =
             agent.spare_ports.iter().map(|p| port(*p).map(|p| p.to_string())).collect::<Result<Vec<_>, _>>()?;
         let (mut command, namespaced, private_network) = self.supervisor_program(entry, tools.as_ref())?;
+        let environment = pryx_agent::process_environment::Pending::new().map_err(error)?;
+        command.arg(pryx_agent::process_environment::ARGUMENT).arg(environment.descriptor().to_string());
         command.args(["--host-bindings", &serde_json::to_string(&bindings).map_err(error)?]);
         if let Some(origin) = &agent.public_origin {
             command.args(["--public-origin", origin]);
@@ -243,18 +283,7 @@ impl ProcessRuntime {
         if let Some(tools) = tools {
             policy["tools"] = serde_json::to_value(tools).map_err(error)?;
         }
-        command
-            .env_clear()
-            .env("PATH", "/usr/local/bin:/usr/bin:/bin")
-            .env("HOME", &spec.data_dir)
-            .env("TMPDIR", &tmp)
-            .env("TERM", "xterm-256color")
-            .envs(spec.env.iter().cloned());
-        command.env("PRYX_PROCESS_POLICY", serde_json::to_string(&policy).map_err(error)?);
-        if spec.internal_network {
-            command.env("PRYX_PROCESS_NETWORK_OFF", "1");
-        }
-        let listeners = if private_network { pass_listeners(&mut command, &bindings)? } else { Vec::new() };
+        let listeners = pass_bootstrap(&mut command, spec, &tmp, &policy, private_network, &bindings, environment)?;
         command
             .current_dir(&spec.data_dir)
             .uid(owner.0)
@@ -273,6 +302,10 @@ impl ProcessRuntime {
             .open(diagnostic)
             .map_err(error)?;
         command.stderr(diagnostic);
+        // Every descriptor the supervisor keeps is collected above; nothing else this daemon
+        // holds, or inherited itself, crosses into the sandbox.
+        use std::os::fd::AsRawFd;
+        pryx_agent::process_environment::inherit_only(&mut command, listeners.iter().map(AsRawFd::as_raw_fd).collect());
         Ok((command, listeners))
     }
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
@@ -307,6 +340,14 @@ impl ProcessRuntime {
             && let Err(reason) = &helper
         {
             return Err(error(format!("{}: {reason}", super::namespaces::RELAUNCH_WITHOUT_NAMESPACES)));
+        }
+        // An older agent would take the private environment's descriptor for a bad argument.
+        let agent = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
+        if crate::runtime::agent_metadata::query(&agent.binary)
+            .await
+            .is_none_or(|value| value.process_environment_version < pryx_agent::process_environment::VERSION)
+        {
+            return Err(error(pryx_agent::process_environment::UNSUPPORTED));
         }
         let (tools, required) = self.native_policy(&entry).await?;
         entry.native_browser =

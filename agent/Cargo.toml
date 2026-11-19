@@ -38,7 +38,7 @@ hyper-util = { version = "0.1.21", features = ["tokio"], optional = true }
 http-body-util = { version = "0.1", optional = true }
 httparse = { version = "1", optional = true }
 landlock = { version = "0.4.7", optional = true }
-nix = { version = "=0.31.3", default-features = false, features = ["sched", "user", "hostname", "term"], optional = true }
+nix = { version = "=0.31.3", default-features = false, features = ["sched", "user", "hostname", "term", "signal"], optional = true }
 ssh-key = { version = "=0.6.7", default-features = false, features = ["std", "ed25519", "getrandom"], optional = true }
 chrono = { version = "=0.4.45", default-features = false, features = ["std"], optional = true }
 percent-encoding = { version = "=2.3.2", optional = true }

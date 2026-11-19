@@ -20,6 +20,8 @@
 //! - `process_observation.rs`: challenge-bound signed observations of installed process isolation.
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
 //! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
+//! - `process_environment.rs`: guest values handed privately to confined process commands.
+//! - `process_environment_tests.rs`: sealed descriptor and owned-map boundary controls.
 //! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
 //! - `exec_completion.rs`: authenticated private exec cleanup completion.
 //! - `exec_ingress.rs`: protected fixed-target Docker exec ingress.
@@ -27,6 +29,7 @@
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
+//! - `pty_process.rs`: child-only descriptor inheritance for process-tier terminal commands.
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
 //! - `transfers.rs`: remote file transfer requests and streaming.
@@ -137,6 +140,8 @@ pub mod exec_completion;
 pub mod exec_deadline;
 #[cfg(feature = "server")]
 pub mod exec_ingress;
+#[cfg(feature = "server")]
+pub mod process_environment;
 #[cfg(feature = "server")]
 pub mod process_forward;
 #[cfg(feature = "server")]

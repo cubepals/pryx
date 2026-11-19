@@ -271,7 +271,7 @@ impl Processes {
     pub(crate) fn kernel_unsupported_tier(&self) -> Option<&'static str> {
         if self.backend.is_some() {
             Some("wasm")
-        } else if std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+        } else if crate::process_environment::var_os(crate::process_policy::POLICY_ENV).is_some() {
             Some("process")
         } else {
             None
@@ -372,10 +372,23 @@ impl Processes {
         Ok(process)
     }
 
+    fn command_environment(&self, supplied: BTreeMap<String, String>) -> BTreeMap<String, String> {
+        let private = [
+            self.secret_env.as_str(),
+            crate::contract::MOUNTS_ENV,
+            crate::process_policy::POLICY_ENV,
+            crate::process_policy::NETWORK_ENV,
+            crate::process_listeners::LISTENERS_ENV,
+        ];
+        let mut env = crate::process_environment::workload(&private);
+        env.extend(self.tools.environment.read().unwrap().clone());
+        env.extend(supplied);
+        env.retain(|name, _| crate::process_environment::allowed_for_workload(name, &private));
+        env
+    }
+
     fn spawn(&self, mut request: Start, timeout: Option<u32>, mount: bool) -> Result<Arc<Process>, ProcessError> {
-        let mut env = self.tools.environment.read().unwrap().clone();
-        env.extend(request.env);
-        request.env = env;
+        request.env = self.command_environment(request.env);
         if let Some(backend) = &self.backend {
             return backend.spawn(request, timeout);
         }
@@ -400,6 +413,7 @@ impl Processes {
         } else if mount {
             return Err(ProcessError::Invalid("Host-approved FUSE is unavailable"));
         }
+        let environment = crate::process_environment::prepare_workload(&mut argv, &request.env)?;
         let cwd = request.cwd.as_ref().map(PathBuf::from).unwrap_or_else(|| self.data.clone());
         if request.pty {
             let spawned = crate::pty::spawn(
@@ -407,6 +421,7 @@ impl Processes {
                 &cwd,
                 &request.env,
                 &self.secret_env,
+                environment.as_ref(),
                 request.cols.unwrap_or(80),
                 request.rows.unwrap_or(24),
             )?;
@@ -419,10 +434,17 @@ impl Processes {
             .env_remove(&self.secret_env)
             .env_remove(crate::contract::MOUNTS_ENV)
             .env_remove(crate::process_policy::POLICY_ENV)
+            .env_remove(crate::process_policy::NETWORK_ENV)
+            .env_remove(crate::process_listeners::LISTENERS_ENV)
             .current_dir(cwd);
         command.stdin(if request.stdin { Stdio::piped() } else { Stdio::null() });
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+        if let Some(socket) = &environment {
+            command.env_clear().envs(crate::process_environment::loader());
+            crate::process_environment::inherit(command.as_std_mut(), socket);
+        }
         let mut child = command.spawn()?;
+        drop(environment);
         let process = Arc::new(Process::new(
             child.id().ok_or(ProcessError::NotFound)?,
             child.stdin.take().map(|s| Box::new(s) as Input),

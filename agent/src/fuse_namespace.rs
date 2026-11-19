@@ -52,7 +52,7 @@ pub struct Mappings {
 /// Pin only our own kernel mapping files before the initial non-dumpable transition.
 /// Their descriptors remain private and close on exec; dumpability is never re-enabled.
 pub fn prepare() -> io::Result<Option<Mappings>> {
-    if !enabled() {
+    if !enabled() || crate::process_environment::var_os(crate::process_policy::POLICY_ENV).is_some() {
         return Ok(None);
     }
     let open = |name| {
@@ -92,16 +92,16 @@ pub fn readable(path: &std::path::Path) -> bool {
 }
 
 pub fn enabled() -> bool {
-    std::env::var_os(crate::contract::FUSE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"))
-        && (std::env::var_os(crate::contract::TOOL_KIND_ENV).is_some()
-            || std::env::var_os(crate::contract::MOUNTS_ENV).is_some())
+    crate::process_environment::var_os(crate::contract::FUSE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"))
+        && (crate::process_environment::var_os(crate::contract::TOOL_KIND_ENV).is_some()
+            || crate::process_environment::var_os(crate::contract::MOUNTS_ENV).is_some())
 }
 
 pub fn enter(mappings: Option<Mappings>) -> io::Result<()> {
     if !enabled() {
         return Ok(());
     }
-    if std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+    if crate::process_environment::var_os(crate::process_policy::POLICY_ENV).is_some() {
         return Err(io::Error::other("FUSE is unsupported on the process tier"));
     }
     use std::os::unix::fs::FileTypeExt;

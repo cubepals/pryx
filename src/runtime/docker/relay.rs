@@ -369,6 +369,72 @@ mod tests {
         cancel.cancel();
         assert_eq!(tokio::time::timeout(Duration::from_secs(1), client.read(&mut reply)).await.unwrap().unwrap(), 0);
     }
+    /// A running container carrying the supplied bindings and optional node record.
+    fn container(label: &str, record: Option<&str>) -> ContainerInspectResponse {
+        use bollard::models::{ContainerConfig, ContainerState, EndpointSettings, NetworkSettings};
+        let endpoint =
+            EndpointSettings { ip_address: Some(std::net::Ipv4Addr::LOCALHOST.to_string()), ..Default::default() };
+        let mut labels = HashMap::from([(LABEL_INTERNAL_BINDINGS.to_owned(), label.to_owned())]);
+        if let Some(record) = record {
+            labels.insert(LABEL_RECORD.to_owned(), record.to_owned());
+        }
+        ContainerInspectResponse {
+            id: Some("owned".into()),
+            name: Some("/owned".into()),
+            state: Some(ContainerState { running: Some(true), ..Default::default() }),
+            config: Some(ContainerConfig { labels: Some(labels), ..Default::default() }),
+            network_settings: Some(NetworkSettings {
+                networks: Some(HashMap::from([("attached".to_owned(), endpoint)])),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    async fn listens(port: u16) -> bool {
+        TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.is_ok()
+    }
+
+    #[tokio::test]
+    async fn only_matching_private_records_open_host_listeners() {
+        let relays = Relays::default();
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = DockerRuntime::new(&directory.path().join("unused.sock")).unwrap();
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo::default());
+        let port =
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port();
+        let binding = PortBinding {
+            container_port: 8080,
+            protocol: Proto::Tcp,
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            host_port: port,
+        };
+        let label = serde_json::to_string(std::slice::from_ref(&binding)).unwrap();
+        let record = crate::labels::private_record("fixture", std::slice::from_ref(&binding));
+        relays.ensure(&runtime, &container(&label, Some(&record))).await.unwrap();
+        assert!(listens(port).await);
+        let mut mismatch = binding;
+        mismatch.container_port += 1;
+        let mismatched = serde_json::to_string(&[mismatch]).unwrap();
+        assert!(relays.ensure(&runtime, &container(&mismatched, Some(&record))).await.is_err());
+        assert!(!listens(port).await, "a mismatched record must retire its listener");
+        assert!(relays.ensure(&runtime, &container("malformed", Some(&record))).await.is_err());
+
+        let mut historical: LabelRecord = serde_json::from_str(&record).unwrap();
+        historical.spec.network = crate::protocol::NetworkMode::Internet;
+        historical.spec_digest = historical.spec.digest();
+        let historical = serde_json::to_string(&historical).unwrap();
+        for untrusted in [None, Some(historical.as_str())] {
+            relays.ensure(&runtime, &container(&label, untrusted)).await.unwrap();
+            assert!(!listens(port).await);
+            relays.ensure(&runtime, &container("malformed", untrusted)).await.unwrap();
+        }
+
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo { podman: true, ..Default::default() });
+        relays.ensure(&runtime, &container(&label, Some(&record))).await.unwrap();
+        assert!(!listens(port).await, "Podman owns its published ingress");
+    }
+
     #[tokio::test]
     async fn udp_relay_keeps_each_peers_reply_address() {
         let backend = UdpSocket::bind("127.0.0.1:0").await.unwrap();

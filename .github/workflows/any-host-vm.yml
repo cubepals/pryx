@@ -3,10 +3,11 @@ name: VM experiments
 on:
   schedule:
     - cron: '23 5 * * 2'
+  # A dispatch on a worker branch (k and a digit, or codex/) proves it, with the branch's own copy
+  # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
+  # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
-  # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
   push:
-    # Milestone and Codex branches prove a change before it reaches any-host.
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
@@ -27,10 +28,11 @@ on:
       - 'agent/tests/vm_*.rs'
       - 'tests/vm.rs'
 
-# Pushes and the schedule share their branch's group; a dispatch has its own; each pull request
-# has its own, where a newer commit stops the run it supersedes.
+# Pushes and the schedule share their branch's group; a dispatch has its own, but on a worker
+# branch it shares the push group, so the branch's newest push or proof cancels an older proof; each
+# pull request has its own, where a newer commit stops the run it supersedes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && !(startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/')) && 'dispatch-' || '' }}${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
@@ -43,9 +45,11 @@ defaults:
 jobs:
   inputs:
     name: Published kernel and network spikes
-    # A pull request from a milestone or Codex branch of this repository skips this:
-    # that branch's push run already tests its commits. Forks and other branches run it as before.
+    # A worker branch's push skips this and so memory, and so does a pull request from a worker
+    # branch of this repository: a dispatch on that branch proves its commits. Forks, other
+    # branches, any-host's push, dispatches and the schedule run it as before.
     if: >-
+      (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
       !(startsWith(github.head_ref, 'k0') || startsWith(github.head_ref, 'k1') ||
@@ -53,7 +57,7 @@ jobs:
         startsWith(github.head_ref, 'k4') || startsWith(github.head_ref, 'k5') ||
         startsWith(github.head_ref, 'k6') || startsWith(github.head_ref, 'k7') ||
         startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
-        startsWith(github.head_ref, 'codex/'))
+        startsWith(github.head_ref, 'codex/')))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

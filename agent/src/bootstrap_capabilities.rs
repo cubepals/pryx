@@ -24,6 +24,8 @@ pub struct Capabilities {
     #[serde(default)]
     pub process_tools_host_cache_version: u16,
     #[serde(default)]
+    pub process_environment_version: u16,
+    #[serde(default)]
     pub process_browser_version: u16,
     #[serde(default)]
     pub process_desktop_version: u16,
@@ -98,6 +100,7 @@ pub fn probe() -> Capabilities {
         internal_ingress_version: crate::exec_ingress::VERSION,
         process_tools_version: crate::process_tool_policy::VERSION,
         process_tools_host_cache_version: crate::process_tool_policy::HOST_CACHE_VERSION,
+        process_environment_version: crate::process_environment::VERSION,
         process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,
         process_ssh_version: crate::process_tool_policy::SSH_VERSION,
