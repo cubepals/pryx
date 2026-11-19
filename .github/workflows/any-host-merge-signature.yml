@@ -19,11 +19,11 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k22-rootless-docker
-          SOURCE_HEAD: '75218f87af591bc2f90ec86b49195d67e1d13a59'
-          ANY_HOST_HEAD: '6159466fa8aa0c4e3f689bff6aceffa5e5019c3e'
-          MERGED_TREE: '8cb01a76b451d323fe7f130ef20343887518c19b'
-          SUBJECT: 'Merge current any-host into rootless ingress'
+          SOURCE_BRANCH: k31-limits
+          SOURCE_HEAD: 'e30186a3c79c4cb2cdb0f0ecf7a00b01d6215b42'
+          ANY_HOST_HEAD: '168e1b012ae19810ec8aba255d0c67a5e8dda547'
+          MERGED_TREE: '3f1f381779da47c018bd4cb43c99e4a3c79a9f4c'
+          SUBJECT: 'Merge any-host into K31 limits'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
