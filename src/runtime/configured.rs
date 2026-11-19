@@ -244,3 +244,46 @@ pub(crate) fn wasm_available(config: &crate::config::WasmConfig) -> Capability {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+
+    #[tokio::test]
+    async fn configured_process_availability_refuses_legacy_agent() {
+        if rustix::process::geteuid().is_root() {
+            return;
+        }
+        let directory = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let binary = directory.path().join("agent");
+        fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/agent-metadata"), &binary).unwrap();
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(binary.with_extension("json"), r#"{"browserPolicy":true}"#).unwrap();
+        assert_eq!(crate::runtime::protected_agent(&binary, true).as_ref(), Some(&binary));
+        let metadata = crate::runtime::agent_metadata::query(&binary).await.unwrap();
+        assert!(metadata.process_environment_version < pryx_agent::process_environment::VERSION);
+        // The ordinary-user CI suite exercises this admission on a Landlock host.
+        if !pryx_agent::process_capabilities::probe().filesystem {
+            return;
+        }
+
+        let mut config: Config = toml::from_str(
+            r#"
+runtime = "process"
+deployment_id = "legacy-agent-test"
+[api]
+listen = "127.0.0.1:0"
+"#,
+        )
+        .unwrap();
+        config.workloads.agent_binary = binary;
+
+        let tiers = availability(&config).await;
+        assert_eq!(
+            tiers["process"].as_deref(),
+            Some(pryx_agent::process_environment::UNSUPPORTED),
+            "configured process availability must report the launch refusal for older agents"
+        );
+    }
+}
