@@ -14,6 +14,7 @@
 //! - `engine_lifecycle.rs`: real image, HTTP, snapshot, fork and neighbour boundary acceptance.
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
+//! - `engine_labels.rs`: labels of pryxd's names that pryxd did not write open no listener.
 //! - `oom.rs`: real engine memory bounds and OOM reporting.
 //! - `oom_engine.rs`: read-only real-engine OOM evidence loss for causal journal acceptance.
 //! - `process_bound.rs`: actual host cgroup refusal and retirement evidence for gVisor forks.
@@ -21,6 +22,8 @@
 
 #[path = "docker/engine.rs"]
 mod engine;
+#[path = "docker/engine_labels.rs"]
+mod engine_labels;
 #[path = "docker/engine_lifecycle.rs"]
 mod engine_lifecycle;
 #[path = "docker/engine_sleep.rs"]

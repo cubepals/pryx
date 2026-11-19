@@ -50,7 +50,7 @@ The same specification as a container's network decides:
 
 | Specification | Reaches |
 | --- | --- |
-| `network: internet` (public internet on) | Every destination but this host, link-local (169.254.0.0/16, fe80::/10, where clouds serve metadata), AWS's IPv6 metadata address (`fd00:ec2::254`, though the rest of fc00::/7 stays private, its resolver `fd00:ec2::253` included), multicast, and private addresses on the ports pryxd serves and its API's. DNS reaches the resolvers `/etc/resolv.conf` names. |
+| `network: internet` (public internet on) | Every destination but this host, link-local (169.254.0.0/16, fe80::/10, where clouds serve metadata), AWS's IPv6 metadata address (`fd00:ec2::254`, though the rest of fc00::/7 stays private, its resolver `fd00:ec2::253` included), multicast, broadcast, and private addresses on the ports pryxd serves and its API's. DNS reaches the resolvers `/etc/resolv.conf` names. |
 | `egress: {allow, deny}` (public internet off, hostname policy) | Only the named hosts, through gateways pryxd serves for that sandbox: TCP 80 and 443 and DNS on 53, from any address, are redirected to them; nothing else leaves. A gateway dials a name only when every address it resolves to is public, none is local to this host as the kernel routes it at that moment, and none is one the sandbox's `egressAddresses.deny` refuses on that port. |
 | `egressAddresses: {allow, deny}` | Allow adds exactly the prefixes and ports named; deny takes them away. Deny wins. |
 | `network: none` | Nothing, as before; the programs refuse it too. |
@@ -58,21 +58,36 @@ The same specification as a container's network decides:
 Always, whatever the specification: a host address (loopback, any address of this host) reaches
 only a socket the sandbox itself made, so its own `localhost` works and another sandbox's ports,
 the host's services, its agent's neighbours and pryxd's API don't; a request's allow rule can't
-name loopback, link-local, multicast or the unspecified ranges.
+name loopback, link-local, multicast or the unspecified ranges. A host address's NAT64 twin
+(`64:ff9b::` and the IPv4 address) is refused, since a translator off the host can send it back
+here, and so is every prefix this host's routes broadcast to (a subnet's last address, loopback's
+`127.255.255.255`): a datagram sent there reaches this host's own UDP sockets too, from the link.
 
-This host's addresses are read when a sandbox's programs are attached, and again each time the
-kernel says an address was added or removed (rtnetlink's IPv4 and IPv6 address groups, and its
-IPv4 route group, since an IPv4 address is read from the local routing table the kernel updates
-just after it tells of the address). pryxd is woken by that message and at once compiles and
+This host's addresses and broadcast prefixes are read when a sandbox's programs are attached,
+and again each time the kernel says an address was added or removed (rtnetlink's IPv4 and IPv6
+address groups, and its IPv4 route group, since both are read from the local routing table the
+kernel updates just after it tells of the address). pryxd is woken by that message and at once compiles and
 writes every live sandbox's rules again, new ones in before old ones out, so no lookup misses.
 The packet egress hook independently checks the current kernel route: a host-local destination
 uses the loopback device, including an address just added that the watcher has not processed.
-It permits only the sandbox's own destination sockets, its exact gateway listeners, configured
-DNS resolvers on their DNS port, and replies on accepted TCP connections; an explicit deny still
-wins for a sandbox destination. Every active TCP connect marks its socket, including one reused
+There it permits a datagram, or the SYN that opens a connection, only to the sandbox's own
+destination sockets, its exact gateway listeners or configured DNS resolvers on their DNS port;
+an explicit deny still wins for a sandbox destination. The SYN is looked up with its whole
+four-tuple, so a reuse-port group another owner shares with the sandbox (as processes of one
+user may) can't hand the connection to that owner; a SYN that meets TIME-WAIT is judged by the
+listener the kernel hands it to, as the connect hook judged it. A connection's later segments go
+to the peer its SYN reached. Every active TCP connect marks its socket, including one reused
 after accepting and disconnecting, so a new dial cannot take the accepted-response allowance.
-The hook reads IP and TCP/UDP headers, including up to eight ordinary IPv6 Hop-by-Hop, Routing
-or Destination Options headers; malformed, encrypted, fragment and longer chains fail closed.
+Off this host the hook holds every packet but a reply on an accepted TCP connection to the
+destination its header names, which IPv4 source-route options and IPv6 routing headers can make
+other than the address the connect hook saw: it must be one the sandbox may dial, allowed or a
+configured resolver, and never this host's own. The hook reads IP and TCP/UDP headers, including
+up to eight ordinary IPv6 Hop-by-Hop, Routing or Destination Options headers; malformed, fragment
+and longer chains fail closed, and so does an encrypted one on loopback. Off the host an IPsec
+packet passes as before: the host's own policy sealed it after the address hooks ran, and no
+sandbox socket can. Process sandboxes can't attach a program to a reuse-port group (the agent's
+seccomp filter refuses `SO_ATTACH_REUSEPORT_CBPF` and `_EBPF`), since such a program, not the
+hash these lookups follow, would pick the group's member.
 The kernel test deliberately keeps the old address map and requires the first and all ten
 repeated TCP and UDP attempts to reach no host listener, for IPv4, mapped IPv4 and IPv6, while
 owned IPv6 Destination Options traffic still works. HTTP and TLS gateways also check their
@@ -137,7 +152,7 @@ each with one job, and six maps (rules, config, owners, sockets, peers and count
 | `recvmsg4`, `recvmsg6` | `cgroup/recvmsg4`, `recvmsg6` | Put back the resolver's address on a redirected DNS answer |
 | `sock_create` | `cgroup/sock_create` | Refuse non-TCP/UDP sockets; mark the rest as the sandbox's |
 | `ingress` | `cgroup_skb/ingress` | Drop what arrives from off the host but answers (TCP connections dialled, UDP peers sent to) and published ports; count |
-| `egress` | `cgroup_skb/egress` | Check current host-local routes; count packets and bytes |
+| `egress` | `cgroup_skb/egress` | Check where each datagram and SYN lands on this host, and what leaves it; count packets and bytes |
 
 pryxd compiles the policy into an LPM trie of IPv6 prefixes (IPv4 as `::ffff:a.b.c.d`, NAT64's
 `64:ff9b::/96` taking the rules of the address it embeds). Each prefix carries its own port ranges

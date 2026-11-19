@@ -228,17 +228,17 @@ pub fn child(supervisor: u32, network: bool) -> Result<(), Box<dyn std::error::E
 }
 
 pub fn wrap(argv: Vec<String>) -> std::io::Result<Vec<String>> {
-    if std::env::var_os(POLICY_ENV).is_some() {
+    if crate::process_environment::var_os(POLICY_ENV).is_some() {
         let mut wrapped = vec![
             std::env::current_exe()?.to_string_lossy().into_owned(),
-            "process-child".into(),
+            crate::process_environment::CHILD_MODE.into(),
             std::process::id().to_string(),
-            std::env::var_os(NETWORK_ENV).is_some().to_string(),
+            crate::process_environment::var_os(NETWORK_ENV).is_some().to_string(),
         ];
         wrapped.extend(argv);
         return Ok(wrapped);
     }
-    if std::env::var_os(NETWORK_ENV).is_none() {
+    if crate::process_environment::var_os(NETWORK_ENV).is_none() {
         return Ok(argv);
     }
     let mut wrapped = vec![std::env::current_exe()?.to_string_lossy().into_owned(), "network-off".into()];

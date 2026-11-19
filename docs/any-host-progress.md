@@ -5261,3 +5261,47 @@ job when publication is authorized. That job has not run in this task.
   Fresh branch proof remains required before landing; the earlier K26 runs above are historical.
 
 - K31 current-base integration preserves the landed exec, OOM, DNS, generation, VM restore and outage-fixture safeguards. Historical K31 runs remain historical; the new kernel-route guard, its pinned-object identity and the complete fresh branch still require current-head CI proof.
+- Download retries: VM inventory, the native installer and process tools share
+  `templates/archive_retry.py`, and locked Go module reads run again under the same policy.
+  Local checks: the policy's own 10 cases, process tools' 14, VM inventory's 9 (3 of which fail
+  on the old inventory: a four-answer outage, an incomplete metadata body, a mirror given as a
+  generator), the native installer's 6, and the real-Go check's 8 against Go 1.24.7 (CI runs
+  the pinned 1.27.3).
+
+- K24 desktop-front follow-up, cause found: the portable front test fails locally about once in
+  a hundred runs alone, and 41 times in 600 with four running at once (Node 22.23.4), in three
+  ways: the client's request ends with `socket hang up` (24), the valid upgrade gets nothing
+  back (12), or the plain `/websockify` request never reaches the stand-in (5, which the
+  plain-upgrade assertion accepted and only the recorded-request list caught). An instrumented
+  copy of the test traced each. The front forwarded plain requests through Node's global
+  agent, which keeps sockets alive; the stand-in, like websockify 0.13.0 on HTTP/1.1, closes
+  after a request carrying `Connection: close` without saying so in its answer, so the agent
+  pooled the socket and reused it for the next request while it closed (ECONNRESET or EPIPE on
+  that socket, then the front destroyed the client's response). And the upgrade handler wrote
+  its request in several writes and then an empty `head`; once the stand-in had answered and
+  closed, that last write's EPIPE (`bytesWritten` 185, `bytesRead` 0) destroyed the upstream
+  before its answer was read. Each forwarded request now has its own connection and an upgrade
+  is written in one write. The test's stand-in now closes as late as it can (only once the
+  front sends more or closes) and the front's writes after a complete request wait until the
+  stand-in has answered and closed: with neither fix the test fails every time with `socket
+  hang up`, with only the first every time with an empty upgrade, and with both it passed 600
+  of 600 under the same load. The parked `k0-desktop-front-diagnostics` retention isn't needed
+  and is left out.
+- Engine outage follow-up: the 45 s withdrawal probe that gave up in Any host job 133184644685
+  (`bc40b62`) is the reconciliation starvation `d44fc3e` fixed, with its regression in
+  `tests/multi_tier.rs`. The same assertion failed twice more, in jobs 133411563158 (`8610ff9`)
+  and 133655751444 (`f5e1ea2`), both on commits without that fix. Of the 17 "User preset with
+  rootless podman" jobs since, on commits that have it, 16 reached the probe and all 16 passed
+  it; the 17th stopped earlier on the engine-pause `/proc/<pid>/fd` refusal `9a15102` fixed.
+  Nothing is changed for it here.
+
+- Label trust: inspection reopened private-ingress relays from `blocklyd.internal-bindings` on any
+  container, and a container inherits its image's labels, so an internet-mode image could make
+  pryxd listen on host addresses it named. The two real-engine cases in
+  `tests/docker/engine_labels.rs` were pushed first, without the fix: on hosted rootless Docker,
+  [Rootless engines 44344387294, job 134942731625](https://github.com/cubepals/pryx/actions/runs/44344387294/job/134942731625)
+  failed with "forged-…'s label, which pryxd did not write, opened 127.0.0.1:36509". The fix
+  writes the label on every container (empty unless the sandbox is on Docker's internal network)
+  and believes it only on a non-Podman container attached to one internal, inter-container-off
+  network; a relay unit case covers the trusted, Podman and ordinary-network paths. Hosted proof of
+  the fix is in its pull request. No job or gate is added; the two cases take about a second each.

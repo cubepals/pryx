@@ -14,7 +14,8 @@ use crate::runtime::{ContainerRuntime, ContainerStatus};
 
 const SAMPLES: usize = 30;
 // Counts in a tmpfs file, which only the guest's memory keeps; its shell's PID says it's the same.
-const COUNTER: &str = "echo $$ > /tmp/pid; i=0; while :; do i=$((i+1)); echo $i > /tmp/counter; sleep 0.05; done";
+// Each count is renamed into place: `>` truncates first, and a read (or a sleep) in between saw "".
+const COUNTER: &str = "echo $$ > /tmp/pid; i=0; while :; do i=$((i+1)); echo $i > /tmp/counter.next; mv /tmp/counter.next /tmp/counter; sleep 0.05; done";
 // Appends 16 random bytes a line once /tmp/sample exists, which a cold boot doesn't keep. Capture
 // the request before drawing: a snapshot may retain bytes already drawn but not yet appended.
 const SAMPLER: &str = r#"answered=

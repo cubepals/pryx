@@ -1,7 +1,9 @@
 **
 !templates
+!templates/archive_retry.py
 !templates/native-tools
 !templates/native-tools/**
 !templates/desktop
 !templates/desktop/**
 templates/**/__pycache__
+templates/native-tools/*_test.py

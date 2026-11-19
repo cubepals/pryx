@@ -340,7 +340,7 @@ impl ContainerRuntime for VmRuntime {
         if let Some(bytes) = exists {
             let bundle = self.bundle().await?;
             // Recovery changes only a staged complete copy; the original is atomically replaced.
-            super::super::disk::prepare(
+            let held = super::super::disk::prepare_for_copy(
                 bundle.filesystems(),
                 data,
                 &lease,
@@ -349,8 +349,6 @@ impl ContainerRuntime for VmRuntime {
                 self.state.settings.free_floor_bytes,
             )
             .await?;
-            let held = lock(&lease)?;
-            super::super::disk::verify(bundle.filesystems(), &path, self.state.settings.image_timeout).await?;
             Ok(Box::new(held))
         } else {
             let held = lock(&lease)?;

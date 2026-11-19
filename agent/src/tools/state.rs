@@ -56,7 +56,7 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     if std::fs::canonicalize(directory.path())?.starts_with(data) {
         return Err(failure("unsupported", "Native tools require temporary storage outside persistent data"));
     }
-    let kind = std::env::var(super::defaults::KIND_ENV).ok();
+    let kind = crate::process_environment::var(super::defaults::KIND_ENV).ok();
     let state = Arc::new(State {
         directory,
         kind,
@@ -70,8 +70,8 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
 }
 pub(crate) fn prepare(agent: &Agent, browser_sandbox: bool) -> Result<(), Failure> {
     if agent.processes.kernel_unsupported_tier().is_some()
-        || (std::env::var_os(super::defaults::KIND_ENV).is_none()
-            && std::env::var_os(crate::contract::MOUNTS_ENV).is_none())
+        || (crate::process_environment::var_os(super::defaults::KIND_ENV).is_none()
+            && crate::process_environment::var_os(crate::contract::MOUNTS_ENV).is_none())
     {
         return Ok(());
     }
@@ -150,7 +150,7 @@ pub(crate) fn write(state: &State, name: &str, value: &serde_json::Value) -> Res
 }
 
 pub(crate) async fn wait_mounts(agent: &Agent) -> Result<(), Failure> {
-    if std::env::var_os(crate::contract::MOUNTS_ENV).is_none() {
+    if crate::process_environment::var_os(crate::contract::MOUNTS_ENV).is_none() {
         return Ok(());
     }
     let state = get(agent)?;
@@ -164,7 +164,7 @@ pub(crate) async fn wait_mounts(agent: &Agent) -> Result<(), Failure> {
 }
 
 pub(crate) fn mounts_pending(agent: &Agent) -> bool {
-    if std::env::var_os(crate::contract::MOUNTS_ENV).is_none() {
+    if crate::process_environment::var_os(crate::contract::MOUNTS_ENV).is_none() {
         return false;
     }
     let held = agent.processes.tools.state.lock().unwrap();

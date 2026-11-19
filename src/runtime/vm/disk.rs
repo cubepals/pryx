@@ -118,7 +118,7 @@ async fn check(tools: &FilesystemTools, disk: &Path, deadline: Instant) -> Resul
 }
 
 /// Caller holds the monitor's lifetime lease while verifying and copying this image.
-pub async fn verify(tools: &FilesystemTools, path: &Path, timeout: Duration) -> Result<(), RuntimeError> {
+async fn verify(tools: &FilesystemTools, path: &Path, timeout: Duration) -> Result<(), RuntimeError> {
     let _file = owned(path)?;
     let deadline = Instant::now().checked_add(timeout).ok_or_else(|| error("Invalid VM disk deadline"))?;
     if check(tools, path, deadline).await? {
@@ -139,6 +139,20 @@ pub async fn prepare(
     free_floor: u64,
 ) -> Result<Prepared, RuntimeError> {
     prepare_trusted(tools, directory, lease, bytes, timeout, free_floor, None).await
+}
+
+/// Keep preparation's kernel lease through verification and hand it to the data copier.
+pub async fn prepare_for_copy(
+    tools: &FilesystemTools,
+    directory: &Path,
+    lease: &Path,
+    bytes: u64,
+    timeout: Duration,
+    free_floor: u64,
+) -> Result<File, RuntimeError> {
+    let (prepared, held) = prepare_with_lease(tools, directory, lease, bytes, (timeout, free_floor), None).await?;
+    verify(tools, &prepared.path, timeout).await?;
+    Ok(held)
 }
 
 /// The kernel's identity of a disk file: any write, replacement or metadata change differs.
@@ -182,8 +196,20 @@ pub async fn prepare_trusted(
     free_floor: u64,
     trusted: Option<Stamp>,
 ) -> Result<Prepared, RuntimeError> {
+    let (prepared, _held) = prepare_with_lease(tools, directory, lease, bytes, (timeout, free_floor), trusted).await?;
+    Ok(prepared)
+}
+
+async fn prepare_with_lease(
+    tools: &FilesystemTools,
+    directory: &Path,
+    lease: &Path,
+    bytes: u64,
+    limits: (Duration, u64),
+    trusted: Option<Stamp>,
+) -> Result<(Prepared, File), RuntimeError> {
     let (tools, directory, lease) = (tools.clone(), directory.to_owned(), lease.to_owned());
-    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, (timeout, free_floor), trusted).await })
+    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, limits, trusted).await })
         .await
         .map_err(error)?
 }
@@ -195,7 +221,7 @@ async fn transaction(
     bytes: u64,
     (timeout, free_floor): (Duration, u64),
     trusted: Option<Stamp>,
-) -> Result<Prepared, RuntimeError> {
+) -> Result<(Prepared, File), RuntimeError> {
     let deadline = Instant::now()
         .checked_add(timeout.max(recovery_time(bytes)))
         .ok_or_else(|| error("Invalid VM disk deadline"))?;
@@ -207,7 +233,7 @@ async fn transaction(
     let parent = directory.parent().ok_or_else(|| error("VM disk lacks a staging parent"))?;
     super::bundle::ancestors(lease.parent().ok_or_else(|| error("VM monitor lease lacks its private directory"))?)
         .map_err(error)?;
-    let _lock = hold(lease)?;
+    let held = hold(lease)?;
     for entry in fs::read_dir(directory).map_err(error)? {
         if entry.map_err(error)?.file_name() != FILE {
             return Err(error("VM data directory contains an unrecognized file"));
@@ -226,10 +252,10 @@ async fn transaction(
             return Err(error("VM disk resizing requires an explicit verified resize transaction"));
         }
         if trusted.is_some_and(|trusted| trusted == Stamp::of(&info)) {
-            return Ok(Prepared { path, created: false, recovered: false });
+            return Ok((Prepared { path, created: false, recovered: false }, held));
         }
         if check(tools, &path, deadline).await? {
-            return Ok(Prepared { path, created: false, recovered: false });
+            return Ok((Prepared { path, created: false, recovered: false }, held));
         }
     }
     if let Some(original) = &original {
@@ -279,7 +305,7 @@ async fn transaction(
     }
     room(directory, free_floor)?;
     publish(original.as_ref(), &candidate, &path, directory, bytes, deadline)?;
-    Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+    Ok((Prepared { path, created: original.is_none(), recovered: original.is_some() }, held))
 }
 
 /// The monitor's kernel lease, held for the whole transaction; a live monitor refuses it.

@@ -9,26 +9,24 @@ a VM tier. The small metadata token, when supplied by CI, stays on the GitHub AP
 import argparse
 import hashlib
 import http.client
-from http import HTTPStatus
 import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
-import time
-import urllib.error
 import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).parent
+# The templates' one retry policy, one directory up; a monitor rebuild keeps it beside this file.
+sys.path.insert(0, str(ROOT.resolve().parent))
+import archive_retry
+
 API = 'https://api.github.com'
 MAX_METADATA_BYTES = 2 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
 READ_BYTES = 1024 * 1024
-ATTEMPTS = 3
-RETRYABLE = {HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS,
-             HTTPStatus.INTERNAL_SERVER_ERROR, HTTPStatus.BAD_GATEWAY,
-             HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.GATEWAY_TIMEOUT}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -43,31 +41,21 @@ class HttpsRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(request, response, code, message, headers, url)
 
 
-def request(url, consume, authenticated=False):
-    if urllib.parse.urlsplit(url).scheme != 'https':
-        raise ValueError('VM inventory requires HTTPS')
+def request(url, consume, authenticated=False, mirrors=()):
+    """consume(response) under the shared retry policy; mirrors share the origin's deadline."""
+    mirrors = tuple(mirrors)
+    for source in (url, *mirrors):
+        if urllib.parse.urlsplit(source).scheme != 'https':
+            raise ValueError('VM inventory requires HTTPS')
     headers = {'User-Agent': 'pryx-vm-input-inventory'}
     if authenticated:
-        if urllib.parse.urlsplit(url).netloc != urllib.parse.urlsplit(API).netloc:
+        if mirrors or urllib.parse.urlsplit(url).netloc != urllib.parse.urlsplit(API).netloc:
             raise ValueError('Inventory token cannot leave the GitHub API origin')
         token = os.environ.get('GH_TOKEN')
         if token:
             headers['Authorization'] = 'Bearer ' + token
     opener = urllib.request.build_opener(NoRedirect() if authenticated else HttpsRedirect())
-    for attempt in range(ATTEMPTS):
-        if attempt:
-            headers['Cache-Control'] = 'no-cache'
-        try:
-            with opener.open(urllib.request.Request(url, headers=headers), timeout=60) as response:
-                return consume(response)
-        except urllib.error.HTTPError as error:
-            if error.code not in RETRYABLE or attempt + 1 == ATTEMPTS:
-                raise
-        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.IncompleteRead):
-            if attempt + 1 == ATTEMPTS:
-                raise
-        time.sleep(2 ** attempt)
-    raise AssertionError('Unreachable retry state')
+    return archive_retry.request(url, consume, mirrors=mirrors, opener=opener, headers=headers)
 
 
 def api(path):
@@ -75,6 +63,9 @@ def api(path):
         raw = response.read(MAX_METADATA_BYTES + 1)
         if len(raw) > MAX_METADATA_BYTES:
             raise ValueError('VM release metadata exceeds its bound')
+        if response.length:
+            # http.client returns a short read without an error when the connection drops.
+            raise http.client.IncompleteRead(raw, response.length)
         return json.loads(raw)
     return request(API + path, read, authenticated=True)
 
@@ -117,14 +108,7 @@ def acquire(url, expected_size, expected_digest, declared_digest=None, cache=Non
         return actual
 
     def download(consume):
-        sources = (url, *mirrors)
-        for index, source in enumerate(sources):
-            try:
-                return request(source, consume)
-            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.IncompleteRead):
-                if index + 1 == len(sources):
-                    raise
-        raise AssertionError('Unreachable archive mirror state')
+        return request(url, consume, mirrors=mirrors)
     if cache is not None:
         cache.mkdir(parents=True, exist_ok=True, mode=0o700)
         cached = cache / (expected_digest + '.archive')

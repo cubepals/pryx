@@ -19,6 +19,7 @@ from unittest.mock import patch
 import urllib.error
 import urllib.parse
 import archive_inputs
+import archive_retry
 
 PAYLOAD = b'pinned upstream archive\x00\xff'
 
@@ -72,7 +73,7 @@ class AcquireTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.cache = Path(temporary.name)
         self.clock = Clock()
-        clock = patch.object(archive_inputs, 'time', self.clock)
+        clock = patch.object(archive_retry, 'time', self.clock)
         clock.start()
         self.addCleanup(clock.stop)
 
@@ -93,7 +94,7 @@ class AcquireTests(unittest.TestCase):
         item = self.item('/input.tar')
         self.assertEqual(self.acquire(item).read_bytes(), PAYLOAD)
         self.assertEqual(self.server.requests, ['/input.tar'] * 4)
-        first = archive_inputs.FIRST_RETRY_WAIT
+        first = archive_retry.FIRST_RETRY_WAIT
         self.assertEqual(self.clock.waits, [first, 2 * first, 4 * first])
         self.assertEqual(self.log.count(f"Download failed: {item['url']}: "), 3)
 
@@ -115,8 +116,8 @@ class AcquireTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as refusal:
             self.acquire(self.item('/input.tar'))
         self.assertEqual(refusal.exception.code, HTTPStatus.SERVICE_UNAVAILABLE)
-        self.assertLessEqual(sum(self.clock.waits), archive_inputs.RETRY_BUDGET)
-        self.assertLessEqual(max(self.clock.waits), archive_inputs.LONGEST_RETRY_WAIT)
+        self.assertLessEqual(sum(self.clock.waits), archive_retry.RETRY_BUDGET)
+        self.assertLessEqual(max(self.clock.waits), archive_retry.LONGEST_RETRY_WAIT)
         self.assertEqual(len(self.server.requests), len(self.clock.waits) + 1)
 
     def test_other_bytes_fail_the_digest(self):
@@ -149,20 +150,20 @@ class AcquireTests(unittest.TestCase):
         real_open = urllib.request.urlopen
 
         def stalled_origin(address, timeout):
-            if address == item['url']:
+            if address.full_url == item['url']:
                 self.clock.now += timeout
                 raise urllib.error.URLError(TimeoutError('The origin stalled'))
             return real_open(address, timeout=timeout)
 
-        with patch.object(archive_inputs.urllib.request, 'urlopen', stalled_origin):
+        with patch.object(archive_retry.urllib.request, 'urlopen', stalled_origin):
             self.assertEqual(self.acquire(item).read_bytes(), PAYLOAD)
-        self.assertLess(self.clock.now, archive_inputs.RETRY_BUDGET)
+        self.assertLess(self.clock.now, archive_retry.RETRY_BUDGET)
         self.assertEqual(self.server.requests, ['/mirror/debian/pool/input.deb'])
         self.assertEqual(self.clock.waits, [])
 
     def test_stalled_mirrors_share_the_retry_deadline(self):
         item = self.item('/debian/pool/input.deb')
-        budget = archive_inputs.REQUEST_TIMEOUT * 2.5
+        budget = archive_retry.REQUEST_TIMEOUT * 2.5
         attempts = []
         failure = urllib.error.URLError(TimeoutError('Every archive host stalled'))
 
@@ -174,25 +175,25 @@ class AcquireTests(unittest.TestCase):
         mirrors = [dict(prefix=self.base + '/debian/',
                         mirrors=[self.base + f'/mirror-{index}/debian/' for index in range(8)])]
         with patch.object(archive_inputs, 'MIRRORS', mirrors), \
-                patch.object(archive_inputs, 'RETRY_BUDGET', budget), \
-                patch.object(archive_inputs.urllib.request, 'urlopen', stalled):
+                patch.object(archive_retry, 'RETRY_BUDGET', budget), \
+                patch.object(archive_retry.urllib.request, 'urlopen', stalled):
             with self.assertRaises(urllib.error.URLError) as refused:
                 self.acquire(item)
         self.assertIs(refused.exception, failure)
         self.assertLessEqual(self.clock.now, budget)
-        self.assertLess(attempts[-1][1], archive_inputs.REQUEST_TIMEOUT)
+        self.assertLess(attempts[-1][1], archive_retry.REQUEST_TIMEOUT)
         self.assertLess(len(attempts), 1 + len(mirrors[0]['mirrors']))
         self.assertEqual(self.clock.waits, [])
 
     def test_a_healthy_archive_can_finish_after_the_retry_deadline(self):
         class SlowArchive(io.BytesIO):
             def read(source, length):
-                self.clock.now += archive_inputs.RETRY_BUDGET
+                self.clock.now += archive_retry.RETRY_BUDGET
                 return super().read(length)
 
-        with patch.object(archive_inputs.urllib.request, 'urlopen', return_value=SlowArchive(PAYLOAD)):
+        with patch.object(archive_retry.urllib.request, 'urlopen', return_value=SlowArchive(PAYLOAD)):
             self.assertEqual(self.acquire(self.item('/large.tar')).read_bytes(), PAYLOAD)
-        self.assertGreater(self.clock.now, archive_inputs.RETRY_BUDGET)
+        self.assertGreater(self.clock.now, archive_retry.RETRY_BUDGET)
         self.assertEqual(self.clock.waits, [])
 
     def test_a_mirror_with_other_bytes_fails_the_digest(self):
