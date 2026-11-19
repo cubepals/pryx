@@ -1,0 +1,40 @@
+name: Sign one any-host branch merge
+
+on:
+  push:
+    branches: [operations/any-host-signing]
+    paths: [.github/workflows/any-host-merge-signature.yml]
+
+permissions: {}
+
+jobs:
+  sign:
+    name: Sign the reviewed merge object
+    if: github.repository == 'cubepals/pryx' && github.ref == 'refs/heads/operations/any-host-signing'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: write
+    steps:
+      - name: Create and verify the ordered merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: k0-ci-speedup
+          SOURCE_HEAD: '4db1f8b86b1b1367f11267e4bf875c2531582486'
+          ANY_HOST_HEAD: '80e543bbdb18f9ce52afee835109a77258bdce8e'
+          MERGED_TREE: '2fdcabbad799b4c3adfcaf5f6873c23adaa1a175'
+          SUBJECT: 'Merge current any-host into CI speedup'
+        run: |
+          set -euo pipefail
+          repo=repos/cubepals/pryx
+          test "$(gh api "$repo/git/ref/heads/any-host" --jq .object.sha)" = "$ANY_HOST_HEAD"
+          test "$(gh api "$repo/git/ref/heads/$SOURCE_BRANCH" --jq .object.sha)" = "$SOURCE_HEAD"
+          for sha in "$SOURCE_HEAD" "$ANY_HOST_HEAD"; do
+            test "$(gh api "$repo/commits/$sha" --jq .commit.verification.verified)" = true
+          done
+          jq -n --arg tree "$MERGED_TREE" --arg head "$SOURCE_HEAD" --arg base "$ANY_HOST_HEAD" \
+            --arg message "$SUBJECT" '{tree:$tree,parents:[$head,$base],message:$message}' \
+            | gh api "$repo/git/commits" --method POST --input - \
+              --jq '{sha,tree:.tree.sha,parents:[.parents[].sha],verified:.verification.verified}' \
+            | jq -ce --arg tree "$MERGED_TREE" --arg head "$SOURCE_HEAD" --arg base "$ANY_HOST_HEAD" \
+              'select(.verified and .tree == $tree and .parents == [$head,$base])'
