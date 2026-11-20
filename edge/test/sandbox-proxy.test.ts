@@ -9,6 +9,11 @@ import { Pryx } from '../../sdk/typescript/src/index.ts'
 import { sandboxToken } from '../src/sandbox-token.ts'
 import { agentContext } from './agent-context.ts'
 
+function expiredRouteToken(c: ReturnType<typeof agentContext>) {
+  const now = Math.floor(Date.now() / SECOND_MS)
+  return c.token({ scope: 'routes', issuedAt: now - 1, expiresAt: now })
+}
+
 test('invalid, expired, foreign and route-only capabilities cannot wake an agent', async () => {
   const c = agentContext()
   c.table.apply({ routes: [{ ...c.route, state: 'asleep' }] })
@@ -87,10 +92,8 @@ for (const state of ['missing', 'expired'] as const) {
     const c = agentContext()
     try {
       if (!c.route.agent) throw new Error('Missing fixture agent')
-      if (state === 'expired') {
-        const now = Math.floor(Date.now() / SECOND_MS)
-        c.route.agent.routeToken = c.token({ scope: 'routes', issuedAt: now - 1, expiresAt: now })
-      } else delete c.route.agent.routeToken
+      if (state === 'expired') c.route.agent.routeToken = expiredRouteToken(c)
+      else delete c.route.agent.routeToken
       c.table.apply({ routes: [c.route] })
       const port = 3000
       const app = 'http://one-3000.sandboxes.test/'
@@ -143,10 +146,11 @@ for (const tool of ['browser', 'desktop'] as const) {
       expect(c.calls).toEqual([`POST /_pryx/${tool}/screenshot`])
 
       if (tool === 'desktop') {
+        c.route.agent.routeToken = expiredRouteToken(c)
         c.table.apply({ routes: [{ ...c.route, state: 'asleep' }] })
         c.hooks.wake = () => {}
       }
-      const opened = await fetch(endpoint, options)
+      const opened = await fetch(endpoint, { ...options, signal: AbortSignal.timeout(SECOND_MS) })
       expect(opened.status).toBe(StatusCodes.OK)
       const url = new URL(((await opened.json()) as { url: string }).url)
       if (tool === 'browser') {
@@ -170,44 +174,47 @@ for (const tool of ['browser', 'desktop'] as const) {
   })
 }
 
-test('MCP port tools refresh immediately while the edge has no route capability', async () => {
-  const c = agentContext()
-  try {
-    if (!c.route.agent) throw new Error('Missing fixture agent')
-    const mcp = (method: string, params?: unknown) =>
-      fetch(`${c.url}/_pryx/mcp`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      })
-    const healthy = await mcp('tools/list')
-    expect(healthy.status).toBe(StatusCodes.OK)
-    await healthy.body?.cancel()
-    expect(c.calls).toEqual(['POST /_pryx/mcp'])
+for (const state of ['missing', 'expired'] as const) {
+  test(`MCP port tools refresh immediately while the route token is ${state}`, async () => {
+    const c = agentContext()
+    try {
+      if (!c.route.agent) throw new Error('Missing fixture agent')
+      const mcp = (method: string, params?: unknown) =>
+        fetch(`${c.url}/_pryx/mcp`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        })
+      const healthy = await mcp('tools/list')
+      expect(healthy.status).toBe(StatusCodes.OK)
+      await healthy.body?.cancel()
+      expect(c.calls).toEqual(['POST /_pryx/mcp'])
 
-    delete c.route.agent.routeToken
-    c.table.apply({ routes: [c.route] })
-    const port = 3000
-    const app = `${c.url}/ports/${port}/`
-    const added = await mcp('tools/call', { name: 'expose', arguments: { port } })
-    expect(added.status).toBe(StatusCodes.OK)
-    await added.body?.cancel()
-    expect(await (await c.proxy.fetch(new Request(app)))?.text()).toBe('exposed-app')
-    const removed = await mcp('tools/call', { name: 'unexpose', arguments: { port } })
-    expect(removed.status).toBe(StatusCodes.OK)
-    await removed.body?.cancel()
-    expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
-    expect(c.calls).toEqual([
-      'POST /_pryx/mcp',
-      'POST /_pryx/mcp',
-      'GET /_pryx/ports',
-      'POST /_pryx/mcp',
-      'GET /_pryx/ports',
-    ])
-  } finally {
-    c.close()
-  }
-})
+      if (state === 'expired') c.route.agent.routeToken = expiredRouteToken(c)
+      else delete c.route.agent.routeToken
+      c.table.apply({ routes: [c.route] })
+      const port = 3000
+      const app = `${c.url}/ports/${port}/`
+      const added = await mcp('tools/call', { name: 'expose', arguments: { port } })
+      expect(added.status).toBe(StatusCodes.OK)
+      await added.body?.cancel()
+      expect(await (await c.proxy.fetch(new Request(app)))?.text()).toBe('exposed-app')
+      const removed = await mcp('tools/call', { name: 'unexpose', arguments: { port } })
+      expect(removed.status).toBe(StatusCodes.OK)
+      await removed.body?.cancel()
+      expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
+      expect(c.calls).toEqual([
+        'POST /_pryx/mcp',
+        'POST /_pryx/mcp',
+        'GET /_pryx/ports',
+        'POST /_pryx/mcp',
+        'GET /_pryx/ports',
+      ])
+    } finally {
+      c.close()
+    }
+  })
+}
 
 test('a failed optional port refresh cannot hide the accepted mutation', async () => {
   const c = agentContext()

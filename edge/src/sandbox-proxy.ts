@@ -13,7 +13,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Hold } from './hold.ts'
 import { responseHeaders } from './response-headers.ts'
 import type { RouteTable } from './routes.ts'
-import { fileToken, requestToken, sandboxToken } from './sandbox-token.ts'
+import { fileToken, requestToken, routeCapability, sandboxToken } from './sandbox-token.ts'
 import type { EdgeRoute } from './wire.ts'
 
 type Port = { port: number; slot: number; url: string }
@@ -143,7 +143,7 @@ export class SandboxProxy {
       cached = this.ports.get(route.sandbox)
     const revision = route.agent?.manifest.portRevision ?? 0
     if (cached?.key === key && cached.revision >= revision) return cached.ports
-    const capability = sandboxCapability ?? route.agent?.routeToken
+    const capability = sandboxCapability ?? routeCapability(route)
     if (route.state || !capability)
       return this.validPorts(
         route.agent?.manifest.exposed.map((p) => ({
@@ -271,7 +271,7 @@ export class SandboxProxy {
       if (ready.epoch !== route.epoch)
         return new Response('Sandbox placement changed', { status: StatusCodes.CONFLICT })
       // An exposed application can put its own credential in a query parameter.
-      const health = route.agent.routeToken ?? (exposedPort === undefined ? token : undefined)
+      const health = routeCapability(route) ?? (exposedPort === undefined ? token : undefined)
       if (health) await this.ready(ready.destination, health, signal)
     }
     const headers = new Headers(request.headers)
@@ -319,7 +319,7 @@ export class SandboxProxy {
           path === '/_pryx/browser' ||
           path === '/_pryx/desktop' ||
           // MCP multiplexes port changes with other calls on the same endpoint.
-          (path === '/_pryx/mcp' && response.status === StatusCodes.OK && !route.agent.routeToken))) ||
+          (path === '/_pryx/mcp' && response.status === StatusCodes.OK && !routeCapability(route)))) ||
       (request.method === 'DELETE' && /^\/_pryx\/ports\/[^/]+$/.test(path))
     if (exposedPort === undefined && token && claims?.scope === 'sandbox' && response.ok && refreshPorts) {
       this.ports.delete(route.sandbox)
