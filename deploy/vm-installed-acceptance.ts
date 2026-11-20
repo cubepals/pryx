@@ -56,7 +56,7 @@ function installation() {
     descriptor: join(installed.bundle, 'bin/vm-bundle.json'),
     configured: join(installed.paths.config, 'pryxd.toml'),
     nodeBinary: join(installed.bundle, 'bin/pryxd'),
-    measure: (sdk: Pryx) => vmMeasurements(sdk, installed),
+    measure: (sdk: Pryx) => vmMeasurements(sdk, installed, credential.key),
   }
 }
 

@@ -12,6 +12,7 @@ const WAVES_PER_SIZE = 5
 
 export interface BaselineContext {
   sdk: Pick<Pryx, 'sandbox'>
+  concurrentSdk?: Pick<Pryx, 'sandbox'>
   // PSS of the same deployment before and after creating a single idle sandbox.
   memory: () => Promise<number>
 }
@@ -93,12 +94,13 @@ export async function collectBaseline(
     checkpoint(result)
 
     phase = 'concurrent_create'
+    const concurrency = { sdk: c.concurrentSdk ?? c.sdk, memory: c.memory }
     for (const count of WAVE_SIZES) {
       const values: number[] = []
       samples[`concurrent_${count}_create_ms`] = values
       for (let attempt = 1; attempt <= WAVES_PER_SIZE; attempt++) {
         await concurrentAttempt(
-          c,
+          concurrency,
           tier,
           attempt,
           (outcome) => {

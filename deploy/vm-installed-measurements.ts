@@ -13,7 +13,7 @@ import { baselineFailureCode, collectBaseline } from '../control/bench/pryx-base
 import { snapshots } from '../control/bench/tiers/operations.ts'
 import { DATA_BYTES, measure, percentile, REPETITIONS, type Samples } from '../control/bench/tiers/report.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
-import type { Pryx, Sandbox } from '../sdk/typescript/src/index.ts'
+import { Pryx, type Sandbox } from '../sdk/typescript/src/index.ts'
 import inputs from '../templates/vm-tools/image-inputs.json'
 
 const VM_HELPER_ROLES = ['launcher', 'firecracker', 'network-proxy', 'vm-transport'] as const
@@ -122,7 +122,7 @@ async function trueCommand(box: Sandbox) {
   assert.equal(result.stderr, '')
 }
 
-export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
+export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation, key: string) {
   const path = process.env.PRYX_VM_MEASUREMENTS
   const socket = process.env.PRYX_VM_MEMORY_SOCKET
   const source = process.env.PRYX_VM_SOURCE
@@ -245,18 +245,30 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
     summarize(samples)
   }
   if (process.env.PRYX_MEASURE_VM === 'on') {
+    const current = supervisor(installed)
+    const port = current?.controlPort
+    assert(
+      current?.ready === true &&
+        current.pid === identity.pid &&
+        current.start === identity.start &&
+        typeof port === 'number' &&
+        Number.isSafeInteger(port) &&
+        port > 0,
+      'VM creation waves need the installed supervisor’s ready control listener',
+    )
+    const concurrentSdk = new Pryx({ url: new URL(`http://127.0.0.1:${port}`).origin, key })
     const prefix = join(homedir(), 'pryx-vm-baseline')
     const record = (result: Awaited<ReturnType<typeof collectBaseline>>) =>
       writeBaseline(
         prefix,
         source,
         ci,
-        'Signed ordinary-user VM installation',
+        'Signed ordinary-user VM installation with creation waves at its private control listener',
         'Full installed supervisor tree',
         [result],
       )
     const result = await collectBaseline(
-      { sdk, memory: () => memory(socket, identity.pid) },
+      { sdk, concurrentSdk, memory: () => memory(socket, identity.pid) },
       'vm',
       vmRequest(),
       (result) => record({ ...result, complete: false }),
