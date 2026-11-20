@@ -5,42 +5,89 @@
 import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
-import { cpus, release, totalmem } from 'node:os'
+import { cpus, homedir, release, totalmem } from 'node:os'
+import { join } from 'node:path'
 import { type LocalInstallation, supervisor } from '../cli/src/up-local-record.ts'
+import { writeBaseline } from '../control/bench/baseline-report.ts'
+import { baselineFailureCode, collectBaseline } from '../control/bench/pryx-baseline.ts'
 import { snapshots } from '../control/bench/tiers/operations.ts'
 import { DATA_BYTES, measure, percentile, REPETITIONS, type Samples } from '../control/bench/tiers/report.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
-import type { Pryx, Sandbox } from '../sdk/typescript/src/index.ts'
+import { Pryx, type Sandbox } from '../sdk/typescript/src/index.ts'
 import inputs from '../templates/vm-tools/image-inputs.json'
 
-async function memory(socket: string, root: number) {
+const VM_HELPER_ROLES = ['launcher', 'firecracker', 'network-proxy', 'vm-transport'] as const
+type HelperPss = Record<(typeof VM_HELPER_ROLES)[number], { pssBytes: number | null; processes: number }>
+
+async function memoryReport(socket: string, root: number, vmHelpers = false) {
   const observation = await new Promise<string>((resolve, reject) => {
     const client = createConnection(socket)
     let bytes = ''
     client.setTimeout(30 * SECOND_MS, () => client.destroy(new Error('VM PSS observation deadline')))
     client.on('error', reject)
-    client.on('connect', () => client.end(JSON.stringify({ root })))
+    client.on('connect', () => client.end(JSON.stringify({ root, ...(vmHelpers ? { vmHelpers } : {}) })))
     client.on('data', (part) => {
       bytes += part.toString()
       if (bytes.length > 64 * 1024) client.destroy(new Error('VM PSS observation exceeds its bound'))
     })
     client.on('end', () => resolve(bytes))
   })
-  const value = JSON.parse(observation) as { pssBytes?: number; processes?: number }
+  const value = JSON.parse(observation) as { pssBytes: number; processes: number; vmHelpers?: HelperPss }
   assert(typeof value.pssBytes === 'number' && value.pssBytes > 0 && Number.isFinite(value.pssBytes))
   assert(typeof value.processes === 'number' && value.processes >= 1)
-  return value.pssBytes
+  return value
 }
 
-function make(sdk: Pryx) {
+async function memory(socket: string, root: number) {
+  return (await memoryReport(socket, root)).pssBytes
+}
+
+function vmRequest() {
   assert(inputs[0])
-  return sdk.sandbox({
-    isolation: 'vm',
+  return {
+    isolation: 'vm' as const,
     image: inputs[0].reference,
     units: 1,
     idle: (10 * MINUTE_MS) / SECOND_MS,
     sparePorts: 0,
-  })
+  }
+}
+
+function make(sdk: Pryx) {
+  return sdk.sandbox(vmRequest())
+}
+
+async function helperMemory(sdk: Pryx, socket: string, root: number, samples: Samples) {
+  const repetitions = 5
+  for (const role of VM_HELPER_ROLES) {
+    samples[`vm_${role}_processes`] = []
+    samples[`vm_${role}_pss_bytes_per_process`] = []
+  }
+  for (let sample = 0; sample < repetitions; sample++) {
+    const before = (await memoryReport(socket, root, true)).vmHelpers
+    assert(
+      before && VM_HELPER_ROLES.every((role) => before[role].processes === 0),
+      'VM context contains a live helper',
+    )
+    const box = await make(sdk)
+    try {
+      assert.equal(box.state, 'running')
+      const after = (await memoryReport(socket, root, true)).vmHelpers
+      assert(after, 'VM helper PSS observation missing')
+      for (const role of VM_HELPER_ROLES) {
+        const { pssBytes, processes }: HelperPss[typeof role] = after[role]
+        assert(Number.isInteger(processes) && processes >= 0)
+        samples[`vm_${role}_processes`]?.push(processes)
+        if (processes === 0) assert.equal(pssBytes, null)
+        else {
+          assert(typeof pssBytes === 'number' && Number.isFinite(pssBytes) && pssBytes >= 0)
+          samples[`vm_${role}_pss_bytes_per_process`]?.push(pssBytes / processes)
+        }
+      }
+    } finally {
+      await box.delete()
+    }
+  }
 }
 
 /** Each cohort as docs/tiers.md names it, so the job log carries every figure the artifact does. */
@@ -75,7 +122,7 @@ async function trueCommand(box: Sandbox) {
   assert.equal(result.stderr, '')
 }
 
-export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
+export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation, key: string) {
   const path = process.env.PRYX_VM_MEASUREMENTS
   const socket = process.env.PRYX_VM_MEMORY_SOCKET
   const source = process.env.PRYX_VM_SOURCE
@@ -196,5 +243,44 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
   } finally {
     persist()
     summarize(samples)
+  }
+  if (process.env.PRYX_MEASURE_VM === 'on') {
+    const current = supervisor(installed)
+    const port = current?.controlPort
+    assert(
+      current?.ready === true &&
+        current.pid === identity.pid &&
+        current.start === identity.start &&
+        typeof port === 'number' &&
+        Number.isSafeInteger(port) &&
+        port > 0,
+      'VM creation waves need the installed supervisor’s ready control listener',
+    )
+    const concurrentSdk = new Pryx({ url: new URL(`http://127.0.0.1:${port}`).origin, key })
+    const prefix = join(homedir(), 'pryx-vm-baseline')
+    const record = (result: Awaited<ReturnType<typeof collectBaseline>>) =>
+      writeBaseline(
+        prefix,
+        source,
+        ci,
+        'Signed ordinary-user VM installation with creation waves at its private control listener',
+        'Full installed supervisor tree',
+        [result],
+      )
+    const result = await collectBaseline(
+      { sdk, concurrentSdk, memory: () => memory(socket, identity.pid) },
+      'vm',
+      vmRequest(),
+      (result) => record({ ...result, complete: false }),
+    )
+    try {
+      await helperMemory(sdk, socket, identity.pid, result.samples)
+    } catch (error) {
+      result.complete = false
+      result.failure = { phase: 'vm_helpers', code: baselineFailureCode(error) }
+      throw error
+    } finally {
+      record(result)
+    }
   }
 }

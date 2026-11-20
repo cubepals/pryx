@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Concurrent admission outcomes and PSS before cleanup; only complete waves measure fifty-way latency. */
-import { PryxError } from '../../../sdk/typescript/src/index.ts'
+import { type MakeRequest, PryxError } from '../../../sdk/typescript/src/index.ts'
 import type { Isolation } from '../../src/isolation.ts'
 import { type Context, context } from './context.ts'
 import { creation } from './operations.ts'
@@ -66,16 +66,16 @@ export interface ConcurrentOutcome {
 }
 
 export async function concurrentAttempt(
-  c: Pick<Context, 'sdk' | 'memory'>,
+  c: { sdk: Pick<Context['sdk'], 'sandbox'>; memory: Context['memory'] },
   tier: Isolation,
   attempt: number,
   measured: (outcome: ConcurrentOutcome) => void,
+  requested = CONCURRENT_REQUESTS,
+  request: MakeRequest = creation(tier),
 ) {
   const baseline = await c.memory()
   const start = performance.now()
-  const made = await Promise.allSettled(
-    Array.from({ length: CONCURRENT_REQUESTS }, () => c.sdk.sandbox(creation(tier))),
-  )
+  const made = await Promise.allSettled(Array.from({ length: requested }, () => c.sdk.sandbox(request)))
   const elapsedMs = performance.now() - start
   const boxes = made.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
   const failures: unknown[] = []
@@ -97,7 +97,7 @@ export async function concurrentAttempt(
     const used = await c.memory()
     measured({
       attempt,
-      requested: CONCURRENT_REQUESTS,
+      requested,
       running: boxes.length,
       refused: errors.length,
       outcome: errors.length ? 'capacity_refused' : 'complete',

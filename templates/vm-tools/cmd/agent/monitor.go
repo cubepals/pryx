@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Monitor actions for memory sleep: pause, resume, a full snapshot and its restore, with request
-// bodies from the monitor owner's generated models. There is no diff snapshot, which upstream
-// calls a developer preview. It neither chooses snapshot paths nor retries an action.
+// Monitor actions for memory sleep and measurement, with request bodies from the
+// monitor owner's generated models. Snapshot paths come from the caller and
+// each action is attempted once.
 package main
 
 import (
@@ -29,6 +29,7 @@ type monitorAction struct {
 // Firecracker 1.18.0's src/firecracker/swagger/firecracker.yaml names these paths; the SDK's
 // generated operations keep them inside their unexported request builders.
 const (
+	monitorActionsPath = "/actions"
 	vmPath             = "/vm"
 	snapshotCreatePath = "/snapshot/create"
 	snapshotLoadPath   = "/snapshot/load"
@@ -40,6 +41,10 @@ type validated interface {
 
 func monitorRequest(action *monitorAction) (string, string, validated, error) {
 	switch action.Action {
+	case "flushMetrics":
+		return http.MethodPut, monitorActionsPath, &models.InstanceActionInfo{
+			ActionType: new(models.InstanceActionInfoActionTypeFlushMetrics),
+		}, nil
 	case "pause", "resume":
 		state := models.VMStatePaused
 		if action.Action == "resume" {

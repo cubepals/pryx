@@ -7,6 +7,11 @@ on:
   # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
+    inputs:
+      measure_pryx:
+        description: Collect the installed VM sandbox baseline
+        type: boolean
+        default: false
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -227,7 +232,7 @@ jobs:
     name: Bundle runtime acceptance
     needs: process-tools
     runs-on: ubuntu-24.04
-    timeout-minutes: 80
+    timeout-minutes: ${{ inputs.measure_pryx && 120 || 80 }}
     outputs:
       parts: ${{ steps.transport.outputs.count }}
       manifest: ${{ steps.transport.outputs.manifest }}
@@ -301,9 +306,20 @@ jobs:
       - name: Run the signed ordinary-user install and native SDK acceptance
         env:
           PRYX_NATIVE_VM: 'on'
+          PRYX_MEASURE_VM: ${{ inputs.measure_pryx && 'on' || 'off' }}
           PRYX_VM_SOURCE: ${{ github.sha }}
           PRYX_VM_CI_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash deploy/native-host-acceptance.sh
+      - name: Summarize the installed VM baseline
+        if: inputs.measure_pryx
+        run: tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/pryx-vm-baseline.md"
+      - name: Retain the installed VM baseline
+        if: ${{ !cancelled() && inputs.measure_pryx }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: pryx-vm-baseline
+          path: ${{ runner.temp }}/pryx-vm-baseline.*
+          if-no-files-found: error
       - name: Hand the VM runtime and guest fixture to the root installation
         run: |
           mkdir "$RUNNER_TEMP/vm-installed-preview"

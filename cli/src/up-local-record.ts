@@ -89,6 +89,7 @@ export function supervisor(record: LocalInstallation) {
     bundle: string
     state: string
     ready: boolean
+    controlPort?: number
   }>(join(record.paths.runtime, 'supervisor.json'))
   if (
     !identity ||

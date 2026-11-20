@@ -2,8 +2,15 @@
 //! Boot the actual agent with real OCI layers and KVM, using the maintained monitor SDK.
 //! This input-backed acceptance proves guest init and durable shutdown, not production
 //! monitor confinement, network policy or the still-unadvertised VM runtime.
+//!
+//! Parts (`guest/`):
+//! - `boot_benchmark.rs`: paired boot timings and live balloon reporting counters.
+#[path = "guest/boot_benchmark.rs"]
+mod boot_benchmark;
+
 use axum::http::{Method, StatusCode};
 use base64::{Engine, engine::general_purpose::STANDARD};
+use boot_benchmark::Profile;
 use pryx_agent::{
     auth::{Claims, Scope, SigningKey, TOKEN_LIFETIME_SECONDS},
     contract::{AGENT_PORT, IDEMPOTENCY_HEADER},
@@ -325,6 +332,7 @@ async fn boot(
     writes: &Path,
     round: usize,
     networked: bool,
+    profile: Option<Profile>,
 ) -> Value {
     let configurator = input("PRYX_VM_CONFIGURATOR");
     let metadata: Value = serde_json::from_slice(&output(Command::new(&configurator).arg("--metadata")).await).unwrap();
@@ -350,6 +358,10 @@ async fn boot(
         arguments.extend(["--layer".into(), format!("{id}={}", path.display())]);
     }
     let config = output(Command::new(&configurator).args(&arguments)).await;
+    let (config, metrics) = match profile {
+        Some(profile) => profile.configuration(config, directory, round),
+        None => (config, None),
+    };
     let identities: Value =
         serde_json::from_slice(&output(Command::new(&configurator).args(&arguments).arg("--identities")).await)
             .unwrap();
@@ -439,6 +451,8 @@ async fn boot(
     let lease_path = locks.join(format!("{}.lock", directory.file_name().unwrap().to_str().unwrap()));
     let mut read = vec![input("PRYX_VM_KERNEL"), bootstrap.join("bootstrap.erofs"), config_path.clone()];
     read.extend(image.layers.iter().cloned());
+    let mut write = vec![writes.into()];
+    write.extend(metrics.iter().cloned());
     let plan = Plan {
         program: input("PRYX_VM_MONITOR"),
         arguments: vec![
@@ -451,9 +465,10 @@ async fn boot(
         lock: lease_path.clone(),
         parent: std::process::id(),
         read,
-        write: vec![writes.into()],
+        write,
         role: Role::Ordinary,
     };
+    let started = tokio::time::Instant::now();
     let mut monitor = pryxd::runtime::vm::machine::Machine::launch(
         &input("PRYX_VM_HOST_LAUNCHER"),
         &plan,
@@ -467,29 +482,35 @@ async fn boot(
     .unwrap();
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
     guest.ready().await;
+    let ready_ms = started.elapsed().as_secs_f64() * 1000.0;
     let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
     assert_eq!(
         rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
         rustix::io::Errno::WOULDBLOCK
     );
     monitor.bootstrapped(tokio::time::Instant::now() + Duration::from_secs(1)).await.unwrap();
-    let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
-    exercise_forwarding(&guest, &metadata, &bootstrap_metadata).await;
-    let other_nonce = uuid::Uuid::new_v4().simple().to_string();
-    assert_ne!(nonce, other_nonce);
-    let replay = vm_shutdown::request(&key, &other_nonce, sandbox, 1);
-    assert!(
-        request(
-            &guest.client,
-            json!({"socket": guest.channel,
-        "port": vm_shutdown::PORT, "shutdown": replay})
-        )
-        .await
-        .is_err()
-    );
-    assert_eq!(guest.call(Method::GET, "/_pryx/health", Value::Null, None).await.0, StatusCode::OK);
-    let (status, _) = request(&guest.client, json!({"socket": api, "stop": true})).await.unwrap();
-    assert!(status.is_success());
+    let reports = match metrics {
+        Some(path) => Some(boot_benchmark::observe_reports(&guest, &api, &path).await),
+        None => None,
+    };
+    let kernel = if profile.is_none() {
+        let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
+        exercise_forwarding(&guest, &metadata, &bootstrap_metadata).await;
+        let other_nonce = uuid::Uuid::new_v4().simple().to_string();
+        assert_ne!(nonce, other_nonce);
+        let replay = vm_shutdown::request(&key, &other_nonce, sandbox, 1);
+        assert!(
+            request(&guest.client, json!({"socket": guest.channel, "port": vm_shutdown::PORT, "shutdown": replay}))
+                .await
+                .is_err()
+        );
+        assert_eq!(guest.call(Method::GET, "/_pryx/health", Value::Null, None).await.0, StatusCode::OK);
+        let (status, _) = request(&guest.client, json!({"socket": api, "stop": true})).await.unwrap();
+        assert!(status.is_success());
+        Some(kernel)
+    } else {
+        None
+    };
     // This published kernel has no keyboard driver. Preserve the real monitor
     // action assertion, then ask trusted PID 1 explicitly to flush and power off.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
@@ -508,7 +529,9 @@ async fn boot(
     assert_eq!(status, StatusCode::ACCEPTED);
     let proof: Proof = serde_json::from_slice(&body).expect("Signed shutdown proof on the private stream");
     assert!(vm_observation::verify(&proof, &key.public_key(), &nonce, sandbox, 1));
-    assert_eq!(proof.observation.kernel, kernel);
+    if let Some(kernel) = &kernel {
+        assert_eq!(&proof.observation.kernel, kernel);
+    }
     let status = tokio::time::timeout_at(deadline, monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
     tokio::time::timeout_at(deadline, monitor.finish_serial()).await.unwrap().unwrap();
@@ -523,6 +546,9 @@ async fn boot(
         assert!(!log.contains(secret), "Bootstrap credential reached serial output");
     }
     assert!(checked(tools, writes).await, "Stopped VM disk failed read-only integrity check");
+    if profile.is_some() {
+        return json!({"readyMs": ready_ms, "kernel": proof.observation.kernel, "pageReports": reports});
+    }
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
         "streamingBinaryAndDeclaredTcp": true, "monitorConfined": true, "monitorLeaseHeldUntilExit": true,
         "authenticatedInitShutdown": true, "shutdownReplayRefused": true,
@@ -556,11 +582,16 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
             file_bytes: 512 * 1024 * 1024,
         };
         assert!(tools.run(create, &work, None, 64 * 1024).await.unwrap().status.success());
+        if let Some(metadata) = std::env::var_os("PRYX_VM_BOOT_BENCHMARK") {
+            let metadata = serde_json::from_str(&metadata.to_string_lossy()).unwrap();
+            boot_benchmark::measure(&tools, &image, &directory, &writes, &work, metadata).await;
+            return;
+        }
         let mut rounds = Vec::new();
         for round in 0..2 {
-            rounds.push(boot(&tools, &image, &directory, &writes, round, false).await);
+            rounds.push(boot(&tools, &image, &directory, &writes, round, false, None).await);
         }
-        rounds.push(boot(&tools, &image, &directory, &writes, 2, true).await);
+        rounds.push(boot(&tools, &image, &directory, &writes, 2, true, None).await);
         report.push(json!({"image": input["reference"], "manifestDigest": image.digest, "boots": rounds}));
     }
     fs::write(

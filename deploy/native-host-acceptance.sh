@@ -17,6 +17,32 @@ pryx_vm_memory=
 pryx_vm_socket=
 pryx_vm_public=
 pryx_vm_address="$PWD/deploy/vm-host-public-address.sh"
+copy_vm_baseline() {
+  local name=$1 source="/home/pryxtools/$1" output="$RUNNER_TEMP/$1"
+  if ! sudo -u pryxtools test -e "$source"; then return 0; fi
+  if sudo -u pryxtools python3 - "$source" > "$output.pending" <<'PY'
+import os
+import stat
+import sys
+
+limit = 16 * 1024 * 1024
+with os.fdopen(os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as report:
+    info = os.fstat(report.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_size > limit:
+        raise SystemExit('Invalid VM baseline report')
+    data = report.read(limit + 1)
+    if len(data) > limit:
+        raise SystemExit('VM baseline report exceeds its bound')
+    sys.stdout.buffer.write(data)
+PY
+  then
+    mv -- "$output.pending" "$output"
+  else
+    rm -f -- "$output.pending"
+    echo "Could not retain $name" >&2
+    return 1
+  fi
+}
 cleanup() {
   result=$?
   trap - EXIT
@@ -28,6 +54,11 @@ cleanup() {
   if sudo test -f /home/pryxtools/vm-installed-measurements.json; then
     sudo cp /home/pryxtools/vm-installed-measurements.json "$RUNNER_TEMP/vm-installed-measurements.json" || result=1
     sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/vm-installed-measurements.json" || result=1
+  fi
+  if [ "${PRYX_MEASURE_VM:-off}" = on ]; then
+    for suffix in json md; do
+      copy_vm_baseline "pryx-vm-baseline.$suffix" || result=1
+    done
   fi
   if [ -n "$pryx_vm_memory" ]; then
     sudo kill "$pryx_vm_memory" 2>/dev/null || true
@@ -92,6 +123,7 @@ cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
   PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
   PRYX_VM_MEMORY_SOCKET="$pryx_vm_socket" PRYX_VM_MEASUREMENTS=/home/pryxtools/vm-installed-measurements.json \
+  PRYX_MEASURE_VM="${PRYX_MEASURE_VM:-off}" \
   PRYX_VM_SOURCE="${PRYX_VM_SOURCE:-}" PRYX_VM_CI_URL="${PRYX_VM_CI_URL:-}" PRYX_VM_HOST_PUBLIC_ADDRESS="$pryx_vm_public" \
   PRYX_NATIVE_BROWSER=on PRYX_NATIVE_VM="${PRYX_NATIVE_VM:-off}" PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"

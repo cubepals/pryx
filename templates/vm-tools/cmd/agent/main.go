@@ -91,8 +91,6 @@ func run(source io.Reader) error {
 		data = input.BinaryBody
 	}
 	if input.Stop {
-		// The generated SDK operations/create_sync_action.go owns this private API path.
-		const monitorActionsPath = "/actions"
 		input.Method, input.Path = http.MethodPut, monitorActionsPath
 		data, err = json.Marshal(&models.InstanceActionInfo{ActionType: new(models.InstanceActionInfoActionTypeSendCtrlAltDel)})
 		if err != nil {

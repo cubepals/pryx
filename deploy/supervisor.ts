@@ -110,6 +110,7 @@ async function serve() {
           bundle: process.env.PRYX_BUNDLE_DIR,
           state: root,
           ready,
+          ...(ready ? { controlPort: layout.ports.control } : {}),
         }),
         true,
       )
