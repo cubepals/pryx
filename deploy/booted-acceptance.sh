@@ -32,33 +32,58 @@ until sudo incus query /1.0/instances/pryx/state | jq -e '.network.eth0.addresse
 done
 sudo incus info pryx
 sudo incus config get pryx volatile.base_image | tee -a "$GITHUB_STEP_SUMMARY"
+fixture_incus() { sudo timeout --kill-after=5s 2m incus "$@"; }
 # The test archive is public preview data; the signing key stays on the build runner.
-sudo incus exec pryx -- mkdir /artifacts
-sudo tar -C host-artifacts -cf - . | sudo incus exec pryx -- tar -xf - -C /artifacts
-sudo incus file push deploy/local-acceptance.sh pryx/local-acceptance.sh
-sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
-sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
+echo 'Booted acceptance: staging the verified archive'
+fixture_incus exec pryx -- mkdir /artifacts
+sudo timeout --kill-after=5s 2m tar -C host-artifacts -cf - . |
+  fixture_incus exec pryx -- tar -xf - -C /artifacts
+echo 'Booted acceptance: pushing fixture scripts'
+fixture_incus file push deploy/local-acceptance.sh pryx/local-acceptance.sh
+fixture_incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
+fixture_incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
 # for systemd distributions, whose user service gives pryx memory, cpu and pids for process
 # sandboxes' limits (PRYX_EXPECT_PROCESS_LIMITS). Alpine uses its actual OpenRC/foreground path.
-sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | join(" ")' .github/engine-versions.json)" -- sh -c '
-  set -eu
-  if [ "$(cat /proc/1/comm)" = systemd ]; then
-    while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
-    PRYX_PREPARE_ONLY=1 sh /container-acceptance.sh
+pryx_guest_env=(--env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | join(" ")' .github/engine-versions.json)")
+echo 'Booted acceptance: detecting guest init'
+pryx_guest_init=$(fixture_incus exec pryx "${pryx_guest_env[@]}" -- cat /proc/1/comm)
+if [ "$pryx_guest_init" = systemd ]; then
+  # The host deadline also covers entering the guest. The inner phases allow six minutes for
+  # base packages, two for login packages and one for logind, plus bounded checks and cleanup.
+  echo 'Booted acceptance: entering guest preparation'
+  sudo timeout --kill-after=5s 10m incus exec pryx "${pryx_guest_env[@]}" -- sh -c '
+    set -eu
+    echo "Booted acceptance: installing base guest packages"
+    PRYX_PREPARE_ONLY=1 timeout --kill-after=5s 6m sh /container-acceptance.sh
     [ "$(id -u pryxtest)" = 1001 ]
+    echo "Booted acceptance: installing guest login packages"
     case "$(. /etc/os-release; echo "$ID")" in
-      debian|ubuntu) apt-get install -y -o Acquire::ForceIPv4=true -o Acquire::Retries=3 dbus-user-session libpam-systemd polkitd ;;
-      fedora) dnf install -y systemd-pam dbus-broker polkit ;;
+      debian|ubuntu) DEBIAN_FRONTEND=noninteractive timeout --kill-after=5s 2m apt-get install -y \
+        -o Acquire::ForceIPv4=true -o Acquire::Retries=3 dbus-user-session libpam-systemd polkitd ;;
+      fedora) timeout --kill-after=5s 2m dnf install -y systemd-pam dbus-broker polkit ;;
     esac
+    echo "Booted acceptance: starting guest logind"
+    if ! timeout --kill-after=5s 1m systemctl start systemd-logind.service ||
+       ! timeout --kill-after=5s 5s systemctl is-active --quiet systemd-logind.service; then
+      echo "Booted acceptance: guest logind did not become active" >&2
+      timeout --kill-after=5s 5s systemctl show -p ActiveState -p SubState -p Result systemd-logind.service || true
+      exit 1
+    fi
+  '
+  pryx_guest_command=(sh -c '
+    set -eu
     python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts >/tmp/artifact-server.log 2>&1 &
     curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
+    echo "Booted acceptance: running the ordinary-user PAM session"
     systemd-run --quiet --wait --collect --pipe --unit=pryx-acceptance \
       --property=User=pryxtest --property=PAMName=login \
       --setenv=HOME=/home/pryxtest --setenv=XDG_RUNTIME_DIR=/run/user/1001 --setenv=PRYX_EXPECT_PROCESS_LIMITS=on \
       /bin/sh /local-acceptance.sh
-  else
-    sh /container-acceptance.sh
-  fi
-' | tee acceptance.txt
+  ')
+else
+  pryx_guest_command=(sh /container-acceptance.sh)
+fi
+echo 'Booted acceptance: running guest acceptance'
+sudo incus exec pryx "${pryx_guest_env[@]}" -- "${pryx_guest_command[@]}" | tee acceptance.txt
 cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"

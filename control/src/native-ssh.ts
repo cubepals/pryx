@@ -44,7 +44,7 @@ export class NativeSsh {
       throw new SandboxError('not_running', 'SSH registration needs a running sandbox')
     const ref = decodeHandle(box.handle),
       credential = await this.agents.token(id, project, requestUrl)
-    const response = await fetch(`${credential.url}/_pryx/ssh/${body.id}`, {
+    const response = await this.agents.request(credential.url, `/_pryx/ssh/${body.id}`, {
       headers: { authorization: `Bearer ${credential.token}` },
       redirect: 'manual',
       signal: AbortSignal.timeout(5 * SECOND_MS),
@@ -68,7 +68,7 @@ export class NativeSsh {
     )
     if (expiresAt <= Math.floor(Date.now() / SECOND_MS)) throw new SandboxError('gone', 'SSH lease expired')
     if (expiresAt < view.expiresAt) {
-      const shortened = await fetch(`${credential.url}/_pryx/ssh/${body.id}/expiry`, {
+      const shortened = await this.agents.request(credential.url, `/_pryx/ssh/${body.id}/expiry`, {
         method: 'POST',
         headers: { authorization: `Bearer ${credential.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ expiresAt }),
@@ -139,7 +139,7 @@ export class NativeSsh {
     const box = await this.boxes.record(id, project)
     if (box.state === 'running') {
       const credential = await this.agents.token(id, project, requestUrl)
-      const response = await fetch(`${credential.url}/_pryx/ssh`, {
+      const response = await this.agents.request(credential.url, '/_pryx/ssh', {
         method: 'DELETE',
         headers: { authorization: `Bearer ${credential.token}` },
         redirect: 'manual',

@@ -15,6 +15,7 @@ import {
   TLS_FRONT_PORT,
 } from '../../control/src/edge-headers.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import { MANAGED_API_SOCKET, MANAGED_API_TLS_SOCKET } from '../../control/src/managed-api.ts'
 import { type EdgeConfig, edgeConfig } from './config.ts'
 import { front } from './front.ts'
 import { Hold } from './hold.ts'
@@ -69,7 +70,11 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
     metrics.count('wake_answers_total', result.outcome)
     return result
   })
+  const apiTls = config.managedApiTls
+    ? { hostname: new URL(config.publicOrigin as string).hostname, socket: MANAGED_API_TLS_SOCKET }
+    : undefined
   const agents = new SandboxProxy(table, hold, config.holdMs)
+  if (apiTls) agents.enableManagedApi(MANAGED_API_SOCKET)
   if (config.publicOrigin) agents.useControl(config.control)
   if (config.agentTlsCert && config.agentTlsKey) {
     const [cert, key] = await Promise.all([
@@ -97,7 +102,8 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
         bufferBytes: config.bufferBytes,
         metrics,
         session: report,
-        ...(kind === 'http' && config.publicOrigin
+        ...(kind === 'http' || (kind === 'tls' && logicalPort === TLS_FRONT_PORT) ? { apiTls } : {}),
+        ...(kind === 'http' && config.publicOrigin && !apiTls
           ? {
               control: {
                 destination: agents.destination() as string,

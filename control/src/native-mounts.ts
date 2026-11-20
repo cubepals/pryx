@@ -7,6 +7,7 @@ import type { z } from 'zod'
 import type { sandboxTokenSchema } from './agents.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
+import { fetchAgent } from './managed-api.ts'
 import { agentSchema } from './node-contract.ts'
 import { SandboxError } from './sandboxes.ts'
 import { one, rows } from './sql.ts'
@@ -18,6 +19,7 @@ export class NativeMounts {
   constructor(
     private db: Db,
     private sealKey: string,
+    private readonly agentSocket?: string,
   ) {}
   private key() {
     if (this.sealKey.length < 32)
@@ -57,13 +59,18 @@ export class NativeMounts {
     )
     if (!row) return
     const mounts = this.open(id, project, row.sealed)
-    const response = await fetch(`${credential.url}/_pryx/mounts`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${credential.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ mounts }),
-      redirect: 'manual',
-      signal: AbortSignal.timeout(45 * SECOND_MS),
-    })
+    const response = await fetchAgent(
+      credential.url,
+      '/_pryx/mounts',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${credential.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ mounts }),
+        redirect: 'manual',
+        signal: AbortSignal.timeout(45 * SECOND_MS),
+      },
+      this.agentSocket,
+    )
     await response.body?.cancel()
     if (!response.ok)
       throw new SandboxError(

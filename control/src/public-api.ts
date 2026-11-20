@@ -21,6 +21,7 @@ import { SECOND_MS } from './durations.ts'
 import { events } from './events.ts'
 import { chunkOffset, chunkWrite, FileChunks } from './file-chunks.ts'
 import { authenticate } from './keys.ts'
+import { MANAGED_API_SOCKET } from './managed-api.ts'
 import { NativeMounts } from './native-mounts.ts'
 import { NativeSsh } from './native-ssh.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
@@ -41,6 +42,7 @@ export function createPublicApi(options: {
   defaultIsolation?: import('./isolation.ts').IsolationDefault
   require?: import('./guarantees.ts').Guarantee[]
   publicOrigin?: string
+  managedApiTls?: boolean
   repoImage?: string
   webhookSealKey?: string
   webhookAllowHosts?: readonly string[]
@@ -57,8 +59,9 @@ export function createPublicApi(options: {
     options.publicOrigin,
     options.require,
   )
-  const agents = new Agents(boxes, nodes, domain)
-  const mounts = new NativeMounts(db, options.webhookSealKey ?? '')
+  const agentSocket = options.managedApiTls ? MANAGED_API_SOCKET : undefined
+  const agents = new Agents(boxes, nodes, domain, agentSocket)
+  const mounts = new NativeMounts(db, options.webhookSealKey ?? '', agentSocket)
   agents.initializeMounts = (id, project, credential) => mounts.initialize(id, project, credential)
   model.mounts = mounts
   model.mountReady = (id, project) =>

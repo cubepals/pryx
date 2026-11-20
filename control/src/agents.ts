@@ -9,6 +9,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from './durations.ts'
 import { routesPending } from './edge-routed.ts'
 import { decodeHandle, encodeHandle, type FleetRef } from './handle.ts'
+import { fetchAgent } from './managed-api.ts'
 import type { NodeClient } from './node-client.ts'
 import { projectRow } from './project-admission.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
@@ -23,6 +24,13 @@ export const sandboxTokenSchema = z.object({
   /** The longest a command may run in the sandbox, when its project caps it. */
   maxExecSeconds: z.number().int().positive().nullable().optional(),
 })
+
+type RouteToken = Pick<AgentTokenResponse, 'token' | 'expiresAt'>
+type RouteTokenEntry = { placement: string; value?: RouteToken; retryAt: number }
+// Optional refreshes must leave node connections available for lifecycle and client requests.
+const ROUTE_TOKEN_REQUESTS_PER_NODE = 4
+const ROUTE_TOKEN_RETRY_MS = 5 * SECOND_MS
+
 export class Agents {
   localOrigin?: string
   initializeMounts?: (
@@ -34,12 +42,17 @@ export class Agents {
     const policy = nodeSchema['x-pryx-agent']
     return Math.floor(Date.now() / ((policy.tokenLifetimeSeconds - policy.tokenClockSkewSeconds) * SECOND_MS))
   }
-  readonly routeTokens = new Map<string, AgentTokenResponse>()
+  readonly #routeTokens = new Map<string, RouteTokenEntry>()
+  readonly #routeTokenRequests = new Map<string, string>()
   constructor(
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
     readonly domain: string,
+    private readonly agentSocket?: string,
   ) {}
+  request(origin: string, path: string, init: RequestInit) {
+    return fetchAgent(origin, path, init, this.agentSocket)
+  }
   async data(
     id: string,
     project: string,
@@ -115,7 +128,7 @@ export class Agents {
       let last = 'no response'
       while (Date.now() < deadline) {
         try {
-          const response = await fetch(`${credential.url}/_pryx/health`, {
+          const response = await this.request(credential.url, '/_pryx/health', {
             headers: { authorization: `Bearer ${credential.token}` },
             signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
             redirect: 'manual',
@@ -153,25 +166,55 @@ export class Agents {
     return credential
   }
 
-  async routeToken(ref: FleetRef): Promise<string | undefined> {
+  retainRouteTokens(active: ReadonlySet<string>) {
+    for (const key of this.#routeTokens.keys()) if (!active.has(key)) this.#routeTokens.delete(key)
+  }
+
+  routeToken(ref: FleetRef): RouteToken | undefined {
     if (!ref.node || !ref.agent) return undefined
-    const key = `${ref.key}:${ref.epoch}:${ref.agent.publicKey}:${this.capabilityVersion()}`
-    const cached = this.routeTokens.get(key)
-    if (cached && cached.expiresAt * SECOND_MS > Date.now() + 30 * SECOND_MS) return cached.token
-    const node = await this.boxes.engine.home(encodeHandle(ref))
-    if (!node) return undefined
-    const issued = await this.nodes.call<AgentTokenResponse>(
-      node,
-      'POST',
-      `/v1/workloads/${ref.key}/agent-token`,
-      {
-        epoch: ref.epoch,
-        body: { scope: 'routes', maxPorts: 0, maxExecSeconds: null, expiresAt: null },
-      },
-    )
-    for (const previous of this.routeTokens.keys())
-      if (previous.startsWith(`${ref.key}:`)) this.routeTokens.delete(previous)
-    this.routeTokens.set(key, issued)
-    return issued.token
+    const placement = `${ref.node}:${ref.epoch}:${ref.agent.publicKey}`
+    let entry = this.#routeTokens.get(ref.key)
+    if (entry?.placement !== placement) {
+      entry = { placement, retryAt: 0 }
+      this.#routeTokens.set(ref.key, entry)
+    }
+    const now = Date.now()
+    const expires = (entry.value?.expiresAt ?? 0) * SECOND_MS
+    const renewBefore = nodeSchema['x-pryx-agent'].tokenClockSkewSeconds * SECOND_MS
+    if (
+      expires <= now + renewBefore &&
+      now >= entry.retryAt &&
+      !this.#routeTokenRequests.has(ref.key) &&
+      [...this.#routeTokenRequests.values()].filter((node) => node === ref.node).length <
+        ROUTE_TOKEN_REQUESTS_PER_NODE
+    ) {
+      this.#routeTokenRequests.set(ref.key, ref.node)
+      void this.#refreshRouteToken(ref, entry)
+    }
+    return expires > now ? entry.value : undefined
+  }
+
+  async #refreshRouteToken(ref: FleetRef, entry: RouteTokenEntry) {
+    try {
+      const node = await this.boxes.engine.home(encodeHandle(ref))
+      if (node) {
+        const issued = await this.nodes.call<AgentTokenResponse>(
+          node,
+          'POST',
+          `/v1/workloads/${ref.key}/agent-token`,
+          {
+            epoch: ref.epoch,
+            body: { scope: 'routes', maxPorts: 0, maxExecSeconds: null, expiresAt: null },
+          },
+        )
+        if (issued.epoch === ref.epoch && issued.agent.publicKey === ref.agent?.publicKey)
+          entry.value = { token: issued.token, expiresAt: issued.expiresAt }
+      }
+    } catch {
+      // A missing capability is optional. The edge still has the epoch-bound port manifest.
+    } finally {
+      entry.retryAt = Date.now() + ROUTE_TOKEN_RETRY_MS
+      this.#routeTokenRequests.delete(ref.key)
+    }
   }
 }

@@ -47,6 +47,7 @@ const schema = z.object({
     .default([...DEFAULT_ISOLATION_ORDER]),
   require: z.array(z.enum(GUARANTEES)).default([]),
   publicOrigin: z.url().optional(),
+  managedApiTls: z.boolean(),
   database: z.string().min(1),
   deployment: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
   caCert: z.string().includes('BEGIN CERTIFICATE'),
@@ -120,6 +121,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       .map((name) => name.trim())
       .filter(Boolean),
     publicOrigin: env.PRYX_PUBLIC_URL,
+    managedApiTls: env.PRYX_MANAGED_API_TLS === '1',
     deployment: env.PRYX_DEPLOYMENT ?? 'pryx',
     caCert: env.PRYX_CA_CERT?.replaceAll('\\n', '\n'),
     caKey: env.PRYX_CA_KEY?.replaceAll('\\n', '\n'),

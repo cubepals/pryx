@@ -6,6 +6,7 @@ import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
 import { joinHost } from './join.ts'
 import { option } from './sandbox.ts'
+import { dnsDomain } from './up-acme-config.ts'
 import { checkHostRuntime } from './up-host.ts'
 import { localPaths, runInstalled, upLocal } from './up-local.ts'
 import { inspectLocal } from './up-local-check.ts'
@@ -21,7 +22,7 @@ export async function up(args: string[]) {
   if (args.includes('--preflight')) {
     localRequirements()
     if (preset === 'server') {
-      const plan = upPlan(option(args, '--domain') ?? 'localhost')
+      const plan = upPlan(dnsDomain(option(args, '--domain') ?? process.env.PRYX_DOMAIN ?? 'localhost'))
       if (!plan.linux || !plan.root || !plan.systemd || !(plan.architecture in RELEASE_MACHINES))
         throw new Error('Server preset requires Linux on x86_64 or aarch64, root and systemd')
       checkHostRuntime()

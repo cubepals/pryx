@@ -4,6 +4,7 @@
 /** Direct agent HTTP/websocket relay. Verification precedes wake; exposed application forwards
  * require an assigned spare. Route and output state stay in memory; this module has no control
  * database client and makes no lifecycle call for a ready route. */
+import { chmodSync } from 'node:fs'
 import { StatusCodes } from 'http-status-codes'
 import WebSocket from 'ws'
 import { SECOND_MS } from '../../control/src/durations.ts'
@@ -12,7 +13,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Hold } from './hold.ts'
 import { responseHeaders } from './response-headers.ts'
 import type { RouteTable } from './routes.ts'
-import { fileToken, requestToken, sandboxToken } from './sandbox-token.ts'
+import { fileToken, requestToken, routeCapability, sandboxToken } from './sandbox-token.ts'
 import type { EdgeRoute } from './wire.ts'
 
 type Port = { port: number; slot: number; url: string }
@@ -32,8 +33,12 @@ class ReadinessFailure extends Error {
 }
 export class SandboxProxy {
   readonly ports = new Map<string, { key: string; revision: number; ports: Port[] }>()
-  readonly pending = new Map<string, Promise<Port[]>>()
+  readonly pending = new Map<
+    string,
+    { key: string; revision: number; destination: string; work: Promise<Port[]> }
+  >()
   readonly server: ReturnType<typeof Bun.serve<SocketState>>
+  private managedServer?: ReturnType<typeof Bun.serve<SocketState>>
   private tlsServer?: ReturnType<typeof Bun.serve<SocketState>>
   private control?: string
   useControl(origin: string) {
@@ -51,14 +56,17 @@ export class SandboxProxy {
     if (this.tlsServer) throw new Error('Agent TLS listener already started')
     this.tlsServer = this.listen(tls)
   }
-  private listen(tls?: { cert: string; key: string }) {
-    return Bun.serve<SocketState>({
-      tls,
-      hostname: '127.0.0.1',
-      port: 0,
-      idleTimeout: 0,
+  enableManagedApi(socket: string) {
+    this.managedServer = this.listen(undefined, socket)
+    chmodSync(socket, 0o660)
+  }
+  private listen(tls?: { cert: string; key: string }, unix?: string) {
+    const options = {
       maxRequestBodySize: Number.MAX_SAFE_INTEGER,
-      fetch: (request, server) => this.fetch(request, server),
+      fetch: (request, server) => {
+        if (unix) server.timeout(request, 0)
+        return this.fetch(request, server)
+      },
       error: (error) => {
         console.error('Agent relay failed', {
           kind: error instanceof ReadinessFailure ? error.last : error.name,
@@ -102,7 +110,10 @@ export class SandboxProxy {
         backpressureLimit: 1024 * 1024,
         closeOnBackpressureLimit: true,
       },
-    })
+    } satisfies Bun.Serve.Options<SocketState, never>
+    return unix
+      ? Bun.serve<SocketState>({ ...options, unix })
+      : Bun.serve<SocketState>({ ...options, tls, hostname: '127.0.0.1', port: 0, idleTimeout: 0 })
   }
   destination(tls = false) {
     const server = tls ? this.tlsServer : this.server
@@ -111,6 +122,7 @@ export class SandboxProxy {
   close() {
     this.server.stop(true)
     this.tlsServer?.stop(true)
+    this.managedServer?.stop(true)
   }
 
   match(host: string, path: string): EdgeRoute | undefined {
@@ -129,23 +141,35 @@ export class SandboxProxy {
   private key(route: EdgeRoute) {
     return `${route.epoch}:${route.agent?.manifest.publicKey}`
   }
-  private async exposed(route: EdgeRoute): Promise<Port[]> {
+  private async exposed(
+    route: EdgeRoute,
+    { port, sandboxCapability }: { port?: number; sandboxCapability?: string } = {},
+  ): Promise<Port[]> {
     const key = this.key(route),
       cached = this.ports.get(route.sandbox)
     const revision = route.agent?.manifest.portRevision ?? 0
-    if (cached?.key === key && cached.revision >= revision) return cached.ports
-    if (route.state || !route.agent?.routeToken)
-      return this.validPorts(
-        route.agent?.manifest.exposed.map((p) => ({
-          ...p,
-          url: `https://${route.sandbox}-${p.port}${route.hostname.slice(route.sandbox.length)}`,
-        })),
-        route,
+    const known = cached?.key === key && cached.revision >= revision ? cached.ports : undefined
+    if (known && (port === undefined || known.some((assignment) => assignment.port === port))) return known
+    const capability = sandboxCapability ?? routeCapability(route)
+    if (route.state || !capability)
+      return (
+        known ??
+        this.validPorts(
+          route.agent?.manifest.exposed.map((p) => ({
+            ...p,
+            url: `https://${route.sandbox}-${p.port}${route.hostname.slice(route.sandbox.length)}`,
+          })),
+          route,
+        )
       )
-    if (!this.pending.has(route.sandbox)) {
-      const work = (async () => {
-        const response = await fetch(`http://${route.destination}/_pryx/ports`, {
-          headers: { authorization: `Bearer ${route.agent?.routeToken}` },
+    const pending = this.pending.get(route.sandbox)
+    const { destination } = route
+    if (pending?.key === key && pending.revision === revision && pending.destination === destination)
+      return pending.work
+    const work: Promise<Port[]> = Promise.resolve()
+      .then(async () => {
+        const response = await fetch(`http://${destination}/_pryx/ports`, {
+          headers: { authorization: `Bearer ${capability}` },
           signal: AbortSignal.timeout(5 * SECOND_MS),
           redirect: 'manual',
         })
@@ -153,13 +177,18 @@ export class SandboxProxy {
         const body = (await response.json()) as { ports: Port[]; revision?: number }
         const ports = this.validPorts(body.ports, route)
         const current = this.ports.get(route.sandbox)
-        if (current?.key !== key || current.revision <= (body.revision ?? 0))
+        if (
+          this.pending.get(route.sandbox)?.work === work &&
+          (current?.key !== key || current.revision <= (body.revision ?? 0))
+        )
           this.ports.set(route.sandbox, { key, ports, revision: body.revision ?? 0 })
         return ports
-      })().finally(() => this.pending.delete(route.sandbox))
-      this.pending.set(route.sandbox, work)
-    }
-    return this.pending.get(route.sandbox) as Promise<Port[]>
+      })
+      .finally(() => {
+        if (this.pending.get(route.sandbox)?.work === work) this.pending.delete(route.sandbox)
+      })
+    this.pending.set(route.sandbox, { key, revision, destination, work })
+    return work
   }
   private validPorts(value: unknown, route: EdgeRoute): Port[] {
     if (!Array.isArray(value)) return []
@@ -235,11 +264,9 @@ export class SandboxProxy {
       return new Response('SSH lease unavailable', { status: StatusCodes.GONE })
     let destination = route.destination
     if (exposedPort !== undefined) {
-      let port = (await this.exposed(route)).find((port) => port.port === exposedPort)
-      if (!port && !route.state) {
-        this.ports.delete(route.sandbox)
-        port = (await this.exposed(route)).find((port) => port.port === exposedPort)
-      }
+      const port = (await this.exposed(route, { port: exposedPort })).find(
+        (port) => port.port === exposedPort,
+      )
       if (!port) return new Response('Port is not exposed', { status: StatusCodes.NOT_FOUND })
       const spare = route.agent.manifest.spares.find((spare) => spare.port === port.slot)
       destination = spare?.endpoints[0] ?? ''
@@ -253,7 +280,10 @@ export class SandboxProxy {
       // A new placement needs a new token and spare map, rather than forwarding a stale capability.
       if (ready.epoch !== route.epoch)
         return new Response('Sandbox placement changed', { status: StatusCodes.CONFLICT })
-      const health = route.agent.routeToken ?? token
+      // Application and file credentials do not authorize agent health checks.
+      const health =
+        routeCapability(route) ??
+        (exposedPort === undefined && claims?.scope === 'sandbox' ? token : undefined)
       if (health) await this.ready(ready.destination, health, signal)
     }
     const headers = new Headers(request.headers)
@@ -295,16 +325,24 @@ export class SandboxProxy {
       untrack()
       throw error
     }
-    if (
-      exposedPort === undefined &&
-      path.startsWith('/_pryx/ports') &&
-      response.ok &&
-      request.method !== 'GET'
-    ) {
+    const refreshPorts =
+      (request.method === 'POST' &&
+        (path === '/_pryx/ports' ||
+          path === '/_pryx/browser' ||
+          path === '/_pryx/desktop' ||
+          // MCP multiplexes port changes with other calls on the same endpoint.
+          (path === '/_pryx/mcp' && response.status === StatusCodes.OK && !routeCapability(route)))) ||
+      (request.method === 'DELETE' && /^\/_pryx\/ports\/[^/]+$/.test(path))
+    if (exposedPort === undefined && token && claims?.scope === 'sandbox' && response.ok && refreshPorts) {
       this.ports.delete(route.sandbox)
+      this.pending.delete(route.sandbox)
       // Read the complete assignment after mutation. Merging a POST response can resurrect
       // another slot concurrently removed by unexpose.
-      await this.exposed(route)
+      try {
+        await this.exposed({ ...route, destination, state: undefined }, { sandboxCapability: token })
+      } catch {
+        // The agent already accepted the change. The optional refresh cannot undo it.
+      }
     }
     if (!response.body) {
       untrack()

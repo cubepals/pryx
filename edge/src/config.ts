@@ -14,6 +14,7 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
     .object({
       control: z.url(),
       publicOrigin: z.url().optional(),
+      managedApiTls: z.boolean(),
       token: z.string().min(32),
       id: z.string().min(1).max(128),
       host: z.string(),
@@ -43,11 +44,18 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
     .refine((value) => Boolean(value.agentTlsCert) === Boolean(value.agentTlsKey), {
       message: 'Agent TLS requires both a certificate and private key',
     })
+    .refine(
+      (value) => !value.managedApiTls || (!value.httpOnly && value.publicOrigin?.startsWith('https://')),
+      {
+        message: 'Managed API TLS requires an HTTPS public origin and a TLS edge',
+      },
+    )
     .parse({
       agentTlsCert: env.PRYX_EDGE_AGENT_TLS_CERT,
       agentTlsKey: env.PRYX_EDGE_AGENT_TLS_KEY,
       control: env.PRYX_CONTROL_URL ?? 'http://127.0.0.1:8082',
       publicOrigin: env.PRYX_PUBLIC_URL,
+      managedApiTls: env.PRYX_MANAGED_API_TLS === '1',
       token: env.PRYX_EDGE_TOKEN,
       id: env.PRYX_EDGE_ID ?? hostname(),
       host: env.PRYX_EDGE_HOST ?? '0.0.0.0',
