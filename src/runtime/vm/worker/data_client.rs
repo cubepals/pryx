@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Client ownership of private worker data sessions. The readiness response stays open
-//! through file access or a cold copy. File close waits for confirmed backend cleanup;
+//! through file access or a cold copy. Close waits for confirmed backend cleanup;
 //! dropping either session also closes its lifetime without replaying an uncertain request.
 use super::{file_operations, http, sessions};
 use crate::{
     http_client,
-    runtime::{RuntimeError, files},
+    runtime::{DataCopyLease, RuntimeError, files},
 };
 use async_trait::async_trait;
 use http_body_util::BodyExt;
@@ -81,8 +81,9 @@ impl Client {
         Ok(files::Service::with_transport(transport, async move { lease.close().await }))
     }
 
-    pub async fn copy(&self, sandbox: &str, data: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
-        Ok(Box::new(self.open(sessions::Request::Copy { sandbox: sandbox.into(), data: data.into() }).await?))
+    pub async fn copy(&self, sandbox: &str, data: &std::path::Path) -> Result<DataCopyLease, RuntimeError> {
+        let lease = self.open(sessions::Request::Copy { sandbox: sandbox.into(), data: data.into() }).await?;
+        Ok(DataCopyLease::with_release(lease.close()))
     }
 }
 

@@ -38,13 +38,14 @@ pub mod vm;
 pub mod wasm;
 
 use std::collections::BTreeMap;
+use std::future::Future;
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures_util::stream::BoxStream;
+use futures_util::{future::BoxFuture, stream::BoxStream};
 use time::OffsetDateTime;
 
 use crate::protocol::{Health, Proto};
@@ -338,6 +339,27 @@ impl RuntimeError {
     }
 }
 
+/// Owns the copy barrier through cleanup. Explicit release confirms cleanup before compute
+/// resumes. Dropping the lease releases the local lock or ends the remote session lifetime.
+pub struct DataCopyLease(BoxFuture<'static, Result<(), RuntimeError>>);
+
+impl DataCopyLease {
+    pub fn local(resource: impl Send + 'static) -> Self {
+        Self::with_release(async move {
+            drop(resource);
+            Ok(())
+        })
+    }
+
+    pub fn with_release(release: impl Future<Output = Result<(), RuntimeError>> + Send + 'static) -> Self {
+        Self(Box::pin(release))
+    }
+
+    pub async fn release(self) -> Result<(), RuntimeError> {
+        self.0.await
+    }
+}
+
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
     fn multi_tier(&self) -> bool {
@@ -375,9 +397,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn requires_stopped_data_copy(&self) -> bool {
         false
     }
-    /// Held through a data walk; a backend may fence writable compute with a kernel lease.
-    async fn data_copy_lease(&self, _sandbox: &str, _data: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
-        Ok(Box::new(()))
+    /// Held through a data walk and explicitly released before resuming writable compute.
+    async fn data_copy_lease(&self, _sandbox: &str, _data: &std::path::Path) -> Result<DataCopyLease, RuntimeError> {
+        Ok(DataCopyLease::local(()))
     }
     fn uses_remote_data(&self) -> bool {
         false

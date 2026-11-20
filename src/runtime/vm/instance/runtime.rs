@@ -345,7 +345,7 @@ impl ContainerRuntime for VmRuntime {
     fn requires_stopped_data_copy(&self) -> bool {
         true
     }
-    async fn data_copy_lease(&self, sandbox: &str, data: &Path) -> Result<Box<dyn Send>, RuntimeError> {
+    async fn data_copy_lease(&self, sandbox: &str, data: &Path) -> Result<DataCopyLease, RuntimeError> {
         let lease = self
             .state
             .root
@@ -357,7 +357,7 @@ impl ContainerRuntime for VmRuntime {
         // and the guest stays asleep. The copy is a flushed disk a later boot of it checks first.
         let asleep = self.state.entries.lock().unwrap().values().find(|entry| entry.spec.data_dir == data).cloned();
         if asleep.is_some_and(|entry| entry.memory.is_some()) {
-            return Ok(Box::new(lock(&lease)?));
+            return Ok(DataCopyLease::local(lock(&lease)?));
         }
         let path = data.join(super::super::disk::FILE);
         let exists = match fs::symlink_metadata(&path) {
@@ -377,13 +377,13 @@ impl ContainerRuntime for VmRuntime {
                 self.state.settings.free_floor_bytes,
             )
             .await?;
-            Ok(Box::new(held))
+            Ok(DataCopyLease::local(held))
         } else {
             let held = lock(&lease)?;
             if fs::read_dir(data).map_err(error)?.next().is_some() {
                 return Err(error("VM data directory contains an unrecognized file"));
             }
-            Ok(Box::new(held))
+            Ok(DataCopyLease::local(held))
         }
     }
     async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {

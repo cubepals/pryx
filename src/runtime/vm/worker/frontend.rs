@@ -11,8 +11,8 @@ use super::{
     data_client, http, streams,
 };
 use crate::runtime::{
-    ContainerInfo, ContainerRuntime, ContainerSpec, ExecOutput, LogChunk, LogOptions, NetworkReport, RawStats,
-    RuntimeError, RuntimeEvent, RuntimeInfo, files, limits, vm::instance::ISOLATION,
+    ContainerInfo, ContainerRuntime, ContainerSpec, DataCopyLease, ExecOutput, LogChunk, LogOptions, NetworkReport,
+    RawStats, RuntimeError, RuntimeEvent, RuntimeInfo, files, limits, vm::instance::ISOLATION,
 };
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
@@ -130,7 +130,7 @@ impl ContainerRuntime for Frontend {
     fn requires_stopped_data_copy(&self) -> bool {
         self.capabilities.requires_stopped_data_copy
     }
-    async fn data_copy_lease(&self, sandbox: &str, data: &Path) -> Result<Box<dyn Send>, RuntimeError> {
+    async fn data_copy_lease(&self, sandbox: &str, data: &Path) -> Result<DataCopyLease, RuntimeError> {
         self.data.copy(sandbox, data).await
     }
     fn supports_agent(&self) -> bool {

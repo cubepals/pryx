@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! A manager snapshot turns over a real worker data lock before asking the stopped compute
 //! to start again. The backend and its data are owned test fixtures; no VM monitor is started.
-use super::{Manager, Precondition, Records};
+use super::{Manager, NodeError, Precondition, Records};
 use crate::{
     config::Config,
     ids::{SnapshotId, WorkloadId},
     metrics::Metrics,
     protocol::{SnapshotRequest, WorkloadSpec, WorkloadState},
     runtime::{
-        ContainerStatus,
+        ContainerStatus, DataCopyLease,
         fake::FakeRuntime,
         vm::worker::{commands::Command, frontend_tests::worker, http, sessions},
     },
@@ -17,6 +17,7 @@ use crate::{
 use axum::{
     body::{Body, to_bytes},
     extract::{Request, State},
+    http::StatusCode,
     middleware::{self, Next},
     response::Response,
 };
@@ -45,10 +46,17 @@ enum RequestOrder {
     PrematureStart,
 }
 
+#[derive(Clone, Copy)]
+enum CloseReply {
+    Confirmed,
+    Lost,
+}
+
 struct ReleaseGate {
     response: Mutex<Option<Body>>,
     requests: mpsc::UnboundedSender<RequestOrder>,
     release: Notify,
+    close_reply: CloseReply,
 }
 
 async fn delay_response_drop(State(gate): State<Arc<ReleaseGate>>, request: Request, next: Next) -> Response {
@@ -73,7 +81,12 @@ async fn delay_response_drop(State(gate): State<Arc<ReleaseGate>>, request: Requ
             gate.release.notified().await;
             let response = next.run(request).await;
             drop(gate.response.lock().unwrap().take());
-            response
+            match gate.close_reply {
+                CloseReply::Confirmed => response,
+                CloseReply::Lost => {
+                    Response::builder().status(StatusCode::SERVICE_UNAVAILABLE).body(Body::empty()).unwrap()
+                }
+            }
         }
         _ => {
             if start && gate.response.lock().unwrap().is_some() {
@@ -98,10 +111,19 @@ fn config(state: &Path) -> Config {
 
 #[tokio::test]
 async fn running_snapshot_waits_for_the_worker_copy_lease() {
+    snapshot_with_worker_copy_close(CloseReply::Confirmed).await;
+}
+
+#[tokio::test]
+async fn running_snapshot_stays_stopped_when_worker_copy_release_is_unconfirmed() {
+    snapshot_with_worker_copy_close(CloseReply::Lost).await;
+}
+
+async fn snapshot_with_worker_copy_close(close_reply: CloseReply) {
     timeout(DEADLINE, async {
         let directory = tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).tempdir().unwrap();
         let (requests, mut received) = mpsc::unbounded_channel();
-        let gate = Arc::new(ReleaseGate { response: Mutex::new(None), requests, release: Notify::new() });
+        let gate = Arc::new(ReleaseGate { response: Mutex::new(None), requests, release: Notify::new(), close_reply });
         let layer = middleware::from_fn_with_state(gate.clone(), delay_response_drop);
         let backend = Arc::new(FakeRuntime::new());
         backend.cold_data_copy.store(true, Ordering::SeqCst);
@@ -127,7 +149,7 @@ async fn running_snapshot_waits_for_the_worker_copy_lease() {
         let lock_path = directory.path().join("copy.lock");
         let lease = File::create(&lock_path).unwrap();
         flock(&lease, FlockOperation::NonBlockingLockExclusive).unwrap();
-        *backend.copy_lease.lock().unwrap() = Some(Box::new(lease));
+        *backend.copy_lease.lock().unwrap() = Some(DataCopyLease::local(lease));
         let observer = OpenOptions::new().read(true).write(true).open(lock_path).unwrap();
         let snapshot = SnapshotId::parse(SNAPSHOT).unwrap();
         let copied = manager.store.snapshot_dir(&id, &snapshot).join("data/tree/file");
@@ -153,12 +175,23 @@ async fn running_snapshot_waits_for_the_worker_copy_lease() {
         assert_eq!(backend.count_calls("start "), 1);
 
         gate.release.notify_one();
-        assert!(task.await.unwrap().unwrap().created);
+        let result = task.await.unwrap();
         assert!(received.try_recv().is_err(), "the manager submitted Start before the worker acknowledged release");
         flock(&observer, FlockOperation::NonBlockingLockExclusive).unwrap();
-        assert_eq!(backend.count_calls("start "), 2);
-        assert_eq!(manager.view(&id).unwrap().state, WorkloadState::Running);
-        assert_eq!(fs::read(copied).unwrap(), CONTENTS);
+        match close_reply {
+            CloseReply::Confirmed => {
+                assert!(result.unwrap().created);
+                assert_eq!(backend.count_calls("start "), 2);
+                assert_eq!(manager.view(&id).unwrap().state, WorkloadState::Running);
+                assert_eq!(fs::read(copied).unwrap(), CONTENTS);
+            }
+            CloseReply::Lost => {
+                assert!(matches!(result, Err(NodeError::RuntimeUnavailable(_))), "{result:?}");
+                assert_eq!(backend.count_calls("start "), 1);
+                assert_eq!(backend.container(&workload.locate.container_name).unwrap().status, ContainerStatus::Exited);
+                assert!(!copied.exists(), "a snapshot with unconfirmed release is unpublished and cleaned");
+            }
+        }
 
         drop(manager);
         retired.await.unwrap();

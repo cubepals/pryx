@@ -297,7 +297,12 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     );
 }
 
-async fn assert_continuous_copy_lease(runtime: &VmRuntime, id: &str, sandbox: &str, data: &Path) -> Box<dyn Send> {
+async fn assert_continuous_copy_lease(
+    runtime: &VmRuntime,
+    id: &str,
+    sandbox: &str,
+    data: &Path,
+) -> crate::runtime::DataCopyLease {
     use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
 
     let path = runtime.lease(&runtime.entry(id).unwrap()).unwrap();

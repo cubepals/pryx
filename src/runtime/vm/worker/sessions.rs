@@ -4,7 +4,7 @@
 //! cleanup run in an independent task even when the caller vanishes before readiness.
 //! Frontend retirement closes sessions and drains their operations before compute retirement.
 use super::{authority::Authority, http, transport::Peer};
-use crate::runtime::{ContainerRuntime, RuntimeError, files::Service};
+use crate::runtime::{ContainerRuntime, DataCopyLease, RuntimeError, files::Service};
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -34,7 +34,7 @@ pub(super) type Files = Arc<RwLock<Option<Service>>>;
 
 enum Resource {
     Files(Files),
-    Copy(Box<dyn Send>),
+    Copy(DataCopyLease),
 }
 
 impl Resource {
@@ -44,10 +44,7 @@ impl Resource {
                 Some(service) => service.close().await,
                 None => Err(RuntimeError::Unavailable("Worker file session is already closed".into())),
             },
-            Self::Copy(lease) => {
-                drop(lease);
-                Ok(())
-            }
+            Self::Copy(lease) => lease.release().await,
         }
     }
 }

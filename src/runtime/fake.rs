@@ -68,7 +68,7 @@ pub struct FakeRuntime {
     pub hang_unpause: AtomicBool,
     pub cold_data_copy: AtomicBool,
     #[cfg(test)]
-    pub(crate) copy_lease: Mutex<Option<Box<dyn Send>>>,
+    pub(crate) copy_lease: Mutex<Option<super::DataCopyLease>>,
     /// Opt-in manager controls for completed memory forks; ordinary fake behavior stays off.
     pub memory_forks: AtomicBool,
     /// Whether this backend enforces a workload's hostname egress policy.
@@ -222,8 +222,8 @@ impl ContainerRuntime for FakeRuntime {
         self.cold_data_copy.load(Ordering::SeqCst)
     }
     #[cfg(test)]
-    async fn data_copy_lease(&self, _: &str, _: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
-        Ok(self.copy_lease.lock().unwrap().take().unwrap_or_else(|| Box::new(())))
+    async fn data_copy_lease(&self, _: &str, _: &std::path::Path) -> Result<super::DataCopyLease, RuntimeError> {
+        Ok(self.copy_lease.lock().unwrap().take().unwrap_or_else(|| super::DataCopyLease::local(())))
     }
 
     async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {

@@ -38,6 +38,7 @@ impl Manager {
         } else {
             None
         };
+        let mut released = Ok(());
         let result = async {
             if running {
                 self.note(
@@ -50,11 +51,25 @@ impl Manager {
                         .await,
                 )?;
             }
-            let _lease =
+            let lease =
                 self.note(runtime.data_copy_lease(record.id.as_str(), &self.store.data_dir(&record.id)).await)?;
-            operation.await
+            let copied = operation.await;
+            released = self.note(lease.release().await);
+            copied
         }
         .await;
+        if let Err(problem) = released {
+            if running {
+                self.set_issue(
+                    &record.id,
+                    Issue::new(
+                        IssueCode::RuntimeUnavailable,
+                        format!("Cannot confirm data copy lease release, so compute stays stopped ({problem})"),
+                    ),
+                );
+            }
+            return result.and(Err(problem.into()));
+        }
         if running {
             let resume = async {
                 if !matches!(self.lease(), Lease::NotFleet | Lease::Held) || self.fencing(record) {
