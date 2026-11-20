@@ -117,17 +117,23 @@ export class EdgeService {
         )
       return Number(latest.version)
     })
+    const expirations: Array<[route: string, expiresAt: number]> = []
     if (this.agents) {
-      const active = new Set(all.map((b) => b.id))
-      for (const key of this.agents.routeTokens.keys())
-        if (!active.has(key.split(':')[0] as string)) this.agents.routeTokens.delete(key)
+      this.agents.retainRouteTokens(new Set(all.map((b) => b.id)))
       for (const route of routes) {
         const box = all.find((b) => b.id === route.sandbox)
-        if (route.agent && box?.handle)
-          route.agent.routeToken = await this.agents.routeToken(decodeHandle(box.handle))
+        if (route.agent && box?.handle) {
+          const capability = this.agents.routeToken(decodeHandle(box.handle))
+          if (capability) {
+            route.agent.routeToken = capability.token
+            expirations.push([route.id, capability.expiresAt])
+          }
+        }
       }
     }
-    return { routes, version, digest }
+    // The held version still acknowledges only route placement. Capability recovery changes
+    // the response ETag without putting bearer values or refresh metadata in stored lists.
+    return { routes, version, digest: expirations.length ? fingerprint({ digest, expirations }) : digest }
   }
   async route(id: string) {
     return (await this.routes(true)).routes.find((r) => r.id === id)

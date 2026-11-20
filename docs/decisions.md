@@ -1715,3 +1715,7 @@
 - J2: Use upstream Caddy v2.11.9 (Apache-2.0) as a separate pinned API TLS service. The edge keeps its public TCP listener and sends only the API hostname's TLS to Caddy on loopback. TLS-ALPN-01 uses that same listener, and Caddy owns certificate storage and renewal. CI uses only the separate Pebble v2.10.3 test server (MPL-2.0) for ACME.
 
 - J2: Protect both TLS handoffs with service-owned Unix sockets. Control uses the private edge socket for its own agent calls so readiness and operations do not depend on public DNS or NAT hairpinning. Preserve pre-existing named installations' transport on upgrade, including private DNS names whose owners configured no public URL. Test issuance and renewal on the existing one-box job with separate, explicitly trusted Pebble roots.
+
+- Publish edge routes independently of optional node-issued port-discovery capabilities. Use bounded background refresh and response-only capability expiry in the ETag, so a paused runtime cannot hide another tier's routes and recovery reaches an edge holding the same route version.
+- Refresh the port assignments with the verified caller's capability when browser or desktop access opens a port. During the route-token cold window use the same refresh for accepted MCP calls, so existing agents can expose or withdraw a port before the next route list.
+- Verify recovery from a failed VM snapshot with sequential authenticated health probes on the private vsock service port under one deadline. This leaves the TCP forwarder's reserved slots available when the guest thaws.

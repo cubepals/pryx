@@ -72,6 +72,12 @@ export function sandboxToken(
     return undefined
   }
 }
+
+export function routeCapability(route: EdgeRoute) {
+  const token = route.agent?.routeToken
+  return sandboxToken(token, route)?.scope === 'routes' ? token : undefined
+}
+
 export function requestToken(request: Request) {
   return (
     request.headers.get('authorization')?.replace(/^Bearer /, '') ??
