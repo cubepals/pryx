@@ -151,11 +151,15 @@ pub(super) async fn retire_orphans(
                         == Some(pryx_agent::exec_ingress::MODE)
             });
         if owned && info.running == Some(true) && !finished(&docker, exec).await {
-            let _ = super::exec_completion::retire_container(docker.clone(), id.clone(), start, runtime.starts.clone())
-                .await;
-            return Err(RuntimeError::Unavailable(
-                "A private ingress owner was lost; its old container start was retired".into(),
-            ));
+            let retired =
+                super::exec_completion::retire_container(docker.clone(), id.clone(), start, runtime.starts.clone())
+                    .await;
+            let message = if retired {
+                "A private ingress owner was lost; its old container start was retired"
+            } else {
+                "A private ingress owner was lost. Retirement of its old container start could not be confirmed"
+            };
+            return Err(RuntimeError::Unavailable(message.into()));
         }
     }
     Ok(())
