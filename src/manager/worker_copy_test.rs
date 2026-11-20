@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! A manager snapshot turns over a real worker data lock before asking the stopped compute
 //! to start again. The backend and its data are owned test fixtures; no VM monitor is started.
-use super::{commands::Command, frontend_tests::worker, http, sessions};
+use super::{Manager, Precondition, Records};
 use crate::{
     config::Config,
     ids::{SnapshotId, WorkloadId},
-    manager::{Manager, Precondition, Records},
     metrics::Metrics,
     protocol::{SnapshotRequest, WorkloadSpec, WorkloadState},
-    runtime::{ContainerStatus, fake::FakeRuntime},
+    runtime::{
+        ContainerStatus,
+        fake::FakeRuntime,
+        vm::worker::{commands::Command, frontend_tests::worker, http, sessions},
+    },
     store::Store,
 };
 use axum::{
@@ -102,9 +105,7 @@ async fn running_snapshot_waits_for_the_worker_copy_lease() {
         let layer = middleware::from_fn_with_state(gate.clone(), delay_response_drop);
         let backend = Arc::new(FakeRuntime::new());
         backend.cold_data_copy.store(true, Ordering::SeqCst);
-        let (frontend, served, retired) =
-            worker(directory.path(), backend.clone(), |backend, authority| super::app(backend, authority).layer(layer))
-                .await;
+        let (frontend, served, retired) = worker(directory.path(), backend.clone(), |app| app.layer(layer)).await;
         let config = Arc::new(config(&directory.path().join("state")));
         let store = Store::open(&config.state_dir).unwrap();
         let manager = Manager::new(config, Arc::new(frontend), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));

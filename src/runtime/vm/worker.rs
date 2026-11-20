@@ -6,7 +6,6 @@
 //! Parts (`worker/`):
 //! - `authority.rs`: frontend lifetime, same-process admission and drained compute retirement.
 //! - `commands.rs`: typed runtime commands and cancellation-owned unary dispatch.
-//! - `copy_tests.rs`: manager snapshot through a worker with a delayed copy lease release.
 //! - `data_client.rs`: response lifetimes and confirmed file cleanup on the frontend.
 //! - `file_operations.rs`: admitted fixed file operations with streamed bodies and held cleanup.
 //! - `frontend.rs`: the main daemon's backend that sends each runtime verb to the worker once.
@@ -19,13 +18,11 @@
 //! - `transport.rs`: private socket ownership, single server lease and kernel peer admission.
 pub mod authority;
 pub mod commands;
-#[cfg(test)]
-mod copy_tests;
 pub mod data_client;
 pub mod file_operations;
 pub mod frontend;
 #[cfg(test)]
-mod frontend_tests;
+pub(crate) mod frontend_tests;
 pub mod http;
 pub mod service;
 #[cfg(test)]

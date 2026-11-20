@@ -42,6 +42,7 @@
 //! - `reconcile.rs`: makes the records agree with what Docker has.
 //! - `persist.rs`: writes records and the port quarantine in turn, off the async threads.
 //! - `error.rs`: what an operation fails with, and the epoch check every mutating verb makes.
+//! - `worker_copy_test.rs`: snapshot resume waits for the VM worker to release the copy lease.
 //! - `workload_state.rs`: the state a record and its container make together.
 //! - `label_record.rs`: the record as a container's label carries it.
 
@@ -107,6 +108,8 @@ mod stats;
 mod store_lease;
 mod tiers;
 mod view;
+#[cfg(test)]
+mod worker_copy_test;
 mod workload_state;
 
 pub use error::{ConflictCode, NodeError};

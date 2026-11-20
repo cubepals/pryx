@@ -40,10 +40,10 @@ fn spec(root: &std::path::Path) -> ContainerSpec {
     .unwrap()
 }
 
-pub(super) async fn worker(
+pub(crate) async fn worker(
     root: &std::path::Path,
     runtime: Arc<FakeRuntime>,
-    app: impl FnOnce(Arc<dyn ContainerRuntime>, super::authority::Authority) -> axum::Router + Send + 'static,
+    decorate: impl FnOnce(axum::Router) -> axum::Router + Send + 'static,
 ) -> (Frontend, tokio::task::JoinHandle<std::io::Result<()>>, tokio::sync::oneshot::Receiver<()>) {
     let uid = rustix::process::geteuid().as_raw();
     let (lifetime, requests) = (root.join("lifetime.sock"), root.join("requests.sock"));
@@ -53,7 +53,7 @@ pub(super) async fn worker(
         Endpoint::bind(&lifetime, uid).await.unwrap(),
         Endpoint::bind(&requests, uid).await.unwrap(),
         uid,
-        move |authority| app(backend, authority),
+        move |authority| decorate(super::app(backend, authority)),
         async move {
             let _ = retire.send(());
             Ok(())
@@ -67,7 +67,7 @@ async fn each_verb_reaches_the_worker_once_and_frontend_loss_retires_it() {
     let root = tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).tempdir().unwrap();
     let runtime = Arc::new(FakeRuntime::new());
     runtime.cold_data_copy.store(true, Ordering::SeqCst);
-    let (frontend, served, mut retired) = worker(root.path(), runtime.clone(), super::app).await;
+    let (frontend, served, mut retired) = worker(root.path(), runtime.clone(), std::convert::identity).await;
     assert_eq!(frontend.isolation(), crate::runtime::vm::instance::ISOLATION);
     assert_eq!(frontend.requires_stopped_data_copy(), runtime.requires_stopped_data_copy());
     assert_eq!(frontend.uses_remote_data(), runtime.uses_remote_data());
