@@ -207,5 +207,51 @@ class ReadTests(unittest.TestCase):
             self.assertIs(signal.getsignal(signal.SIGTERM), signal.default_int_handler)
 
 
+class ArchiveCancellationTests(unittest.TestCase):
+    def test_repeated_cancellation_removes_the_archive_temp_directory(self):
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            previous = signal.signal(sig, signal.default_int_handler)
+            self.addCleanup(signal.signal, sig, previous)
+
+        child = mock.Mock(pid=object())
+        child.poll.return_value = None
+        child.wait.return_value = -signal.SIGTERM
+        remove_tree = tempfile.TemporaryDirectory._rmtree
+        archive_directory = None
+        repeated = False
+
+        def cancel_after_spawn(*args, **kwargs):
+            nonlocal archive_directory
+            archive_directory = Path(kwargs['env']['TMPDIR'])
+            signal.raise_signal(signal.SIGTERM)
+            return child
+
+        def cancel_during_cleanup(path, *args, **kwargs):
+            nonlocal repeated
+            if Path(path) == archive_directory:
+                child.wait.assert_called_once()
+                repeated = True
+                signal.raise_signal(signal.SIGINT)
+            return remove_tree(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = root / 'stage'
+            stage.mkdir()
+            with (
+                mock.patch.object(subprocess, 'Popen', side_effect=cancel_after_spawn),
+                mock.patch.object(os, 'killpg') as killpg,
+                mock.patch.object(tempfile.TemporaryDirectory, '_rmtree', side_effect=cancel_during_cleanup),
+                self.assertRaises(KeyboardInterrupt),
+            ):
+                reader.read(['fixture-client'], stage, root / 'client.log', 1)
+            killpg.assert_called_once_with(child.pid, signal.SIGTERM)
+            self.assertTrue(repeated, 'the test must interrupt archive cleanup after reaping')
+            self.assertFalse(
+                archive_directory.exists(),
+                'repeated cancellation must remove the private archive directory',
+            )
+
+
 if __name__ == '__main__':
     unittest.main()
