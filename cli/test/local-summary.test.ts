@@ -137,18 +137,7 @@ test('summary reports process limits announced by the running managed service', 
       ['multi-tier', 'tier-process', 'tier-process:memory-limit', 'tier-process:cpu-limit'],
       'process',
     )
-    createPrivateFile(
-      join(paths.runtime, 'supervisor.json'),
-      JSON.stringify({
-        pid: service.pid,
-        start,
-        bundle,
-        state: paths.state,
-        ready: true,
-        processLimits: { 'memory-limit': observed['memory-limit'], 'cpu-limit': observed['cpu-limit'] },
-      }),
-    )
-    expect(supervisor(record)?.ready).toBe(true)
+    const processLimits = { 'memory-limit': observed['memory-limit'], 'cpu-limit': observed['cpu-limit'] }
     const file = join(home, 'record.json')
     createPrivateFile(file, JSON.stringify(record))
     const script = [
@@ -156,25 +145,50 @@ test('summary reports process limits announced by the running managed service', 
       'const record=await Bun.file(process.env.PRYX_TEST_RECORD).json();',
       'await localSummary(record,"systemctl --user status pryx");',
     ].join('\n')
-    const child = Bun.spawn([process.execPath, '-e', script], {
-      env: {
-        PRYX_TEST_MODULE: new URL('../src/up-local-activate.ts', import.meta.url).href,
-        PRYX_TEST_RECORD: file,
-      },
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const [stdout, , code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ])
-    expect(code).toBe(0)
-    const summary = JSON.parse(stdout.slice(0, stdout.indexOf('\n}') + 2))
-    expect(summary).not.toHaveProperty('apiKey')
-    expect(summary.capabilities['process-limits'].state).toBe('on')
-    expect(stdout).not.toContain('have no enforced resource limits')
+    for (const fixture of [
+      { ready: true, limits: processLimits, state: 'on' },
+      { ready: true, limits: { ...processLimits, 'cpu-limit': false }, state: 'off' },
+      { ready: true, state: 'unknown' },
+      { ready: false, limits: processLimits, state: 'unknown' },
+    ]) {
+      createPrivateFile(
+        join(paths.runtime, 'supervisor.json'),
+        JSON.stringify({
+          pid: service.pid,
+          start,
+          bundle,
+          state: paths.state,
+          ready: fixture.ready,
+          processLimits: fixture.limits,
+        }),
+        true,
+      )
+      expect(supervisor(record)?.ready).toBe(fixture.ready)
+      const child = Bun.spawn([process.execPath, '-e', script], {
+        env: {
+          PRYX_TEST_MODULE: new URL('../src/up-local-activate.ts', import.meta.url).href,
+          PRYX_TEST_RECORD: file,
+        },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+      const [stdout, , code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ])
+      expect(code).toBe(0)
+      const summary = JSON.parse(stdout.slice(0, stdout.indexOf('\n}') + 2))
+      expect(summary).not.toHaveProperty('apiKey')
+      const reported = summary.capabilities['process-limits']
+      expect(reported.state).toBe(fixture.state)
+      if (fixture.state === 'off') {
+        expect(reported.evidence).toContain('cpu-limit')
+        expect(reported.evidence).not.toContain('memory-limit')
+      }
+      expect(stdout).not.toContain('have no enforced resource limits')
+    }
   } finally {
     if (service?.exitCode === null) service.kill('SIGKILL')
     await service?.exited

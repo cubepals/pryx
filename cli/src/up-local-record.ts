@@ -6,7 +6,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import { GUARANTEES, type Guarantee } from '../../control/src/guarantees.ts'
 import { type IsolationDefault, isIsolationDefault } from '../../control/src/isolation.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
-import { processStart } from '../../deploy/supervisor-process.ts'
+import { type ProcessLimits, processStart } from '../../deploy/supervisor-process.ts'
 import { type ProfileRecord, validProfile } from './up-local-profile.ts'
 import type { LocalPaths } from './up-paths.ts'
 
@@ -89,6 +89,7 @@ export function supervisor(record: LocalInstallation) {
     bundle: string
     state: string
     ready: boolean
+    processLimits?: ProcessLimits
   }>(join(record.paths.runtime, 'supervisor.json'))
   if (
     !identity ||
