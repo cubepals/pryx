@@ -67,6 +67,8 @@ pub struct FakeRuntime {
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
     pub cold_data_copy: AtomicBool,
+    #[cfg(test)]
+    pub(crate) copy_lease: Mutex<Option<Box<dyn Send>>>,
     /// Opt-in manager controls for completed memory forks; ordinary fake behavior stays off.
     pub memory_forks: AtomicBool,
     /// Whether this backend enforces a workload's hostname egress policy.
@@ -102,6 +104,8 @@ impl FakeRuntime {
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
             cold_data_copy: AtomicBool::new(false),
+            #[cfg(test)]
+            copy_lease: Mutex::new(None),
             memory_forks: AtomicBool::new(false),
             hostname_egress: AtomicBool::new(false),
             data_owner_problem: Mutex::new(None),
@@ -217,6 +221,11 @@ impl ContainerRuntime for FakeRuntime {
     fn requires_stopped_data_copy(&self) -> bool {
         self.cold_data_copy.load(Ordering::SeqCst)
     }
+    #[cfg(test)]
+    async fn data_copy_lease(&self, _: &str, _: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
+        Ok(self.copy_lease.lock().unwrap().take().unwrap_or_else(|| Box::new(())))
+    }
+
     async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {
         if !self.memory_forks.load(Ordering::SeqCst) {
             return Ok(None);
