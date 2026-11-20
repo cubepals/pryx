@@ -56,9 +56,9 @@ impl Relays {
         &self,
         info: &ContainerInspectResponse,
         id: &str,
-        encoded: &str,
+        bindings: Result<Vec<PortBinding>, serde_json::Error>,
     ) -> Result<Vec<PortBinding>, RuntimeError> {
-        let bindings = declared(info, encoded);
+        let bindings = declared(info, bindings);
         match &bindings {
             Ok(bindings) if !bindings.is_empty() => {}
             _ => self.stop(id).await,
@@ -81,6 +81,11 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
+        let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
+        if bindings.as_ref().is_ok_and(Vec::is_empty) {
+            self.stop(id).await;
+            return Ok(());
+        }
         let metadata = runtime.info.lock().unwrap().clone();
         let metadata = match metadata {
             Some(metadata) => metadata,
@@ -92,7 +97,7 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
-        let bindings = self.verified_bindings(info, id, encoded).await?;
+        let bindings = self.verified_bindings(info, id, bindings).await?;
         if bindings.is_empty() {
             return Ok(());
         }
@@ -169,11 +174,10 @@ impl Relays {
 }
 /// Image defaults are not declarations. Only the immutable host record can authorize a
 /// private lease; historical internet labels are ignored even when their JSON is malformed.
-fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBinding>, RuntimeError> {
-    let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
-    if bindings.as_ref().is_ok_and(Vec::is_empty) {
-        return Ok(Vec::new());
-    }
+fn declared(
+    info: &ContainerInspectResponse,
+    bindings: Result<Vec<PortBinding>, serde_json::Error>,
+) -> Result<Vec<PortBinding>, RuntimeError> {
     let Some(record) = info
         .config
         .as_ref()
