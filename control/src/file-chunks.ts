@@ -56,13 +56,17 @@ export class FileChunks {
         body === undefined ? undefined : (new Response(body).body ?? undefined),
       )
     const token = await this.agents.token(id, project, requestUrl)
-    const response = await fetch(`${token.url}/_pryx/files/content?${new URLSearchParams({ path })}`, {
-      method: body === undefined ? 'GET' : 'PUT',
-      body,
-      redirect: 'manual',
-      signal,
-      headers: { authorization: `Bearer ${token.token}` },
-    })
+    const response = await this.agents.request(
+      token.url,
+      `/_pryx/files/content?${new URLSearchParams({ path })}`,
+      {
+        method: body === undefined ? 'GET' : 'PUT',
+        body,
+        redirect: 'manual',
+        signal,
+        headers: { authorization: `Bearer ${token.token}` },
+      },
+    )
     if (!response.ok) {
       await response.body?.cancel()
       throw new SandboxError('invalid_request', 'Agent file request refused')

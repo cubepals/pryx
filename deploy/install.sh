@@ -45,12 +45,16 @@ if [ -z "$preset" ]; then
   else echo 'Root requires systemd or a container; run the command as an ordinary user' >&2; exit 1
   fi
 fi
+set -- --preset "$preset"
+if [ "$preset" = server ] && [ -n "${PRYX_DOMAIN:-}" ]; then
+  set -- "$@" --domain "$PRYX_DOMAIN"
+fi
 download SHA256SUMS
 if [ "$preset" = server ]; then
   download "$cli"
   verify "$cli"
   chmod 700 "$temporary/$cli"
-  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/$cli" up --preset server --preflight; fi
+  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/$cli" up "$@" --preflight; fi
   install -m 0755 "$temporary/$cli" /usr/local/bin/pryx
   destination=/usr/local/bin/pryx
 else
@@ -61,7 +65,7 @@ else
   # The initial bootstrap has the same HTTPS trust as this script. The CLI authenticates
   # the complete host bundle with its compiled Ed25519 key before activation.
   tar -xzf "$temporary/$asset" -C "$temporary/unpacked"
-  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/unpacked/bin/pryx" up --preset "$preset" --preflight; fi
+  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/unpacked/bin/pryx" up "$@" --preflight; fi
   if [ "$(id -u)" = 0 ]; then bootstrap=/opt/pryx/cli; destination=/usr/local/bin/pryx
   else bootstrap="$HOME/.local/share/pryx-cli"; destination="$HOME/.local/bin/pryx"
   fi
@@ -70,5 +74,5 @@ fi
 "$destination" --version
 if [ "${PRYX_NO_UP:-0}" != 1 ]; then
   # sh -s may be consuming the script from stdin; services never inherit that pipe.
-  "$destination" up --preset "$preset" </dev/null
+  "$destination" up "$@" </dev/null
 fi

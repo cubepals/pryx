@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** Systemd templates for private control/storage and public byte fronts. No template contains a secret. */
-export function service(name: 'control' | 'edge') {
+import { MANAGED_API_RUNTIME } from '../../control/src/managed-api.ts'
+
+export function service(name: 'control' | 'edge', managedApiTls = false) {
   return `[Unit]
 Description=pryx ${name}
 After=network-online.target pryx-postgres.service pryx-store.service
@@ -20,6 +22,7 @@ ProtectHome=yes
 PrivateTmp=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ${name === 'edge' ? 'AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE' : ''}
+${name === 'edge' && managedApiTls ? `RuntimeDirectory=${MANAGED_API_RUNTIME}\nRuntimeDirectoryMode=0750\nUMask=0077` : ''}
 [Install]
 WantedBy=multi-user.target
 `

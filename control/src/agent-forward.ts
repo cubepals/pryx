@@ -78,7 +78,7 @@ export class AgentForward {
       'content-type': 'application/json',
       'idempotency-key': key ? op.id : randomUUID(),
     }
-    const start = await fetch(`${credential.url}/_pryx/processes`, {
+    const start = await this.agents.request(credential.url, '/_pryx/processes', {
       method: 'POST',
       headers,
       body: JSON.stringify({ command: body.command, env: body.env, timeout: body.timeout }),
@@ -88,11 +88,15 @@ export class AgentForward {
     if (start.status !== StatusCodes.CREATED)
       throw new SandboxError('operation_unknown', 'Agent did not confirm command start')
     const view = agentSchema('View').parse(await start.json()) as components['schemas']['AgentProcess']
-    const response = await fetch(`${credential.url}/_pryx/processes/${encodeURIComponent(view.id)}/output`, {
-      headers: { authorization: headers.authorization },
-      signal: abort,
-      redirect: 'manual',
-    })
+    const response = await this.agents.request(
+      credential.url,
+      `/_pryx/processes/${encodeURIComponent(view.id)}/output`,
+      {
+        headers: { authorization: headers.authorization },
+        signal: abort,
+        redirect: 'manual',
+      },
+    )
     return (async function* () {
       const result: ExecResponse = {
         stdout: '',
@@ -154,8 +158,9 @@ export class AgentForward {
   async *logs(id: string, project: string, query: URLSearchParams, signal: AbortSignal, requestUrl: string) {
     const credential = await this.agents.token(id, project, requestUrl),
       follow = query.get('follow') === 'true'
-    const response = await fetch(
-      `${credential.url}/_pryx/logs?${new URLSearchParams({ follow: String(follow) })}`,
+    const response = await this.agents.request(
+      credential.url,
+      `/_pryx/logs?${new URLSearchParams({ follow: String(follow) })}`,
       { headers: { authorization: `Bearer ${credential.token}` }, signal, redirect: 'manual' },
     )
     const decoder = new LogDecoder(),

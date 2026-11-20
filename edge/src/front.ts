@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** TCP front and relay with bounded greetings/holds, backpressure, session reporting and stale-epoch closes. */
-import { connect, createServer, type Socket } from 'node:net'
+import { connect, createServer, type Socket, type SocketConnectOpts } from 'node:net'
 import { setTimeout as pause } from 'node:timers/promises'
 
 import agentContract from '../../agent/openapi.json'
@@ -16,6 +16,7 @@ import type { SandboxProxy } from './sandbox-proxy.ts'
 import type { EdgeRoute } from './wire.ts'
 export interface FrontOptions {
   control?: { destination: string; paths: RegExp; hostname?: string }
+  apiTls?: { socket: string; hostname: string }
   agents?: SandboxProxy
   host: string
   port: number
@@ -35,12 +36,16 @@ export interface FrontOptions {
     bytes?: { bytesUp: number; bytesDown: number },
   ) => void
 }
-function dial(destination: string, signal: AbortSignal): Promise<Socket> {
-  const at = destination.lastIndexOf(':'),
-    host = destination.slice(0, at).replace(/^\[|\]$/g, ''),
-    port = Number(destination.slice(at + 1))
+function tcpAddress(destination: string): SocketConnectOpts {
+  const at = destination.lastIndexOf(':')
+  return {
+    host: destination.slice(0, at).replace(/^\[|\]$/g, ''),
+    port: Number(destination.slice(at + 1)),
+  }
+}
+function dial(address: SocketConnectOpts, signal: AbortSignal): Promise<Socket> {
   return new Promise((resolve, reject) => {
-    const socket = connect({ host, port })
+    const socket = connect(address)
     const abort = () => socket.destroy(new Error('Connect cancelled'))
     if (signal.aborted) abort()
     else signal.addEventListener('abort', abort, { once: true })
@@ -161,22 +166,26 @@ async function arrival(client: Socket, o: FrontOptions) {
     }
     client.pause()
     releaseGreeting()
+    const apiHost = o.apiTls?.hostname === name
+    if (apiHost && o.kind === 'http') throw new Error('The API hostname requires TLS')
+    const apiTls = apiHost && o.kind === 'tls' ? o.apiTls : undefined
     const path = bytes.toString('latin1').split(' ')[1] ?? ''
-    const agentRoute =
-      o.kind === 'http'
+    const agentRoute = apiTls
+      ? undefined
+      : o.kind === 'http'
         ? o.agents?.match(name, path)
         : o.kind === 'tls' && o.agents?.destination(true)
           ? o.agents.match(name, '/_pryx/')
           : undefined
-    const assigned = agentRoute ? undefined : o.table.find(name, o.kind, o.routePort)
-    const fallback =
+    const assigned = agentRoute || apiTls ? undefined : o.table.find(name, o.kind, o.routePort)
+    const control =
       !agentRoute &&
       o.kind === 'http' &&
       o.control?.paths.test(path) &&
       (!assigned || !o.control.hostname || o.control.hostname === name)
     route =
       agentRoute ??
-      (fallback
+      (apiTls || control
         ? {
             id: '__control',
             sandbox: '__control',
@@ -184,10 +193,11 @@ async function arrival(client: Socket, o: FrontOptions) {
             port: 'http',
             front: 'http',
             publicPort: o.routePort,
-            destination: o.control?.destination as string,
+            destination: (apiTls?.socket ?? o.control?.destination) as string,
             epoch: 0,
           }
         : assigned)
+    const local = apiTls || control
     releaseOpen = o.gate.admit(route?.sandbox ?? '__unknown__', client.remoteAddress ?? '') ?? undefined
     if (!route || !releaseOpen) throw new Error('Unknown or limited destination')
     o.metrics.holds++
@@ -197,13 +207,13 @@ async function arrival(client: Socket, o: FrontOptions) {
         destination: agentRoute ? (o.agents?.destination(o.kind === 'tls') as string) : route.destination,
         epoch: route.epoch,
       }
-      if (route.state && !agentRoute && !fallback) target = await o.hold.ready(route, until)
+      if (route.state && !agentRoute && !local) target = await o.hold.ready(route, until)
       while (!until.aborted) {
         try {
-          upstream = await dial(target.destination, until)
+          upstream = await dial(apiTls ? { path: apiTls.socket } : tcpAddress(target.destination), until)
           break
         } catch {
-          if (agentRoute) throw new Error('Agent ingress unavailable')
+          if (agentRoute || apiTls) throw new Error('Local ingress unavailable')
           await pause(SECOND_MS / 4, undefined, { signal: until })
           target = await o.hold.ready(route, until)
         }
@@ -213,13 +223,13 @@ async function arrival(client: Socket, o: FrontOptions) {
       handed = true
       client.off('data', collect)
       route = { ...route, epoch: target.epoch, destination: target.destination }
-      if (!agentRoute && !fallback)
+      if (!agentRoute && !local)
         untrack = o.table.track(route, target.destination, target.epoch, () => {
           client.destroy()
           upstream?.destroy()
         })
       if (client.destroyed) throw new Error('Route moved')
-      if (!agentRoute && !fallback) {
+      if (!agentRoute && !local) {
         sessionId = crypto.randomUUID()
         o.session(sessionId, { ...route, epoch: target.epoch }, 'connect')
       }

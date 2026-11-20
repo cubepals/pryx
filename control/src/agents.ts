@@ -9,6 +9,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from './durations.ts'
 import { routesPending } from './edge-routed.ts'
 import { decodeHandle, encodeHandle, type FleetRef } from './handle.ts'
+import { fetchAgent } from './managed-api.ts'
 import type { NodeClient } from './node-client.ts'
 import { projectRow } from './project-admission.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
@@ -39,7 +40,11 @@ export class Agents {
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
     readonly domain: string,
+    private readonly agentSocket?: string,
   ) {}
+  request(origin: string, path: string, init: RequestInit) {
+    return fetchAgent(origin, path, init, this.agentSocket)
+  }
   async data(
     id: string,
     project: string,
@@ -115,7 +120,7 @@ export class Agents {
       let last = 'no response'
       while (Date.now() < deadline) {
         try {
-          const response = await fetch(`${credential.url}/_pryx/health`, {
+          const response = await this.request(credential.url, '/_pryx/health', {
             headers: { authorization: `Bearer ${credential.token}` },
             signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
             redirect: 'manual',
