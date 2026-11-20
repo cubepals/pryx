@@ -152,13 +152,23 @@ mod tests {
 
     #[tokio::test]
     async fn idempotent_start_can_retire_an_abandoned_ingress_owner() {
+        abandoned_ingress_retirement(true).await;
+    }
+
+    #[tokio::test]
+    async fn idempotent_start_reports_unconfirmed_ingress_retirement() {
+        abandoned_ingress_retirement(false).await;
+    }
+
+    async fn abandoned_ingress_retirement(confirmed: bool) {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("engine.sock");
         let listener = tokio::net::UnixListener::bind(&path).unwrap();
         let kills = Arc::new(AtomicUsize::new(0));
         let starts = Arc::new(AtomicUsize::new(0));
         let probes = Arc::new(AtomicUsize::new(0));
-        let observed = (kills.clone(), starts.clone(), probes.clone());
+        let confirmations = Arc::new(AtomicUsize::new(0));
+        let observed = (kills.clone(), starts.clone(), probes.clone(), confirmations.clone());
         let timestamp = OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap();
         let bindings = serde_json::to_string(&vec![crate::runtime::PortBinding {
             container_port: 8080,
@@ -172,7 +182,7 @@ mod tests {
             &serde_json::from_str::<Vec<crate::runtime::PortBinding>>(&bindings).unwrap(),
         );
         let app = Router::new().fallback(any(move |request: Request| {
-            let (kills, starts, probes) = observed.clone();
+            let (kills, starts, probes, confirmations) = observed.clone();
             let timestamp = timestamp.clone();
             let bindings = bindings.clone();
             let record = record.clone();
@@ -197,6 +207,9 @@ mod tests {
                             "arguments": [pryx_agent::exec_ingress::MODE, "tcp", "8080"]}})));
                 }
                 let running = kills.load(Ordering::SeqCst) == 0;
+                if !running && confirmations.fetch_add(1, Ordering::SeqCst) == 0 && !confirmed {
+                    return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"message": "confirmation unavailable"})));
+                }
                 (StatusCode::OK, Json(serde_json::json!({"Id": "owned", "Name": "/owned",
                     "State": {"Running": running, "Status": if running {"running"} else {"exited"}, "StartedAt": timestamp},
                     "Config": {"Labels": {crate::labels::LABEL_INTERNAL_BINDINGS: bindings, crate::labels::LABEL_RECORD: record}}, "ExecIDs": ["abandoned"]})))
@@ -209,9 +222,12 @@ mod tests {
             .await
             .expect("adoption must not wait on its own start lock")
             .unwrap_err();
-        assert!(error.to_string().contains("old container start was retired"), "{error}");
         assert_eq!(starts.load(Ordering::SeqCst), 1, "never repeat a start mutation");
         assert_eq!(kills.load(Ordering::SeqCst), 1, "retire the abandoned generation exactly once");
+        assert_eq!(confirmations.load(Ordering::SeqCst), 1, "the mock observed the post-kill read");
+        assert!(matches!(&error, RuntimeError::Unavailable(_)), "{error}");
+        let expected = if confirmed { "old container start was retired" } else { "could not be confirmed" };
+        assert!(error.to_string().contains(expected), "Expected {expected:?}, got {error}");
         server.abort();
     }
 }
