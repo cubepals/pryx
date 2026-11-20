@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: after-main
+          SOURCE_BRANCH: k32-artifact-log
           BASE_BRANCH: any-host
-          SOURCE_HEAD: '4497eac50fa9fe1b5cd553f90f1294f55a1f6704'
+          SOURCE_HEAD: '02eeb5a7b45f951401b919d6d0a22f0105013dc4'
           ANY_HOST_HEAD: 'e7392076ab7ed4834a61012e1af87874aa46fe0f'
-          MERGED_TREE: '2d52d9f281aa01e6ddc84475025d562a400371f2'
-          SUBJECT: 'Merge any-host into after-main'
+          MERGED_TREE: '7f2aeaa39413d00ff42ea1d8457674b44e0fae07'
+          SUBJECT: 'Merge any-host into artifact log fix'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
