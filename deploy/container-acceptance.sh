@@ -33,9 +33,17 @@ if command -v apt-get >/dev/null; then
   # The minimal Ubuntu image bootstraps its own CA package using the read-only runner roots.
   # Ubuntu release signatures and package digests are always verified, and TLS on every
   # HTTPS mirror.
+  apt_prerequisite() {
+    # A booted job must be able to reach its later mirrors if one attempt stalls.
+    if [ "${PRYX_PREPARE_ONLY:-0}" = 1 ]; then
+      timeout --kill-after=5s 45s apt-get "$@"
+    else
+      apt-get "$@"
+    fi
+  }
   install_apt_prerequisites() {
-    apt-get update -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca" &&
-      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
+    apt_prerequisite update -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca" &&
+      DEBIAN_FRONTEND=noninteractive apt_prerequisite install -y -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
   }
   if sh -c '. /etc/os-release; [ "$ID" = ubuntu ]'; then
     # The manifest's mirrors, space-separated in order, are tried until one serves every
