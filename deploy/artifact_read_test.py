@@ -105,6 +105,16 @@ class ReadTests(unittest.TestCase):
         self.assertIn(f'Artifact read exited {control.returncode}; observed_bytes=0', self.log.read_text())
         self.assertFalse((self.stage / 'part').exists())
 
+    def test_client_messages_stay_out_of_the_watchdog_log(self):
+        command = [sys.executable, '-c',
+                   'import os, sys; print("fixture stdout"); '
+                   'print("fixture stderr", file=sys.stderr); sys.exit(os.EX_UNAVAILABLE)']
+        self.assertEqual(reader.read(command, self.stage, self.log, 0.35), os.EX_UNAVAILABLE)
+        diagnostic = self.log.read_text()
+        self.assertIn(f'Artifact read exited {os.EX_UNAVAILABLE}; observed_bytes=0', diagnostic)
+        self.assertNotIn('fixture stdout', diagnostic)
+        self.assertNotIn('fixture stderr', diagnostic)
+
     def test_cancellation_stops_the_client_and_cleans_its_temporary_directory(self):
         # Record the controlled client's PID before exec, without requiring procfs children files.
         client = [sys.executable, '-c',

@@ -97,7 +97,8 @@ def read(command, stage, log, idle_seconds):
         with log.open('w') as output, defer_cancellation() as check_cancellation:
             process = None
             try:
-                process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT,
+                # The client's diagnostics can include a temporary download URL.
+                process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                            start_new_session=True, env={**os.environ, 'TMPDIR': temporary})
                 while process.poll() is None:
                     check_cancellation()
