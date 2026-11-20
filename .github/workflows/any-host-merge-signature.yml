@@ -19,18 +19,19 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k31-limits
-          SOURCE_HEAD: 'e30186a3c79c4cb2cdb0f0ecf7a00b01d6215b42'
-          ANY_HOST_HEAD: '168e1b012ae19810ec8aba255d0c67a5e8dda547'
-          MERGED_TREE: '3f1f381779da47c018bd4cb43c99e4a3c79a9f4c'
-          SUBJECT: 'Merge any-host into K31 limits'
+          SOURCE_BRANCH: after-main
+          BASE_BRANCH: any-host
+          SOURCE_HEAD: '4497eac50fa9fe1b5cd553f90f1294f55a1f6704'
+          ANY_HOST_HEAD: 'e7392076ab7ed4834a61012e1af87874aa46fe0f'
+          MERGED_TREE: '2d52d9f281aa01e6ddc84475025d562a400371f2'
+          SUBJECT: 'Merge any-host into after-main'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
-          test "$(gh api "$repo/git/ref/heads/any-host" --jq .object.sha)" = "$ANY_HOST_HEAD"
+          test "$(gh api "$repo/git/ref/heads/$BASE_BRANCH" --jq .object.sha)" = "$ANY_HOST_HEAD"
           test "$(gh api "$repo/git/ref/heads/$SOURCE_BRANCH" --jq .object.sha)" = "$SOURCE_HEAD"
           for sha in "$SOURCE_HEAD" "$ANY_HOST_HEAD"; do
-            test "$(gh api "$repo/commits/$sha" --jq .commit.verification.verified)" = true
+            test "$(gh api "$repo/commits/$sha?per_page=1" --jq .commit.verification.verified)" = true
           done
           jq -n --arg tree "$MERGED_TREE" --arg head "$SOURCE_HEAD" --arg base "$ANY_HOST_HEAD" \
             --arg message "$SUBJECT" '{tree:$tree,parents:[$head,$base],message:$message}' \
