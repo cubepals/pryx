@@ -131,9 +131,9 @@ impl Relays {
                     .ok_or_else(|| error("missing private container address"))
             })
             .transpose()?;
-        let cancel = CancellationToken::new();
-        let tasks = TaskTracker::new();
-        let lease = Lease { name: name.into(), start, cancel: cancel.clone(), tasks: tasks.clone() };
+        // Keep listeners local until every target and bind has succeeded. An error drops the
+        // reservations here, before any task can accept traffic or retain a socket.
+        let mut listeners = Vec::new();
         for binding in bindings {
             let target = if execute {
                 Backend::Exec(super::relay_exec::Target::new(runtime, info, &binding).await?)
@@ -145,22 +145,22 @@ impl Relays {
             };
             for host in binding.host_ips {
                 let address = SocketAddr::new(host, binding.host_port);
-                match binding.protocol {
-                    Proto::Tcp => tcp(
-                        TcpListener::bind(address).await.map_err(error)?,
-                        target.clone(),
-                        cancel.clone(),
-                        self.capacity.clone(),
-                        tasks.clone(),
-                    ),
-                    Proto::Udp => udp(
-                        Arc::new(UdpSocket::bind(address).await.map_err(error)?),
-                        target.clone(),
-                        cancel.clone(),
-                        self.capacity.clone(),
-                        tasks.clone(),
-                    ),
-                }
+                let listener = match binding.protocol {
+                    Proto::Tcp => Listener::Tcp(TcpListener::bind(address).await.map_err(error)?),
+                    Proto::Udp => Listener::Udp(UdpSocket::bind(address).await.map_err(error)?),
+                };
+                listeners.push((listener, target.clone()));
+            }
+        }
+
+        let lease = Lease { name: name.into(), start, cancel: CancellationToken::new(), tasks: TaskTracker::new() };
+        for (listener, target) in listeners {
+            let cancel = lease.cancel.clone();
+            let capacity = self.capacity.clone();
+            let tasks = lease.tasks.clone();
+            match listener {
+                Listener::Tcp(listener) => tcp(listener, target, cancel, capacity, tasks),
+                Listener::Udp(socket) => udp(Arc::new(socket), target, cancel, capacity, tasks),
             }
         }
         held.insert(id.into(), lease);
@@ -205,6 +205,10 @@ fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBi
 enum Backend {
     Direct(SocketAddr),
     Exec(Arc<super::relay_exec::Target>),
+}
+enum Listener {
+    Tcp(TcpListener),
+    Udp(UdpSocket),
 }
 struct Lease {
     name: String,
