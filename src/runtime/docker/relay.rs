@@ -395,6 +395,36 @@ mod tests {
         TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.is_ok()
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn failed_relay_start_releases_earlier_listener_before_returning() {
+        let relays = Relays::default();
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = DockerRuntime::new(&directory.path().join("unused.sock")).unwrap();
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo::default());
+        let loopback = std::net::Ipv4Addr::LOCALHOST;
+        let reserved = std::net::TcpListener::bind((loopback, 0)).unwrap();
+        let first = reserved.local_addr().unwrap();
+        let blocker = std::net::TcpListener::bind((loopback, 0)).unwrap();
+        let second = blocker.local_addr().unwrap();
+        let bindings = [(first, 8080), (second, 8081)].map(|(address, container_port)| PortBinding {
+            container_port,
+            protocol: Proto::Tcp,
+            host_ips: vec![address.ip()],
+            host_port: address.port(),
+        });
+        let label = serde_json::to_string(&bindings).unwrap();
+        let record = crate::labels::private_record("fixture", &bindings);
+        drop(reserved);
+        assert!(relays.ensure(&runtime, &container(&label, Some(&record))).await.is_err());
+
+        // Try immediately, before a detached task can observe cancellation on this executor.
+        let rebound = std::net::TcpListener::bind(first);
+        let unrecorded = relays.held.lock().await.is_empty();
+        relays.stop("owned").await;
+        assert!(unrecorded, "A partial relay must not be recorded");
+        drop(rebound.expect("An earlier listener must be released before setup reports failure"));
+    }
+
     #[tokio::test]
     async fn only_matching_private_records_open_host_listeners() {
         let relays = Relays::default();
