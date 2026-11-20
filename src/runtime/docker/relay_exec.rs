@@ -352,3 +352,63 @@ pub(super) async fn datagrams(
 #[cfg(test)]
 #[path = "relay_exec/acceptance.rs"]
 mod acceptance;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        future::ready,
+        sync::atomic::{AtomicBool, Ordering},
+    };
+    use tokio::sync::Notify;
+
+    #[tokio::test]
+    async fn confirmed_retirement_restores_a_reserved_relay_slot() {
+        const ID: &str = "58148883975ef5e77d09e44ccb5a98973361de320d7c0f6d289f82bad03013306";
+        let timed_out = Arc::new(Notify::new());
+        let gone = Arc::new(AtomicBool::new(false));
+        let observed_timeout = timed_out.clone();
+        let observed_gone = gone.clone();
+        let docker = Docker::connect_with_custom_transport(
+            move |request: bollard::BollardRequest| {
+                assert_eq!(request.method(), reqwest::Method::GET);
+                assert!(request.uri().path().ends_with(&format!("/containers/{ID}/json")));
+                if observed_gone.load(Ordering::SeqCst) {
+                    ready(Err(BollardError::DockerResponseServerError {
+                        status_code: StatusCode::NOT_FOUND.as_u16(),
+                        message: "fixture container retired".into(),
+                    }))
+                } else {
+                    observed_timeout.notify_one();
+                    ready(Err(BollardError::RequestTimeoutError))
+                }
+            },
+            Some("http://fixture.invalid"),
+            CLIENT_TIMEOUT_SECS,
+            bollard::API_DEFAULT_VERSION,
+        )
+        .unwrap();
+        let runtime = DockerRuntime::new(Path::new("unused-fixture-socket")).unwrap();
+        *runtime.client.lock().unwrap() = Some(docker.clone());
+        let capacity = runtime.relays.capacity_for_test();
+        let _other_connection = capacity.clone().try_acquire_owned().unwrap();
+        let available = capacity.available_permits();
+        drop(Cleanup {
+            docker,
+            exec: "fixture-relay".into(),
+            container: ID.into(),
+            start: OffsetDateTime::UNIX_EPOCH,
+            starts: runtime.starts.clone(),
+            started: false,
+            capacity: Some(capacity.clone().try_acquire_owned().unwrap()),
+        });
+        // This current-thread fixture returns the timeout in the same poll that signals it.
+        tokio::time::timeout(Duration::from_secs(2), timed_out.notified()).await.unwrap();
+        assert_eq!(capacity.available_permits(), available - 1, "uncertain retirement must still reserve its slot");
+        gone.store(true, Ordering::SeqCst);
+        for _ in 0..2 {
+            assert!(runtime.inspect(ID).await.unwrap().is_none());
+            assert_eq!(capacity.available_permits(), available, "confirmed retirement must restore exactly one slot");
+        }
+    }
+}

@@ -38,6 +38,11 @@ fn error(error: impl std::fmt::Display) -> RuntimeError {
     RuntimeError::Other(format!("Internal ingress: {error}"))
 }
 impl Relays {
+    #[cfg(test)]
+    pub(super) fn capacity_for_test(&self) -> &Arc<Semaphore> {
+        &self.capacity
+    }
+
     pub(super) async fn stop(&self, name: &str) {
         let mut held = self.held.lock().await;
         let ids: Vec<_> = held
