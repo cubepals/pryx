@@ -270,7 +270,8 @@ export class SandboxProxy {
       // A new placement needs a new token and spare map, rather than forwarding a stale capability.
       if (ready.epoch !== route.epoch)
         return new Response('Sandbox placement changed', { status: StatusCodes.CONFLICT })
-      const health = route.agent.routeToken ?? token
+      // An exposed application can put its own credential in a query parameter.
+      const health = route.agent.routeToken ?? (exposedPort === undefined ? token : undefined)
       if (health) await this.ready(ready.destination, health, signal)
     }
     const headers = new Headers(request.headers)
@@ -312,18 +313,21 @@ export class SandboxProxy {
       untrack()
       throw error
     }
-    if (
-      exposedPort === undefined &&
-      path.startsWith('/_pryx/ports') &&
-      response.ok &&
-      request.method !== 'GET'
-    ) {
+    const refreshPorts =
+      (request.method === 'POST' &&
+        (path === '/_pryx/ports' ||
+          path === '/_pryx/browser' ||
+          path === '/_pryx/desktop' ||
+          // MCP multiplexes port changes with other calls on the same endpoint.
+          (path === '/_pryx/mcp' && response.status === StatusCodes.OK && !route.agent.routeToken))) ||
+      (request.method === 'DELETE' && /^\/_pryx\/ports\/[^/]+$/.test(path))
+    if (exposedPort === undefined && token && claims?.scope === 'sandbox' && response.ok && refreshPorts) {
       this.ports.delete(route.sandbox)
       this.pending.delete(route.sandbox)
       // Read the complete assignment after mutation. Merging a POST response can resurrect
       // another slot concurrently removed by unexpose.
       try {
-        await this.exposed(route, claims?.scope === 'sandbox' ? token : undefined)
+        await this.exposed({ ...route, destination, state: undefined }, token)
       } catch {
         // The agent already accepted the change. The optional refresh cannot undo it.
       }

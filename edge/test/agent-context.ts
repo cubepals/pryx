@@ -7,6 +7,7 @@ import { SECOND_MS } from '../../control/src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../../control/src/edge-headers.ts'
 import node from '../../openapi/node-writes.openapi.json'
 import type { components } from '../../sdk/typescript/src/generated/api.ts'
+import { TOOL_DEFAULTS } from '../../sdk/typescript/src/generated/tools.ts'
 import { Hold } from '../src/hold.ts'
 import { RouteTable } from '../src/routes.ts'
 import { SandboxProxy } from '../src/sandbox-proxy.ts'
@@ -29,6 +30,8 @@ export function agentContext(sandbox = 'one') {
     start?: () => Promise<Response | undefined>
     output?: Promise<void>
     ports?: () => Response | Promise<Response> | undefined
+    app?: (request: Request) => Response
+    wake?: () => void
   } = {}
   const calls: string[] = [],
     frames: unknown[] = []
@@ -37,10 +40,14 @@ export function agentContext(sandbox = 'one') {
   let file = new Uint8Array(new ArrayBuffer(0)),
     processes = 0,
     wakes = 0
-  const assignment = { port: 3000, slot: 1, url: 'https://one-3000.sandboxes.test' }
-  let exposed = false
+  const assignment = (port: number) => ({ port, slot: 1, url: `https://${sandbox}-${port}.sandboxes.test` })
+  let exposed: ReturnType<typeof assignment> | undefined
   let route: EdgeRoute
-  const app = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('exposed-app') })
+  const app = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: (request) => hooks.app?.(request) ?? new Response('exposed-app'),
+  })
   const agent = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -94,14 +101,29 @@ export function agentContext(sandbox = 'one') {
         })
       if (path === '/_pryx/ports') {
         if (request.method === 'POST') {
-          exposed = true
-          return Response.json(assignment)
+          exposed = assignment(3000)
+          return Response.json(exposed)
         }
-        return hooks.ports?.() ?? Response.json({ ports: exposed ? [assignment] : [] })
+        return hooks.ports?.() ?? Response.json({ ports: exposed ? [exposed] : [] })
       }
-      if (path === `/_pryx/ports/${assignment.port}` && request.method === 'DELETE') {
-        exposed = false
+      if (path === `/_pryx/ports/${exposed?.port}` && request.method === 'DELETE') {
+        exposed = undefined
         return new Response(null, { status: StatusCodes.NO_CONTENT })
+      }
+      if (request.method === 'POST' && (path === '/_pryx/browser' || path === '/_pryx/desktop')) {
+        const browser = path === '/_pryx/browser'
+        exposed = assignment(browser ? TOOL_DEFAULTS.browserPort : TOOL_DEFAULTS.desktopPort)
+        return Response.json({ url: `${exposed.url}/${browser ? '' : 'vnc.html'}?token=fixture-access` })
+      }
+      if (path === '/_pryx/mcp' && request.method === 'POST') {
+        const call = (await request.json()) as {
+          method: string
+          params?: { name: string; arguments: { port: number } }
+        }
+        if (call.method === 'tools/call' && call.params?.name === 'expose')
+          exposed = assignment(call.params.arguments.port)
+        if (call.method === 'tools/call' && call.params?.name === 'unexpose') exposed = undefined
+        return Response.json({ jsonrpc: '2.0', id: 1, result: { content: [] } })
       }
       if (path === '/_pryx/files/content') {
         if (request.method === 'PUT') {
@@ -166,7 +188,8 @@ export function agentContext(sandbox = 'one') {
   table.apply({ routes: [route] })
   const hold = new Hold(async () => {
     wakes++
-    table.apply({ routes: [{ ...route, state: undefined }] })
+    if (hooks.wake) hooks.wake()
+    else table.apply({ routes: [{ ...route, state: undefined }] })
     return { outcome: 'ready', destination: route.destination, epoch: route.epoch }
   })
   const proxy = new SandboxProxy(table, hold, 5 * SECOND_MS)

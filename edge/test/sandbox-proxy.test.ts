@@ -4,6 +4,7 @@ import { expect, test } from 'bun:test'
 import { setTimeout as pause } from 'node:timers/promises'
 import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../../control/src/durations.ts'
+import { TOOL_DEFAULTS } from '../../sdk/typescript/src/generated/tools.ts'
 import { Pryx } from '../../sdk/typescript/src/index.ts'
 import { sandboxToken } from '../src/sandbox-token.ts'
 import { agentContext } from './agent-context.ts'
@@ -122,6 +123,91 @@ for (const state of ['missing', 'expired'] as const) {
     }
   })
 }
+
+for (const tool of ['browser', 'desktop'] as const) {
+  test(`${tool} access is ready before the edge receives a route token or port update`, async () => {
+    const c = agentContext()
+    try {
+      if (!c.route.agent) throw new Error('Missing fixture agent')
+      delete c.route.agent.routeToken
+      c.table.apply({ routes: [c.route] })
+      c.hooks.app = (request) => {
+        expect(request.headers.has('authorization')).toBe(false)
+        return new URL(request.url).searchParams.get('token') === 'fixture-access'
+          ? new Response('tool available')
+          : new Response('tool access required', { status: StatusCodes.FORBIDDEN })
+      }
+      const endpoint = `${c.url}/_pryx/${tool}`
+      const options = { method: 'POST', headers: { authorization: `Bearer ${c.token()}` } }
+      await (await fetch(`${endpoint}/screenshot`, options)).body?.cancel()
+      expect(c.calls).toEqual([`POST /_pryx/${tool}/screenshot`])
+
+      if (tool === 'desktop') {
+        c.table.apply({ routes: [{ ...c.route, state: 'asleep' }] })
+        c.hooks.wake = () => {}
+      }
+      const opened = await fetch(endpoint, options)
+      expect(opened.status).toBe(StatusCodes.OK)
+      const url = new URL(((await opened.json()) as { url: string }).url)
+      if (tool === 'browser') {
+        const withoutAccess = new URL(url)
+        withoutAccess.search = ''
+        expect((await c.proxy.fetch(new Request(withoutAccess)))?.status).toBe(StatusCodes.FORBIDDEN)
+      } else {
+        expect(c.wakes).toBe(1)
+        expect(c.table.held.get(c.route.id)?.state).toBe('asleep')
+      }
+      const port = tool === 'browser' ? TOOL_DEFAULTS.browserPort : TOOL_DEFAULTS.desktopPort
+      const publicPage = await c.proxy.fetch(
+        new Request(`${c.url}/ports/${port}${url.pathname}${url.search}`),
+      )
+      expect(publicPage?.status).toBe(StatusCodes.OK)
+      expect(await publicPage?.text()).toBe('tool available')
+      expect(c.calls.filter((call) => call === 'GET /_pryx/ports')).toHaveLength(1)
+    } finally {
+      c.close()
+    }
+  })
+}
+
+test('MCP port tools refresh immediately while the edge has no route capability', async () => {
+  const c = agentContext()
+  try {
+    if (!c.route.agent) throw new Error('Missing fixture agent')
+    const mcp = (method: string, params?: unknown) =>
+      fetch(`${c.url}/_pryx/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      })
+    const healthy = await mcp('tools/list')
+    expect(healthy.status).toBe(StatusCodes.OK)
+    await healthy.body?.cancel()
+    expect(c.calls).toEqual(['POST /_pryx/mcp'])
+
+    delete c.route.agent.routeToken
+    c.table.apply({ routes: [c.route] })
+    const port = 3000
+    const app = `${c.url}/ports/${port}/`
+    const added = await mcp('tools/call', { name: 'expose', arguments: { port } })
+    expect(added.status).toBe(StatusCodes.OK)
+    await added.body?.cancel()
+    expect(await (await c.proxy.fetch(new Request(app)))?.text()).toBe('exposed-app')
+    const removed = await mcp('tools/call', { name: 'unexpose', arguments: { port } })
+    expect(removed.status).toBe(StatusCodes.OK)
+    await removed.body?.cancel()
+    expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
+    expect(c.calls).toEqual([
+      'POST /_pryx/mcp',
+      'POST /_pryx/mcp',
+      'GET /_pryx/ports',
+      'POST /_pryx/mcp',
+      'GET /_pryx/ports',
+    ])
+  } finally {
+    c.close()
+  }
+})
 
 test('a failed optional port refresh cannot hide the accepted mutation', async () => {
   const c = agentContext()
