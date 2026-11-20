@@ -185,7 +185,10 @@ impl ContainerRuntime for Router {
         self.read_info(false).await
     }
     fn tier_ready(&self, tier: &str) -> bool {
-        !self.multiple || (self.ready.lock().unwrap().contains(tier) && self.info.lock().unwrap().contains_key(tier))
+        if !self.multiple {
+            return self.default().tier_ready(tier);
+        }
+        self.ready.lock().unwrap().contains(tier) && self.info.lock().unwrap().contains_key(tier)
     }
     fn tier_era(&self, tier: &str) -> u64 {
         self.eras.lock().unwrap().get(tier).copied().unwrap_or_default()

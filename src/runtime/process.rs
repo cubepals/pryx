@@ -44,7 +44,10 @@ use crate::config::ProcessConfig;
 use async_trait::async_trait;
 use futures_util::{StreamExt, stream};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Mutex, atomic},
+};
 /// The lowest ID of a host-reserved pool that no reservation holds and no process runs as: the
 /// process tier's UID pool, and the root VM tier's monitor IDs.
 pub(crate) fn free_id(pool: std::ops::Range<u32>, held: impl Fn(u32) -> bool) -> Option<u32> {
@@ -54,6 +57,7 @@ pub(crate) fn free_id(pool: std::ops::Range<u32>, held: impl Fn(u32) -> bool) ->
 pub struct ProcessRuntime {
     state: Arc<State>,
     policy: ProcessConfig,
+    configured_agent: Option<Arc<ConfiguredAgent>>,
     /// The kernel network policy, where this host lets the runtime attach it.
     network: Option<Arc<network::Network>>,
     /// A failed capability proof may still locate old cgroups for cleanup, never for launch.
@@ -62,6 +66,10 @@ pub struct ProcessRuntime {
     /// Kernel-enforced limits, where this daemon's cgroup gives its sandboxes the controllers.
     resources: Option<Arc<resources::Resources>>,
     resources_capability: Option<crate::capability::Capability>,
+}
+struct ConfiguredAgent {
+    binary: PathBuf,
+    ready: atomic::AtomicBool,
 }
 pub use network::Served;
 struct State {
@@ -107,10 +115,20 @@ struct Entry {
 
 use std::sync::Arc;
 
+impl ProcessRuntime {
+    pub(super) fn with_configured_agent(mut self, binary: PathBuf) -> Self {
+        self.configured_agent = Some(Arc::new(ConfiguredAgent { binary, ready: atomic::AtomicBool::new(false) }));
+        self
+    }
+}
+
 #[async_trait]
 impl ContainerRuntime for ProcessRuntime {
     fn is_process(&self) -> bool {
         true
+    }
+    fn tier_ready(&self, _: &str) -> bool {
+        self.configured_agent.as_ref().is_none_or(|agent| agent.ready.load(atomic::Ordering::SeqCst))
     }
     async fn native_browser(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
         self.browser_requirement(binary).await
@@ -179,9 +197,18 @@ impl ContainerRuntime for ProcessRuntime {
         ))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
-        if !pryx_agent::process_capabilities::probe().filesystem {
-            return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));
+        let filesystem = pryx_agent::process_capabilities::probe().filesystem;
+        let admitted = if !filesystem {
+            Err(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE)
+        } else if let Some(agent) = &self.configured_agent {
+            super::agent_metadata::require_configured_process_agent(&agent.binary).await
+        } else {
+            Ok(())
+        };
+        if let Some(agent) = &self.configured_agent {
+            agent.ready.store(admitted.is_ok(), atomic::Ordering::SeqCst);
         }
+        admitted.map_err(|reason| RuntimeError::Unavailable(reason.into()))?;
         use crate::cgroup::delegation::{CPU, MEMORY, PIDS};
         let has = |controller: &str| self.resources.as_ref().is_some_and(|resources| resources.has(controller));
         Ok(RuntimeInfo {

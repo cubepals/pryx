@@ -73,6 +73,16 @@ pub(crate) async fn process_ssh_supported(binary: &Path) -> bool {
     query(binary).await.is_some_and(|value| value.process_ssh_version >= pryx_agent::process_tool_policy::SSH_VERSION)
 }
 
+pub(crate) async fn require_process_environment(binary: &Path) -> Result<(), &'static str> {
+    use pryx_agent::process_environment::{UNSUPPORTED, VERSION};
+    query(binary).await.filter(|value| value.process_environment_version >= VERSION).map(|_| ()).ok_or(UNSUPPORTED)
+}
+
+pub(crate) async fn require_configured_process_agent(binary: &Path) -> Result<(), &'static str> {
+    let binary = protected(binary, true).ok_or("No trusted process agent executable")?;
+    require_process_environment(&binary).await
+}
+
 /// The installed executable and every ancestor must retain the host ownership policy.
 pub(crate) fn protected(path: &Path, allow_root: bool) -> Option<PathBuf> {
     let metadata = std::fs::symlink_metadata(path).ok()?;

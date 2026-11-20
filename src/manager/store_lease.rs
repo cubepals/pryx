@@ -10,6 +10,7 @@ use crate::store_lease::Held;
 impl Manager {
     pub fn features(&self) -> Vec<String> {
         let mut features = crate::protocol::features();
+        let default_ready = !self.runtime.is_process() || self.runtime.tier_ready("process");
         features.extend(self.guarantees().into_iter().filter(|(_, on)| *on).map(|(guarantee, _)| guarantee.feature()));
         if let Some(abi) = self.host_probe.lock().unwrap().landlock_abi {
             features.push(format!("landlock-abi-{abi}"));
@@ -21,29 +22,32 @@ impl Manager {
             features.push("vm-tier".into());
         }
         if self.runtime.is_process() {
-            if pryx_agent::process_capabilities::probe().network {
+            if default_ready && pryx_agent::process_capabilities::probe().network {
                 features.push("process-network-landlock".into());
             }
-            features.extend(
-                [
-                    "process-tier",
-                    "process-network-seccomp",
-                    if rustix::process::geteuid().is_root() { "process-uid-pool" } else { "process-shared-uid" },
-                ]
-                .into_iter()
-                .map(String::from),
-            );
+            // Older readers use this marker to identify the default tier.
+            features.push("process-tier".into());
+            if default_ready {
+                features.extend(
+                    [
+                        "process-network-seccomp",
+                        if rustix::process::geteuid().is_root() { "process-uid-pool" } else { "process-shared-uid" },
+                    ]
+                    .into_iter()
+                    .map(String::from),
+                );
+            }
         }
-        if self.agent_binary(self.runtime.as_ref()).is_some() {
+        if default_ready && self.agent_binary(self.runtime.as_ref()).is_some() {
             features.push("agent".into());
         }
-        if self.runtime.supports_hostname_egress() {
+        if default_ready && self.runtime.supports_hostname_egress() {
             features.push(crate::protocol::EGRESS_HOSTNAMES_FEATURE.into());
         }
-        if self.runtime.supports_egress_addresses() {
+        if default_ready && self.runtime.supports_egress_addresses() {
             features.push(crate::protocol::EGRESS_ADDRESSES_FEATURE.into());
         }
-        if self.runtime.supports_network_policy() || self.ready_network_policy() {
+        if (default_ready && self.runtime.supports_network_policy()) || self.ready_network_policy() {
             features.push(crate::protocol::NETWORK_POLICY_FEATURE.into());
         }
         if self.runtime.multi_tier() {
@@ -63,7 +67,7 @@ impl Manager {
         }
         features.extend(self.native_tool_features());
         for tier in self.runtime.tiers() {
-            if self.runtime.multi_tier() && !self.runtime.tier_ready(tier) {
+            if !self.runtime.tier_ready(tier) {
                 continue;
             }
             features.push(format!("tier-{tier}"));
@@ -122,7 +126,7 @@ impl Manager {
             .map(|feature| format!("{}{feature}", crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX))
             .collect();
         let tier = crate::protocol::Isolation::Process.as_str();
-        if self.runtime.tiers().contains(&tier) && (!self.runtime.multi_tier() || self.runtime.tier_ready(tier)) {
+        if self.runtime.tiers().contains(&tier) && self.runtime.tier_ready(tier) {
             let probe = self.host_probe.lock().unwrap();
             for (capability, feature) in [
                 (pryx_agent::process_tool_policy::DESKTOP_CAPABILITY, crate::protocol::NATIVE_DESKTOP_FEATURE),
@@ -219,7 +223,7 @@ impl Manager {
     }
     pub(super) fn tier_guarantees(&self, tier: &str) -> BTreeMap<crate::protocol::Guarantee, bool> {
         use crate::protocol::Guarantee as G;
-        if self.runtime.multi_tier() && !self.runtime.tier_ready(tier) {
+        if !self.runtime.tier_ready(tier) {
             return G::ALL.into_iter().map(|guarantee| (guarantee, false)).collect();
         }
         let probe = self.host_probe.lock().unwrap();

@@ -348,12 +348,7 @@ impl ProcessRuntime {
         }
         // An older agent would take the private environment's descriptor for a bad argument.
         let agent = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
-        if crate::runtime::agent_metadata::query(&agent.binary)
-            .await
-            .is_none_or(|value| value.process_environment_version < pryx_agent::process_environment::VERSION)
-        {
-            return Err(error(pryx_agent::process_environment::UNSUPPORTED));
-        }
+        crate::runtime::agent_metadata::require_process_environment(&agent.binary).await.map_err(error)?;
         let (tools, required) = self.native_policy(&entry).await?;
         entry.native_browser =
             Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));

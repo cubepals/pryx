@@ -433,6 +433,9 @@ impl Manager {
 
     pub fn docker_up(&self) -> bool {
         self.docker_up.load(Ordering::SeqCst)
+            && (self.runtime.multi_tier()
+                || !self.runtime.is_process()
+                || self.runtime.tier_ready(self.runtime.isolation()))
     }
 
     pub fn reconciled(&self) -> bool {

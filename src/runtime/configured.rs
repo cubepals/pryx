@@ -38,6 +38,7 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
         Arc::new(
             // Limits first: the daemon may move into its own leaf only before it starts any child.
             crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?
+                .with_configured_agent(config.workloads.agent_binary.clone())
                 .with_resources()
                 .with_network(served)
                 .await,
@@ -72,6 +73,17 @@ pub(crate) async fn create_with_reasons(config: &Config) -> anyhow::Result<Const
 
 /// Probe prerequisites without starting compute or mutating a host.
 pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'static str, Option<String>> {
+    let mut available = host_availability(config).await;
+    if available["process"].is_none()
+        && let Err(reason) =
+            super::agent_metadata::require_configured_process_agent(&config.workloads.agent_binary).await
+    {
+        available.insert("process", Some(reason.into()));
+    }
+    available
+}
+
+async fn host_availability(config: &Config) -> std::collections::BTreeMap<&'static str, Option<String>> {
     let process = if matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Process) {
         process_available(None)
     } else {
@@ -139,7 +151,9 @@ async fn auto(config: &Config) -> anyhow::Result<Construction> {
         selected.docker.discover = false;
     }
     let config = &selected;
-    let mut available = availability(config).await;
+    // Keep process journals available for existing lifecycle operations when the installed
+    // supervisor cannot start new compute. Its runtime reports that admission failure in info().
+    let mut available = host_availability(config).await;
     if let Some(reason) = engine_error {
         available.insert("container", Some(reason));
     }
@@ -248,6 +262,13 @@ pub(crate) fn wasm_available(config: &crate::config::WasmConfig) -> Capability {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        manager::{Manager, Records},
+        metrics::Metrics,
+        runtime::RuntimeError,
+        store::Store,
+    };
+    use pryx_agent::process_environment::{UNSUPPORTED, VERSION};
     use std::{fs, os::unix::fs::PermissionsExt, path::Path};
 
     #[tokio::test]
@@ -259,14 +280,14 @@ mod tests {
         let binary = directory.path().join("agent");
         fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/agent-metadata"), &binary).unwrap();
         fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
-        fs::write(binary.with_extension("json"), r#"{"browserPolicy":true}"#).unwrap();
+        let metadata_path = binary.with_extension("json");
+        let legacy = r#"{"browserPolicy":true}"#;
+        fs::write(&metadata_path, legacy).unwrap();
         assert_eq!(crate::runtime::protected_agent(&binary, true).as_ref(), Some(&binary));
         let metadata = crate::runtime::agent_metadata::query(&binary).await.unwrap();
-        assert!(metadata.process_environment_version < pryx_agent::process_environment::VERSION);
-        // The ordinary-user CI suite exercises this admission on a Landlock host.
-        if !pryx_agent::process_capabilities::probe().filesystem {
-            return;
-        }
+        assert!(metadata.process_environment_version < VERSION);
+        assert_eq!(crate::runtime::agent_metadata::require_configured_process_agent(&binary).await, Err(UNSUPPORTED));
+        let filesystem = pryx_agent::process_capabilities::probe().filesystem;
 
         let mut config: Config = toml::from_str(
             r#"
@@ -277,13 +298,45 @@ listen = "127.0.0.1:0"
 "#,
         )
         .unwrap();
-        config.workloads.agent_binary = binary;
+        config.state_dir = directory.path().join("state");
+        config.workloads.agent_binary = binary.clone();
 
-        let tiers = availability(&config).await;
-        assert_eq!(
-            tiers["process"].as_deref(),
-            Some(pryx_agent::process_environment::UNSUPPORTED),
-            "configured process availability must report the launch refusal for older agents"
+        // A Landlock host can reach the supervisor-specific refusal.
+        if filesystem {
+            let tiers = availability(&config).await;
+            assert_eq!(
+                tiers["process"].as_deref(),
+                Some(UNSUPPORTED),
+                "configured process availability must report the launch refusal for older agents"
+            );
+        }
+
+        let runtime = Arc::new(
+            super::super::process::ProcessRuntime::new(&config.state_dir, config.process.clone())
+                .unwrap()
+                .with_configured_agent(binary),
         );
+        if filesystem {
+            assert!(matches!(runtime.info().await, Err(RuntimeError::Unavailable(reason)) if reason == UNSUPPORTED));
+        }
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        let reconcile = manager.reconcile(Records::FromDisk).await;
+        assert_eq!(reconcile.error, None);
+        assert!(manager.reconciled());
+        assert!(!manager.docker_up(), "complete inventory must not admit placement on an unready process runtime");
+        let current = serde_json::json!({"browserPolicy":true,"processEnvironmentVersion":VERSION}).to_string();
+        for (advertised, metadata) in [(false, legacy), (true, current.as_str()), (false, legacy)] {
+            if advertised && !filesystem {
+                break;
+            }
+            fs::write(&metadata_path, metadata).unwrap();
+            let health = manager.health().await;
+            assert_eq!(health.docker, advertised);
+            assert!(health.features.iter().any(|feature| feature == "process-tier"));
+            for feature in ["tier-process", "agent"] {
+                assert_eq!(health.features.iter().any(|entry| entry == feature), advertised, "{feature}");
+            }
+        }
     }
 }

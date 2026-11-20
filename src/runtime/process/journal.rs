@@ -168,6 +168,7 @@ impl ProcessRuntime {
                 namespaces: Mutex::new(BTreeMap::new()),
             }),
             policy,
+            configured_agent: None,
             network: None,
             network_cleanup: None,
             network_capability: None,
