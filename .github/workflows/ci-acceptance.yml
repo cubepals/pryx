@@ -427,7 +427,7 @@ jobs:
         run: |
           python3 -m unittest discover -s control/tools -p 'tier_memory_test.py'
           bun control/bench/baseline-host.ts "$RUNNER_TEMP/pryx-host-baseline"
-          cat "$RUNNER_TEMP/pryx-host-baseline.md" >> "$GITHUB_STEP_SUMMARY"
+          tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/pryx-host-baseline.md"
       - name: Measure idle server zswap compression
         if: inputs.measure_pryx
         run: |
@@ -439,6 +439,35 @@ jobs:
             jq -r '"| zswap | " + .status + " | " + ((.logicalToCompressedRatio // .reason // "") | tostring) + " |"' \
               "$RUNNER_TEMP/pryx-zswap-baseline.json"
           } >> "$GITHUB_STEP_SUMMARY"
+          jq -r '
+            def number_value: numbers // "unavailable";
+            def safe_reason:
+              if .reason | IN(
+                "requires a disposable GitHub-hosted runner",
+                "requires an Ubuntu 24.04 runner",
+                "requires sudo from the ordinary runner user",
+                "the development server requires an ordinary runner UID and GID",
+                "runner temporary directory is unavailable",
+                "memory.stat lacks zswap or zswapped for the measurement cgroup",
+                "host kernel exposes no zswap enable setting",
+                "host kernel reports an unknown zswap enable state",
+                "host cgroup v2 does not enable the top-level memory controller",
+                "cgroup v2 does not expose reclaim, swap and freeze for the fixture",
+                "host could not activate an owned scratch swap file",
+                "the cgroup zswap counters did not stabilize",
+                "reclaim did not place at least 1 MiB of new pages in the zswap pool"
+              ) then .reason
+              elif (.reason | type) == "string" and (.reason | startswith("memory.reclaim refused with ")) then
+                "memory.reclaim refused the request"
+              else "reason unavailable"
+              end;
+            if .status == "measured" then
+              "zswap measured, logical-to-compressed ratio \(.logicalToCompressedRatio | number_value), new logical bytes \(.newLogicalBytes | number_value), new compressed bytes \(.newCompressedBytes | number_value)"
+            elif .status == "unsupported" or .status == "unconfirmed" then
+              "zswap \(.status), logical-to-compressed ratio unavailable (\(safe_reason))"
+            else "zswap measurement failed"
+            end
+          ' "$RUNNER_TEMP/pryx-zswap-baseline.json"
       - name: Retain the host baseline
         if: ${{ !cancelled() && inputs.measure_pryx }}
         uses: ./.github/actions/upload-evidence

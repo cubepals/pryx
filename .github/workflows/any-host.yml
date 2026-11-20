@@ -312,7 +312,7 @@ jobs:
         run: bash deploy/native-host-acceptance.sh
       - name: Summarize the installed VM baseline
         if: inputs.measure_pryx
-        run: cat "$RUNNER_TEMP/pryx-vm-baseline.md" >> "$GITHUB_STEP_SUMMARY"
+        run: tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/pryx-vm-baseline.md"
       - name: Retain the installed VM baseline
         if: ${{ !cancelled() && inputs.measure_pryx }}
         uses: ./.github/actions/upload-evidence

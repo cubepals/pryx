@@ -331,7 +331,7 @@ jobs:
           guest_fixture --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
           if [ "$PRYX_MEASURE_BOOT" = true ]; then
             guest_fixture --work "$RUNNER_TEMP/vm-boot-benchmark" --measure-boot
-            cat "$RUNNER_TEMP/vm-boot-benchmark/vm-boot-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
+            tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/vm-boot-benchmark/vm-boot-benchmark.md"
           fi
       - name: Retain paired VM boot and page reporting measurements
         if: ${{ !cancelled() && inputs.measure_pryx }}
