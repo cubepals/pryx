@@ -374,10 +374,7 @@ mod tests {
                 assert_eq!(request.method(), reqwest::Method::GET);
                 assert!(request.uri().path().ends_with(&format!("/containers/{ID}/json")));
                 if observed_gone.load(Ordering::SeqCst) {
-                    ready(Err(BollardError::DockerResponseServerError {
-                        status_code: StatusCode::NOT_FOUND.as_u16(),
-                        message: "fixture container retired".into(),
-                    }))
+                    ready(Err(super::super::container_not_found_for_test()))
                 } else {
                     observed_timeout.notify_one();
                     ready(Err(BollardError::RequestTimeoutError))

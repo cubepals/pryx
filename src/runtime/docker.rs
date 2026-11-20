@@ -335,6 +335,14 @@ fn map_err(error: BollardError) -> RuntimeError {
     }
 }
 
+#[cfg(test)]
+fn container_not_found_for_test() -> BollardError {
+    BollardError::DockerResponseServerError {
+        status_code: StatusCode::NOT_FOUND.as_u16(),
+        message: "fixture container retired".into(),
+    }
+}
+
 async fn native_request<T: serde::de::DeserializeOwned>(
     runtime: &DockerRuntime,
     version: &str,
