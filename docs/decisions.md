@@ -1718,3 +1718,4 @@
 
 - Publish edge routes independently of optional node-issued port-discovery capabilities. Use bounded background refresh and response-only capability expiry in the ETag, so a paused runtime cannot hide another tier's routes and recovery reaches an edge holding the same route version.
 - Refresh the port assignments with the verified caller's capability when browser or desktop access opens a port. During the route-token cold window use the same refresh for accepted MCP calls, so existing agents can expose or withdraw a port before the next route list.
+- Verify recovery from a failed VM snapshot with sequential authenticated health probes on the private vsock service port under one deadline. This leaves the TCP forwarder's reserved slots available when the guest thaws.

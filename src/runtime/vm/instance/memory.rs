@@ -256,14 +256,22 @@ impl VmRuntime {
                 resumed?;
                 // Running vCPUs do not confirm that init has ended its resume wait, rebuilt
                 // the reset network transport and thawed the agent's workload cgroup.
-                let deadline = Instant::now() + GUEST_TIMEOUT;
-                tokio::time::timeout_at(deadline, launch::ready(&mut live.monitor, &entry.spec, deadline))
-                    .await
-                    .map_err(|_| RuntimeError::Timeout("VM agent did not recover after a failed snapshot".into()))??;
-                if live.monitor.exited().map_err(error)?.is_some() {
-                    return Err(error("VM monitor exited during snapshot recovery"));
-                }
-                Ok(())
+                agent::recovery_health(
+                    &bundle.root().join("bin/vm-transport"),
+                    &live.channel,
+                    &entry.spec,
+                    Instant::now() + GUEST_TIMEOUT,
+                    || {
+                        if live.monitor.exited().map_err(error)?.is_some() {
+                            return Err(error("VM monitor exited during snapshot recovery"));
+                        }
+                        if live.forwarder.exited().map_err(error)?.is_some() {
+                            return Err(error("VM forwarder exited during snapshot recovery"));
+                        }
+                        Ok(())
+                    },
+                )
+                .await
             }
             .await;
             if let Err(unrecovered) = recovered {

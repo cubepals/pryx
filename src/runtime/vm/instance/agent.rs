@@ -6,6 +6,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use hyper::Method;
 use pryx_agent::auth::{Claims, Scope, SigningKey, TOKEN_LIFETIME_SECONDS};
 use serde_json::{Value, json};
+use tokio::time::Instant;
 
 pub(super) fn key(spec: &ContainerSpec) -> Result<SigningKey, RuntimeError> {
     let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
@@ -25,10 +26,10 @@ pub(super) fn endpoint(spec: &ContainerSpec) -> Result<std::net::SocketAddr, Run
     let ip = binding.host_ips.first().ok_or_else(|| error("VM agent private address is missing"))?;
     Ok(std::net::SocketAddr::new(*ip, binding.host_port))
 }
-fn headers(spec: &ContainerSpec, scope: Scope) -> Result<[(&'static str, String); 3], RuntimeError> {
+fn token(spec: &ContainerSpec, scope: Scope) -> Result<String, RuntimeError> {
     let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
     let now = crate::clock::now().unix_timestamp();
-    let token = key(spec)?
+    key(spec)?
         .sign(&Claims {
             sandbox: boot.sandbox.clone(),
             epoch: boot.epoch,
@@ -39,9 +40,11 @@ fn headers(spec: &ContainerSpec, scope: Scope) -> Result<[(&'static str, String)
             max_exec_seconds: None,
             file: None,
         })
-        .map_err(error)?;
+        .map_err(error)
+}
+fn headers(spec: &ContainerSpec, scope: Scope) -> Result<[(&'static str, String); 3], RuntimeError> {
     Ok([
-        ("authorization", format!("Bearer {token}")),
+        ("authorization", format!("Bearer {}", token(spec, scope)?)),
         ("content-type", "application/json".into()),
         (pryx_agent::contract::IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string()),
     ])
@@ -112,6 +115,51 @@ pub(super) async fn snapshot(spec: &ContainerSpec) -> Result<pryx_agent::state::
     )
     .map_err(error)?;
     Ok(health.state)
+}
+
+pub(super) async fn recovery_health(
+    transport: &Path,
+    channel: &Path,
+    spec: &ContainerSpec,
+    deadline: Instant,
+    mut check_helpers: impl FnMut() -> Result<(), RuntimeError>,
+) -> Result<(), RuntimeError> {
+    let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
+    // The SDK's private service port bypasses the TCP forwarder's reserved pool. A frozen agent
+    // can leave abandoned probes in that pool until the guest runs and drains their streams.
+    let request = json!({
+        "socket": channel,
+        "port": pryx_agent::vm_boot::service_port(boot.agent_port),
+        "token": token(spec, Scope::Routes)?,
+        "method": Method::GET.as_str(),
+        "path": "/_pryx/health",
+    });
+    // Pace early transport failures while Firecracker delivers its vsock reset to the guest.
+    const RETRY_INTERVAL: Duration = Duration::from_millis(100);
+    loop {
+        check_helpers()?;
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(RuntimeError::Timeout("VM agent did not recover after a failed snapshot".into()));
+        }
+        let refused = match super::super::transport::request(
+            transport,
+            &request,
+            remaining,
+            pryx_agent::contract::CAPTURE_BYTES * 4,
+        )
+        .await
+        {
+            Ok((status, _)) if status.is_success() => return check_helpers(),
+            Ok((status, _)) => return Err(error(format!("VM recovery health refused {status}"))),
+            Err(problem) => problem,
+        };
+        let retry = Instant::now() + RETRY_INTERVAL;
+        if retry >= deadline {
+            return Err(refused);
+        }
+        tokio::time::sleep_until(retry).await;
+    }
 }
 
 impl VmRuntime {
@@ -186,5 +234,69 @@ impl VmRuntime {
             }
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper::StatusCode;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[tokio::test]
+    async fn recovery_health_does_not_use_the_agent_forwarding_listener() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut spec = super::super::tests::spec(tmp.path(), "test");
+        let forwarded = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        spec.ports[0].host_port = forwarded.local_addr().unwrap().port();
+        forwarded.set_nonblocking(true).unwrap();
+        let transport = tmp.path().join("vm-transport");
+        let channel = tmp.path().join("vsock");
+        fs::write(
+            &transport,
+            r#"#!/bin/sh
+umask 077
+IFS= read -r request || [ -n "$request" ] || exit 1
+printf '%s\n' "$request" >> "$0.requests"
+if [ ! -f "$0.closed" ]; then
+    trap 'printf "closed\n" > "$0.closed"' EXIT
+    exit 1
+fi
+IFS= read -r status < "$0.status" || exit 1
+printf '{"status":%s,"body":""}\n' "$status"
+"#,
+        )
+        .unwrap();
+        fs::set_permissions(&transport, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(transport.with_extension("status"), format!("{}\n", StatusCode::OK.as_u16())).unwrap();
+
+        let deadline = || Instant::now() + Duration::from_secs(2);
+        recovery_health(&transport, &channel, &spec, deadline(), || Ok(())).await.unwrap();
+        assert!(transport.with_extension("closed").is_file());
+        let history = fs::read_to_string(transport.with_extension("requests")).unwrap();
+        assert_eq!(history.lines().count(), 2, "One transport drop and one accepted probe");
+        let boot = spec.agent.as_ref().unwrap();
+        let public = key(&spec).unwrap().public_key();
+        for request in history.lines() {
+            let request: Value = serde_json::from_str(request).unwrap();
+            assert_eq!(request["socket"], json!(&channel));
+            assert_eq!(request["port"], pryx_agent::vm_boot::service_port(boot.agent_port));
+            assert_eq!(request["method"], Method::GET.as_str());
+            assert_eq!(request["path"], "/_pryx/health");
+            let claims = pryx_agent::auth::verify(
+                request["token"].as_str().unwrap(),
+                &public,
+                &boot.sandbox,
+                boot.epoch,
+                crate::clock::now().unix_timestamp(),
+            )
+            .unwrap();
+            assert_eq!(claims.scope, Scope::Routes);
+        }
+
+        fs::write(transport.with_extension("status"), format!("{}\n", StatusCode::FORBIDDEN.as_u16())).unwrap();
+        assert!(recovery_health(&transport, &channel, &spec, deadline(), || Ok(())).await.is_err());
+        assert_eq!(fs::read_to_string(transport.with_extension("requests")).unwrap().lines().count(), 3);
+        assert_eq!(forwarded.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
     }
 }
