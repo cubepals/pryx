@@ -74,19 +74,19 @@ fn check_delegated(root: &Path) -> Result<(), Unavailable> {
     Err(unavailable(format!("cgroup {} is not delegated to this process", root.display()), DELEGATE_ACTION))
 }
 
-/// What `delegate` would find for this caller, with nothing moved or turned on: the controllers
-/// its subtree's root has to give. For `pryxd probe`, which isn't the daemon.
+/// What `delegate` can turn on for this caller's children, given the current controllers and
+/// membership. For `pryxd probe`, which leaves every process and controller where it found it.
 pub(crate) fn inspect() -> Result<Delegated, Unavailable> {
     inspect_at(&own()?)
 }
 
 fn inspect_at(own: &Path) -> Result<Delegated, Unavailable> {
-    let root = subtree_root(own);
-    check_delegated(&root)?;
-    let controllers = fs::read_to_string(root.join("cgroup.controllers")).map_err(|error| {
-        unavailable(format!("{}: {error}", root.join("cgroup.controllers").display()), DELEGATE_ACTION)
-    })?;
-    Ok(Delegated { controllers: listed(&controllers), root })
+    let (delegated, missing) = delegation_plan(own)?;
+    if !missing.is_empty() {
+        let ignore = (own == delegated.root).then(std::process::id);
+        check_empty(&delegated.root, ignore)?;
+    }
+    Ok(delegated)
 }
 
 /// The controllers a cgroup's interface file lists, of those a sandbox's limits need.
@@ -94,34 +94,42 @@ fn listed(text: &str) -> Vec<&'static str> {
     WANTED.into_iter().filter(|wanted| text.split_whitespace().any(|name| name == *wanted)).collect()
 }
 
-/// `delegate` for a daemon with process ID `pid` in cgroup `own`.
-fn delegate_at(own: &Path, pid: u32) -> Result<Delegated, Unavailable> {
+fn delegation_plan(own: &Path) -> Result<(Delegated, Vec<&'static str>), Unavailable> {
     let root = subtree_root(own);
     check_delegated(&root)?;
-    let control = root.join("cgroup.subtree_control");
     let interface = |name: &str| {
-        fs::read_to_string(root.join(name))
-            .map_err(|error| unavailable(format!("{}: {error}", root.join(name).display()), DELEGATE_ACTION))
+        let path = root.join(name);
+        fs::read_to_string(&path).map_err(|error| unavailable(format!("{}: {error}", path.display()), DELEGATE_ACTION))
     };
-    let available = listed(&interface("cgroup.controllers")?);
+    let controllers = interface("cgroup.controllers")?;
+    let available = listed(&controllers);
     if !available.contains(&MEMORY) && !available.contains(&CPU) {
         return Err(unavailable(
             format!(
                 "cgroup {} has neither the memory nor the cpu controller to give (cgroup.controllers: {})",
                 root.display(),
-                interface("cgroup.controllers")?.trim()
+                controllers.trim()
             ),
             DELEGATE_ACTION,
         ));
     }
     let enabled = listed(&interface("cgroup.subtree_control")?);
     let missing: Vec<&str> = available.iter().copied().filter(|name| !enabled.contains(name)).collect();
+    Ok((Delegated { root, controllers: available }, missing))
+}
+
+/// `delegate` for a daemon with process ID `pid` in cgroup `own`.
+fn delegate_at(own: &Path, pid: u32) -> Result<Delegated, Unavailable> {
+    let (delegated, missing) = delegation_plan(own)?;
+    let root = &delegated.root;
     if !missing.is_empty() {
         if own == root {
-            enter_leaf(&root, pid)?;
+            enter_leaf(root, pid)?;
+        } else {
+            check_empty(root, None)?;
         }
         let change: Vec<String> = missing.iter().map(|name| format!("+{name}")).collect();
-        fs::write(&control, change.join(" ")).map_err(|error| {
+        fs::write(root.join("cgroup.subtree_control"), change.join(" ")).map_err(|error| {
             let busy = error.raw_os_error() == Some(libc::EBUSY);
             unavailable(
                 format!("turning on {} for {}'s children: {error}", missing.join(" "), root.display()),
@@ -129,7 +137,23 @@ fn delegate_at(own: &Path, pid: u32) -> Result<Delegated, Unavailable> {
             )
         })?;
     }
-    Ok(Delegated { root, controllers: available })
+    Ok(delegated)
+}
+
+fn member_count(root: &Path, ignore: Option<u32>) -> Result<usize, Unavailable> {
+    members(root)
+        .map(|members| members.into_iter().filter(|member| Some(*member) != ignore).count())
+        .map_err(|error| unavailable(format!("{}: {error}", root.join("cgroup.procs").display()), DELEGATE_ACTION))
+}
+
+fn occupied(root: &Path, count: usize, ignore: Option<u32>) -> Unavailable {
+    let where_held = if ignore.is_some() { "besides this daemon" } else { "in the parent of this daemon" };
+    unavailable(format!("cgroup {} holds {count} process(es) {where_held}", root.display()), ALONE_ACTION)
+}
+
+fn check_empty(root: &Path, ignore: Option<u32>) -> Result<(), Unavailable> {
+    let count = member_count(root, ignore)?;
+    if count == 0 { Ok(()) } else { Err(occupied(root, count, ignore)) }
 }
 
 /// Moves this daemon into its leaf, only when it is the cgroup's one process: a child it started
@@ -138,20 +162,14 @@ fn enter_leaf(root: &Path, pid: u32) -> Result<(), Unavailable> {
     const WAIT: std::time::Duration = std::time::Duration::from_secs(2);
     const POLL: std::time::Duration = std::time::Duration::from_millis(20);
     let deadline = std::time::Instant::now() + WAIT;
+    let ignore = Some(pid);
     loop {
-        let others: Vec<u32> = members(root)
-            .map_err(|error| unavailable(format!("{}: {error}", root.join("cgroup.procs").display()), DELEGATE_ACTION))?
-            .into_iter()
-            .filter(|member| *member != pid)
-            .collect();
-        if others.is_empty() {
+        let count = member_count(root, ignore)?;
+        if count == 0 {
             break;
         }
         if std::time::Instant::now() >= deadline {
-            return Err(unavailable(
-                format!("cgroup {} holds {} process(es) besides this daemon", root.display(), others.len()),
-                ALONE_ACTION,
-            ));
+            return Err(occupied(root, count, ignore));
         }
         std::thread::sleep(POLL);
     }
@@ -255,5 +273,32 @@ mod tests {
         assert_eq!(delegated.controllers, [MEMORY, CPU, PIDS]);
         assert_eq!(fs::read_to_string(root.path().join(DAEMON).join("cgroup.procs")).unwrap(), pid.to_string());
         assert_eq!(fs::read_to_string(root.path().join("cgroup.subtree_control")).unwrap(), "+cpu +pids");
+    }
+
+    #[test]
+    fn a_daemon_in_its_leaf_needs_an_empty_parent_to_turn_on_missing_controllers() {
+        let root = tempfile::tempdir().unwrap();
+        let own = root.path().join(DAEMON);
+        let procs = root.path().join("cgroup.procs");
+        let subtree = root.path().join("cgroup.subtree_control");
+        fs::create_dir(&own).unwrap();
+        fs::write(root.path().join("cgroup.controllers"), "cpu memory pids\n").unwrap();
+        fs::write(&subtree, "memory\n").unwrap();
+        fs::write(&procs, "8\n").unwrap();
+
+        let inspected = inspect_at(&own).unwrap_err();
+        let refused = delegate_at(&own, 9).unwrap_err();
+        assert!(inspected.evidence.contains("1 process(es) in the parent of this daemon"));
+        assert_eq!(inspected.evidence, refused.evidence);
+        assert_eq!(inspected.action, ALONE_ACTION);
+        assert_eq!(fs::read_to_string(&procs).unwrap(), "8\n");
+        assert_eq!(fs::read_to_string(&subtree).unwrap(), "memory\n");
+
+        fs::write(&procs, "").unwrap();
+        assert_eq!(inspect_at(&own).unwrap().controllers, [MEMORY, CPU, PIDS]);
+        assert_eq!(fs::read_to_string(&subtree).unwrap(), "memory\n");
+        assert_eq!(delegate_at(&own, 9).unwrap().controllers, [MEMORY, CPU, PIDS]);
+        assert_eq!(fs::read_to_string(&subtree).unwrap(), "+cpu +pids");
+        assert!(!own.join("cgroup.procs").exists(), "the daemon stayed in its leaf");
     }
 }
