@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k33-measure-pryx
-          BASE_BRANCH: after-main
-          SOURCE_HEAD: '8e5ac9f1821ee0f3c304625c5dbe0015eb65a213'
-          ANY_HOST_HEAD: '35c28a630404d34fcc451528369432a54abba496'
-          MERGED_TREE: 'caeaa1d1c5da17f0ec81ad678cf475e8dcf74507'
-          SUBJECT: 'Merge after-main into benchmark branch'
+          SOURCE_BRANCH: k43-artifact-cancel
+          BASE_BRANCH: any-host
+          SOURCE_HEAD: 'b0b3b6aab1bd6a632578e802b288d30bd8de3786'
+          ANY_HOST_HEAD: '4f3cb23ed7299174de5addd8a902b056417d9081'
+          MERGED_TREE: '611f83e5d84f47e2bf876564292844bb56cb1da8'
+          SUBJECT: 'Merge any-host into cancellation branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
