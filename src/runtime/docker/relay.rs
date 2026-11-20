@@ -396,6 +396,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn inspect_retires_empty_relay_without_engine_metadata() {
+        use axum::{Json, Router, http::StatusCode, routing::get};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let metadata_calls = Arc::new(AtomicUsize::new(0));
+        let calls = metadata_calls.clone();
+        let app = Router::new()
+            .route("/containers/owned/json", get(|| async { Json(container("[]", None)) }))
+            .fallback(move || {
+                let calls = calls.clone();
+                async move {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+            });
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runtime = DockerRuntime::new(&path).unwrap();
+        let cancel = CancellationToken::new();
+        runtime.relays.held.lock().await.insert(
+            "owned".into(),
+            Lease { name: "owned".into(), start: None, cancel: cancel.clone(), tasks: TaskTracker::new() },
+        );
+
+        let inspected = runtime.inspect("owned").await;
+        assert_eq!(metadata_calls.load(Ordering::Relaxed), 0, "empty bindings queried metadata: {inspected:?}");
+        assert_eq!(inspected.unwrap().unwrap().id, "owned");
+        assert!(cancel.is_cancelled());
+        assert!(runtime.relays.held.lock().await.is_empty());
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn only_matching_private_records_open_host_listeners() {
         let relays = Relays::default();
         let directory = tempfile::tempdir().unwrap();
