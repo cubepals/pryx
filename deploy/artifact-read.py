@@ -57,7 +57,8 @@ def read(command, stage, log, idle_seconds):
     with tempfile.TemporaryDirectory(prefix='gh-artifact-read-', dir=stage.parent) as temporary:
         # Go's os.CreateTemp("", ...) uses TMPDIR; the pinned CLI's http.go owns this layout.
         with log.open('w') as output:
-            process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT,
+            # The client's diagnostics can include a temporary download URL.
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                        start_new_session=True, env={**os.environ, 'TMPDIR': temporary})
             try:
                 while process.poll() is None:
