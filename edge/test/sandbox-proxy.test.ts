@@ -4,6 +4,7 @@ import { expect, test } from 'bun:test'
 import { setTimeout as pause } from 'node:timers/promises'
 import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../../control/src/durations.ts'
+import node from '../../openapi/node-writes.openapi.json'
 import { TOOL_DEFAULTS } from '../../sdk/typescript/src/generated/tools.ts'
 import { Pryx } from '../../sdk/typescript/src/index.ts'
 import { sandboxToken } from '../src/sandbox-token.ts'
@@ -41,6 +42,37 @@ test('invalid, expired, foreign and route-only capabilities cannot wake an agent
     expect(c.wakes).toBe(1)
     expect(sandboxToken(c.token(), { ...c.route, epoch: 2 })).toBeUndefined()
     expect(c.table.find(c.route.hostname, 'http', 80)).toBeUndefined()
+  } finally {
+    c.close()
+  }
+})
+
+test('a bound file capability reaches its file after wake without an optional route capability', async () => {
+  const c = agentContext()
+  try {
+    if (!c.route.agent) throw new Error('Missing fixture agent')
+    delete c.route.agent.routeToken
+    const path = 'message'
+    const url = `${c.url}/_pryx/files/content?path=${path}`
+    const put = await fetch(url, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${c.token()}` },
+      body: 'file contents',
+    })
+    expect(put.status).toBe(StatusCodes.NO_CONTENT)
+    c.table.apply({ routes: [{ ...c.route, state: 'asleep' }] })
+    const issuedAt = Math.floor(Date.now() / SECOND_MS)
+    const credential = c.token({
+      scope: 'file',
+      issuedAt,
+      expiresAt: issuedAt + node['x-pryx-agent'].fileTokenLifetimeSeconds,
+      file: { method: 'GET', path },
+    })
+    const files = await fetch(`${url}&token=${credential}`, { signal: AbortSignal.timeout(SECOND_MS) })
+    expect(files.status).toBe(StatusCodes.OK)
+    expect(await files.text()).toBe('file contents')
+    expect(c.wakes).toBe(1)
+    expect(c.calls).toEqual(['PUT /_pryx/files/content', 'GET /_pryx/files/content'])
   } finally {
     c.close()
   }

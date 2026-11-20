@@ -11,7 +11,7 @@ import { TOOL_DEFAULTS } from '../../sdk/typescript/src/generated/tools.ts'
 import { Hold } from '../src/hold.ts'
 import { RouteTable } from '../src/routes.ts'
 import { SandboxProxy } from '../src/sandbox-proxy.ts'
-import { requestToken, sandboxToken } from '../src/sandbox-token.ts'
+import { fileToken, requestToken, sandboxToken } from '../src/sandbox-token.ts'
 import type { EdgeRoute } from '../src/wire.ts'
 
 export function agentContext(sandbox = 'one') {
@@ -57,6 +57,7 @@ export function agentContext(sandbox = 'one') {
       if (
         !claim ||
         (claim.scope !== 'sandbox' &&
+          !fileToken(claim, request, path) &&
           !(
             claim.scope === 'routes' &&
             ['/_pryx/ports', '/_pryx/health'].includes(path) &&

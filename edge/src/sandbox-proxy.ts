@@ -270,8 +270,10 @@ export class SandboxProxy {
       // A new placement needs a new token and spare map, rather than forwarding a stale capability.
       if (ready.epoch !== route.epoch)
         return new Response('Sandbox placement changed', { status: StatusCodes.CONFLICT })
-      // An exposed application can put its own credential in a query parameter.
-      const health = routeCapability(route) ?? (exposedPort === undefined ? token : undefined)
+      // Application and file credentials do not authorize agent health checks.
+      const health =
+        routeCapability(route) ??
+        (exposedPort === undefined && claims?.scope === 'sandbox' ? token : undefined)
       if (health) await this.ready(ready.destination, health, signal)
     }
     const headers = new Headers(request.headers)
