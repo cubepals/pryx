@@ -138,19 +138,26 @@ export class SandboxProxy {
   private key(route: EdgeRoute) {
     return `${route.epoch}:${route.agent?.manifest.publicKey}`
   }
-  private async exposed(route: EdgeRoute, sandboxCapability?: string): Promise<Port[]> {
+  private async exposed(
+    route: EdgeRoute,
+    { port, sandboxCapability }: { port?: number; sandboxCapability?: string } = {},
+  ): Promise<Port[]> {
     const key = this.key(route),
       cached = this.ports.get(route.sandbox)
     const revision = route.agent?.manifest.portRevision ?? 0
-    if (cached?.key === key && cached.revision >= revision) return cached.ports
+    const known = cached?.key === key && cached.revision >= revision ? cached.ports : undefined
+    if (known && (port === undefined || known.some((assignment) => assignment.port === port))) return known
     const capability = sandboxCapability ?? routeCapability(route)
     if (route.state || !capability)
-      return this.validPorts(
-        route.agent?.manifest.exposed.map((p) => ({
-          ...p,
-          url: `https://${route.sandbox}-${p.port}${route.hostname.slice(route.sandbox.length)}`,
-        })),
-        route,
+      return (
+        known ??
+        this.validPorts(
+          route.agent?.manifest.exposed.map((p) => ({
+            ...p,
+            url: `https://${route.sandbox}-${p.port}${route.hostname.slice(route.sandbox.length)}`,
+          })),
+          route,
+        )
       )
     if (!this.pending.has(route.sandbox)) {
       const work: Promise<Port[]> = Promise.resolve()
@@ -252,11 +259,9 @@ export class SandboxProxy {
       return new Response('SSH lease unavailable', { status: StatusCodes.GONE })
     let destination = route.destination
     if (exposedPort !== undefined) {
-      let port = (await this.exposed(route)).find((port) => port.port === exposedPort)
-      if (!port && !route.state) {
-        this.ports.delete(route.sandbox)
-        port = (await this.exposed(route)).find((port) => port.port === exposedPort)
-      }
+      const port = (await this.exposed(route, { port: exposedPort })).find(
+        (port) => port.port === exposedPort,
+      )
       if (!port) return new Response('Port is not exposed', { status: StatusCodes.NOT_FOUND })
       const spare = route.agent.manifest.spares.find((spare) => spare.port === port.slot)
       destination = spare?.endpoints[0] ?? ''
@@ -329,7 +334,7 @@ export class SandboxProxy {
       // Read the complete assignment after mutation. Merging a POST response can resurrect
       // another slot concurrently removed by unexpose.
       try {
-        await this.exposed({ ...route, destination, state: undefined }, token)
+        await this.exposed({ ...route, destination, state: undefined }, { sandboxCapability: token })
       } catch {
         // The agent already accepted the change. The optional refresh cannot undo it.
       }

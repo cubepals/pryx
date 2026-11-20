@@ -142,6 +142,9 @@ for (const state of ['missing', 'expired'] as const) {
       // A public lookup of an unassigned port cannot reuse the mutation's sandbox capability.
       const unassigned = await c.proxy.fetch(new Request('http://one-3001.sandboxes.test/'))
       expect(unassigned?.status).toBe(StatusCodes.NOT_FOUND)
+      const stillExposed = await c.proxy.fetch(new Request(app))
+      expect(stillExposed?.status).toBe(StatusCodes.OK)
+      expect(await stillExposed?.text()).toBe('exposed-app')
       expect(c.calls).toEqual(['POST /_pryx/ports', 'GET /_pryx/ports'])
 
       const removed = await fetch(`${ports}/${port}`, { method: 'DELETE', headers })
