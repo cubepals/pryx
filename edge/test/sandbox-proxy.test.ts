@@ -7,7 +7,7 @@ import { SECOND_MS } from '../../control/src/durations.ts'
 import node from '../../openapi/node-writes.openapi.json'
 import { TOOL_DEFAULTS } from '../../sdk/typescript/src/generated/tools.ts'
 import { Pryx } from '../../sdk/typescript/src/index.ts'
-import { sandboxToken } from '../src/sandbox-token.ts'
+import { requestToken, sandboxToken } from '../src/sandbox-token.ts'
 import { agentContext } from './agent-context.ts'
 
 function expiredRouteToken(c: ReturnType<typeof agentContext>) {
@@ -274,6 +274,82 @@ test('a failed optional port refresh cannot hide the accepted mutation', async (
     c.close()
   }
 })
+
+for (const change of ['port revision', 'agent destination'] as const) {
+  test(`a new ${change} does not wait for an older assignment refresh`, async () => {
+    const c = agentContext()
+    const started = Promise.withResolvers<void>()
+    const oldList = Promise.withResolvers<Response>()
+    const timeout = new AbortController()
+    const requests: Promise<Response | undefined>[] = []
+    const port = 3000
+    const app = `${c.url}/ports/${port}/`
+    const assignment = { port, slot: 1, url: app }
+    const revision = change === 'port revision' ? 1 : 0
+    const assignments = () => Response.json({ revision, ports: [assignment] })
+    let reads = 0
+    const replacement =
+      change === 'agent destination'
+        ? Bun.serve({
+            hostname: '127.0.0.1',
+            port: 0,
+            fetch(request) {
+              expect(request.method).toBe('GET')
+              expect(new URL(request.url).pathname).toBe('/_pryx/ports')
+              expect(sandboxToken(requestToken(request), c.route)?.scope).toBe('routes')
+              reads++
+              return assignments()
+            },
+          })
+        : undefined
+    try {
+      if (!c.route.agent) throw new Error('Missing fixture agent')
+      c.hooks.ports = () => {
+        if (++reads > 1 && !replacement) return assignments()
+        started.resolve()
+        return oldList.promise
+      }
+      const older = c.proxy.fetch(new Request(`${c.url}/ports/3001/`))
+      requests.push(older)
+      expect(
+        await Promise.race([
+          started.promise.then(() => true),
+          pause(SECOND_MS, false, { signal: timeout.signal }),
+        ]),
+      ).toBe(true)
+      const currentRoute = replacement
+        ? { ...c.route, destination: `127.0.0.1:${replacement.port}` }
+        : {
+            ...c.route,
+            agent: {
+              ...c.route.agent,
+              manifest: { ...c.route.agent.manifest, portRevision: revision, exposed: [assignment] },
+            },
+          }
+      c.table.apply({ routes: [currentRoute] })
+      const current = c.proxy.fetch(new Request(app))
+      requests.push(current)
+      const response = await Promise.race([current, pause(SECOND_MS, null, { signal: timeout.signal })])
+      expect(response?.status).toBe(StatusCodes.OK)
+      expect(await response?.text()).toBe('exposed-app')
+
+      oldList.resolve(Response.json({ revision: 0, ports: [] }))
+      expect((await older)?.status).toBe(StatusCodes.NOT_FOUND)
+      expect(await (await c.proxy.fetch(new Request(app)))?.text()).toBe('exposed-app')
+      expect(reads).toBe(2)
+    } finally {
+      timeout.abort()
+      oldList.resolve(Response.json({ revision: 0, ports: [] }))
+      for (const pending of requests)
+        await pending.then(
+          (response) => (response?.bodyUsed ? undefined : response?.body?.cancel()),
+          () => {},
+        )
+      replacement?.stop(true)
+      c.close()
+    }
+  })
+}
 
 test('a port mutation replaces an earlier pending assignment refresh', async () => {
   const c = agentContext()

@@ -33,7 +33,10 @@ class ReadinessFailure extends Error {
 }
 export class SandboxProxy {
   readonly ports = new Map<string, { key: string; revision: number; ports: Port[] }>()
-  readonly pending = new Map<string, Promise<Port[]>>()
+  readonly pending = new Map<
+    string,
+    { key: string; revision: number; destination: string; work: Promise<Port[]> }
+  >()
   readonly server: ReturnType<typeof Bun.serve<SocketState>>
   private managedServer?: ReturnType<typeof Bun.serve<SocketState>>
   private tlsServer?: ReturnType<typeof Bun.serve<SocketState>>
@@ -159,31 +162,33 @@ export class SandboxProxy {
           route,
         )
       )
-    if (!this.pending.has(route.sandbox)) {
-      const work: Promise<Port[]> = Promise.resolve()
-        .then(async () => {
-          const response = await fetch(`http://${route.destination}/_pryx/ports`, {
-            headers: { authorization: `Bearer ${capability}` },
-            signal: AbortSignal.timeout(5 * SECOND_MS),
-            redirect: 'manual',
-          })
-          if (!response.ok) return []
-          const body = (await response.json()) as { ports: Port[]; revision?: number }
-          const ports = this.validPorts(body.ports, route)
-          const current = this.ports.get(route.sandbox)
-          if (
-            this.pending.get(route.sandbox) === work &&
-            (current?.key !== key || current.revision <= (body.revision ?? 0))
-          )
-            this.ports.set(route.sandbox, { key, ports, revision: body.revision ?? 0 })
-          return ports
+    const pending = this.pending.get(route.sandbox)
+    const { destination } = route
+    if (pending?.key === key && pending.revision === revision && pending.destination === destination)
+      return pending.work
+    const work: Promise<Port[]> = Promise.resolve()
+      .then(async () => {
+        const response = await fetch(`http://${destination}/_pryx/ports`, {
+          headers: { authorization: `Bearer ${capability}` },
+          signal: AbortSignal.timeout(5 * SECOND_MS),
+          redirect: 'manual',
         })
-        .finally(() => {
-          if (this.pending.get(route.sandbox) === work) this.pending.delete(route.sandbox)
-        })
-      this.pending.set(route.sandbox, work)
-    }
-    return this.pending.get(route.sandbox) as Promise<Port[]>
+        if (!response.ok) return []
+        const body = (await response.json()) as { ports: Port[]; revision?: number }
+        const ports = this.validPorts(body.ports, route)
+        const current = this.ports.get(route.sandbox)
+        if (
+          this.pending.get(route.sandbox)?.work === work &&
+          (current?.key !== key || current.revision <= (body.revision ?? 0))
+        )
+          this.ports.set(route.sandbox, { key, ports, revision: body.revision ?? 0 })
+        return ports
+      })
+      .finally(() => {
+        if (this.pending.get(route.sandbox)?.work === work) this.pending.delete(route.sandbox)
+      })
+    this.pending.set(route.sandbox, { key, revision, destination, work })
+    return work
   }
   private validPorts(value: unknown, route: EdgeRoute): Port[] {
     if (!Array.isArray(value)) return []
