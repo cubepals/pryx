@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 _spec = importlib.util.spec_from_file_location('artifact_read', Path(__file__).with_name('artifact-read.py'))
 reader = importlib.util.module_from_spec(_spec)
@@ -132,6 +133,39 @@ class ReadTests(unittest.TestCase):
             if process.poll() is None:
                 process.terminate()
             process.wait(timeout=2)
+
+    def test_cancellation_during_spawn_retires_the_client(self):
+        children = []
+        popen = subprocess.Popen
+
+        def stop_fixture(process):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=2)
+
+        def cancel_after_spawn(*args, **kwargs):
+            process = popen(*args, **kwargs)
+            self.addCleanup(stop_fixture, process)
+            children.append(process)
+            self.assertIsNone(process.poll())
+            signal.raise_signal(signal.SIGTERM)
+            return process
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        command = ['artifact-read.py', str(self.stage), str(self.log), '1',
+                   sys.executable, '-c', 'import time; time.sleep(30)']
+        with mock.patch.object(subprocess, 'Popen', cancel_after_spawn), \
+                mock.patch.object(sys, 'argv', command):
+            try:
+                status = reader.main()
+            except KeyboardInterrupt:
+                status = -signal.SIGTERM
+
+        self.assertNotIn(status, (0, None, reader.TIMEOUT_EXIT_STATUS))
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll(), 'Cancellation must retire the spawned client')
+        self.assertEqual(list(self.root.glob('gh-artifact-read-*')), [])
 
 
 if __name__ == '__main__':
