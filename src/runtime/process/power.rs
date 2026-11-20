@@ -474,6 +474,9 @@ impl ProcessRuntime {
             self.save_in(&mut entries, entry.clone())?;
         }
         let alive = matching_pid(entry.pid, entry.ticks).is_some();
+        if !alive && self.retire_pending_limits(&mut entry)? {
+            self.save_in(&mut entries, entry.clone())?;
+        }
         if !alive && !entry.cleaned {
             if let Some(agent) = &entry.spec.agent {
                 self.retire_orphans(&agent.sandbox)?;

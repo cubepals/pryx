@@ -3,7 +3,7 @@
 //! never proof of cleanup: uncertainty survives record removal until the kernel's boot identity
 //! changes. Normal stop clears a generation only with a signed final descendant-retirement
 //! checkpoint or an empty dedicated UID. Not the program set of a policed sandbox (`network.rs`).
-use super::{Entry, ProcessRuntime, RuntimeError, journal, observe};
+use super::{Entry, ProcessRuntime, RuntimeError, journal, observe, resources};
 
 // pid_namespaces(7): the first process in a new PID namespace has PID 1.
 const NAMESPACED_AGENT_PID: u32 = 1;
@@ -98,7 +98,10 @@ impl ProcessRuntime {
                 if let Some(agent) = &entry.spec.agent {
                     self.retire_orphans(&agent.sandbox)?;
                 }
-                self.note_legacy_loss(&mut entry)?;
+                // A limits-only launch intent still owns its cgroup and can prove retirement.
+                if resources::pending_limits(&entry).is_none() {
+                    self.note_legacy_loss(&mut entry)?;
+                }
             }
             if before != (entry.network_boot.clone(), entry.network_clean) {
                 self.save(entry)?;

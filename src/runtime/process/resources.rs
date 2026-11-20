@@ -139,6 +139,10 @@ pub(super) fn release(cgroup: &Path) -> Result<(), RuntimeError> {
     crate::cgroup::remove_cgroup(cgroup).map_err(failed)
 }
 
+pub(super) fn pending_limits(entry: &Entry) -> Option<&Record> {
+    entry.limits.as_ref().filter(|_| entry.network_launch_pending && entry.network.is_none())
+}
+
 impl ProcessRuntime {
     /// Turns kernel-enforced limits on where this daemon's cgroup can give its children memory
     /// and cpu (and pids). Runs before anything else this daemon starts, since the daemon may move
@@ -153,7 +157,14 @@ impl ProcessRuntime {
         for name in self.names() {
             let Ok(mut entry) = self.entry(&name) else { continue };
             let Some(record) = &entry.limits else { continue };
-            let Some(pid) = super::observe::matching_pid(entry.pid, entry.ticks) else { continue };
+            let Some(pid) = super::observe::matching_pid(entry.pid, entry.ticks) else {
+                if pending_limits(&entry).is_some()
+                    && let Err(problem) = self.observe_entry(&name)
+                {
+                    tracing::warn!(sandbox = %name, %problem, "incomplete process launch still awaits cgroup retirement");
+                }
+                continue;
+            };
             if crate::cgroup::members(&record.cgroup).is_ok_and(|members| members.contains(&pid)) {
                 continue;
             }
@@ -164,6 +175,22 @@ impl ProcessRuntime {
             }
         }
         self
+    }
+
+    /// Retire the cgroup named by a limits-only intent without a live PID checkpoint. The
+    /// caller saves the cleared intent after retirement, so observation can retry on failure.
+    pub(super) fn retire_pending_limits(&self, entry: &mut Entry) -> Result<bool, RuntimeError> {
+        let Some(record) = pending_limits(entry) else { return Ok(false) };
+        // A proven new boot already ended this generation. Otherwise its owned cgroup is
+        // the retirement proof, including if the child was still in pre-exec.
+        if self.legacy_pending(entry) {
+            release(&record.cgroup)?;
+        }
+        entry.limits = None;
+        entry.network_launch_pending = false;
+        entry.network_clean = true;
+        entry.cleaned = true;
+        Ok(true)
     }
 
     /// The process tier's kernel-enforced limits as the host document reports them.
@@ -356,7 +383,7 @@ mod tests {
         // Ordinary files simulate an owned member and a cgroup.kill operation that fails.
         fs::write(cgroup.join("cgroup.procs"), format!("{}\n", u32::MAX)).unwrap();
         fs::create_dir(cgroup.join("cgroup.kill")).unwrap();
-        entry.limits = Some(Record { cgroup, memory: true, cpu: true, pids: false });
+        entry.limits = Some(Record { cgroup: cgroup.clone(), memory: true, cpu: true, pids: false });
         entry.network_boot = Some(journal::UNKNOWN_BOOT.into());
         entry.network_launch_pending = true;
         // The intent is durable, but the daemon lost the PID checkpoint and kept `cleaned`.
@@ -364,11 +391,26 @@ mod tests {
         runtime.save(entry).unwrap();
         drop(runtime);
 
-        let recovered = ProcessRuntime::new(root.path(), policy).unwrap();
+        let recovered = ProcessRuntime::new(root.path(), policy.clone()).unwrap();
         let observed = recovered.inspect(&id).await;
         assert_eq!(fs::read(&frozen).unwrap(), b"1", "restart must fence the pending limits-only cgroup");
         assert!(observed.is_err(), "an unretired cgroup must refuse observation as a stopped sandbox");
-        assert!(recovered.entry(&id).unwrap().network_launch_pending, "retain ownership until retirement is proved");
+        let pending = recovered.entry(&id).unwrap();
+        assert!(pending.network_launch_pending, "retain ownership until retirement is proved");
+        assert_eq!(pending.limits.unwrap().cgroup, cgroup);
+        recovered.legacy_history().unwrap();
+        let pending = recovered.entry(&id).unwrap();
+        assert!(recovered.legacy_pending(&pending), "unretired compute must still count during policy adoption");
+        assert!(!recovered.legacy_boot_uncertain(), "a recorded cgroup retains a way to prove retirement");
+
+        fs::remove_dir_all(&cgroup).unwrap();
+        assert!(matches!(recovered.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created));
+        drop(recovered);
+        let recovered = ProcessRuntime::new(root.path(), policy).unwrap();
+        let retired = recovered.entry(&id).unwrap();
+        assert!(retired.cleaned && retired.network_clean && !retired.network_launch_pending);
+        assert!(retired.limits.is_none());
+        assert!(!recovered.legacy_boot_uncertain());
     }
 
     #[tokio::test]
