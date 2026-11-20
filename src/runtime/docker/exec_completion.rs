@@ -609,6 +609,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_full_live_queue_does_not_hold_a_verified_stderr_tail() {
+        let engine = Engine::new(0, 0);
+        let session = engine.session();
+        let mut footer = b"final stderr\n".to_vec();
+        session.key.write(&mut footer, 0, false).unwrap();
+        // One chunk fills the client queue, one holds the forwarder, and one fills its queue.
+        let lines = (0..3).map(|_| Ok(LogOutput::StdOut { message: b"line\n".to_vec().into() }));
+        let mut drained = false;
+        let output =
+            futures_util::stream::iter(lines.chain([stderr(footer)])).chain(futures_util::stream::poll_fn(|_| {
+                drained = true;
+                std::task::Poll::Ready(None)
+            }));
+        let (live, _unread) = tokio::sync::mpsc::channel(1);
+        let completed = tokio::time::timeout(
+            Duration::from_secs(2),
+            engine.watch_live(session, output, Duration::from_secs(60), Some(live)),
+        )
+        .await;
+        assert!(drained, "the engine output and signed footer were drained");
+        assert!(engine.inspections.load(Ordering::SeqCst) > 0, "the engine reported completion");
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
+        let result = completed.expect("verified completion must return with the client queue full").unwrap();
+        assert_eq!(result.exit_code, Some(0));
+        assert_eq!(result.stdout, b"line\n".repeat(3));
+        assert_eq!(result.stderr, b"final stderr\n");
+    }
+
+    #[tokio::test]
     async fn an_exec_that_ended_without_its_completion_retires_its_sandbox_once() {
         let engine = Engine::new(0, i64::from(128 + libc::SIGKILL));
         let output = futures_util::stream::iter([stderr(b"no completion".to_vec())]);
