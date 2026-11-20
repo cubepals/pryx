@@ -135,8 +135,17 @@ class ReadTests(unittest.TestCase):
             process.wait(timeout=2)
 
     def test_cancellation_during_spawn_retires_the_client(self):
+        self.assert_spawn_cancellation()
+
+    def test_repeated_cancellation_reaps_the_client_and_restores_handlers(self):
+        self.assert_spawn_cancellation(repeated=True)
+
+    def assert_spawn_cancellation(self, repeated=False):
         children = []
+        interrupted = []
         popen = subprocess.Popen
+        killpg = os.killpg
+        install = signal.signal
 
         def stop_fixture(process):
             if process.poll() is None:
@@ -151,11 +160,27 @@ class ReadTests(unittest.TestCase):
             signal.raise_signal(signal.SIGTERM)
             return process
 
+        def cancel_during_stop(pid, sig):
+            if repeated and children and pid == children[0].pid and sig == signal.SIGTERM:
+                interrupted.append('stop')
+                signal.raise_signal(signal.SIGINT)
+            killpg(pid, sig)
+
+        def cancel_during_restore(sig, handler):
+            previous = install(sig, handler)
+            if interrupted == ['stop'] and sig == signal.SIGINT and handler is signal.default_int_handler:
+                interrupted.append('restore')
+                signal.raise_signal(signal.SIGINT)
+            return previous
+
         for sig in (signal.SIGINT, signal.SIGTERM):
             self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         command = ['artifact-read.py', str(self.stage), str(self.log), '1',
                    sys.executable, '-c', 'import time; time.sleep(30)']
         with mock.patch.object(subprocess, 'Popen', cancel_after_spawn), \
+                mock.patch.object(os, 'killpg', cancel_during_stop), \
+                mock.patch.object(signal, 'signal', cancel_during_restore), \
                 mock.patch.object(sys, 'argv', command):
             try:
                 status = reader.main()
@@ -166,6 +191,10 @@ class ReadTests(unittest.TestCase):
         self.assertEqual(len(children), 1)
         self.assertIsNotNone(children[0].poll(), 'Cancellation must retire the spawned client')
         self.assertEqual(list(self.root.glob('gh-artifact-read-*')), [])
+        if repeated:
+            self.assertEqual(interrupted, ['stop', 'restore'])
+            self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+            self.assertIs(signal.getsignal(signal.SIGTERM), signal.default_int_handler)
 
 
 if __name__ == '__main__':
