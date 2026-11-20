@@ -170,13 +170,35 @@ mod tests {
         }
     }
     #[tokio::test]
-    async fn buffered_tail_completes_a_live_utf8_prefix() {
-        let mut text = Text::default();
-        assert_eq!(text.push(&[0xf0, 0x9f]), "");
-        let (wire, mut receive) = mpsc::channel(QUEUE);
-        remaining(&wire, LogStream::Stdout, &mut text, "🌍done", false).await;
-        let event: serde_json::Value = serde_json::from_slice(&receive.recv().await.unwrap()).unwrap();
-        assert_eq!(event["data"], "🌍done");
-        assert!(receive.try_recv().is_err());
+    async fn verified_stderr_tail_reaches_the_wire_once() {
+        let fragments = [b"prior \xf0\x9f".as_slice(), b"\x8c\x8ddone".as_slice()];
+        for live_fragments in [&fragments[..1], &fragments[..]] {
+            let (live, receive) = mpsc::channel(QUEUE);
+            for bytes in live_fragments {
+                live.try_send(LogChunk { stream: LogStream::Stderr, bytes: bytes::Bytes::from_static(bytes) }).unwrap();
+            }
+            drop(live);
+            let result = ExecResponse {
+                exit_code: Some(0),
+                stdout: String::new(),
+                stderr: "prior 🌍done".into(),
+                stdout_truncated: false,
+                stderr_truncated: false,
+                timed_out: false,
+                killed: false,
+                duration_ms: 0,
+            };
+            let (wire, mut events) = mpsc::channel(QUEUE);
+            forward(receive, tokio::spawn(async { Ok(result) }), wire).await;
+            for want in [
+                ExecEvent::Stderr { data: "prior ".into(), truncated: false },
+                ExecEvent::Stderr { data: "🌍done".into(), truncated: false },
+                ExecEvent::Exit { code: Some(0), timed_out: false, killed: false, duration_ms: 0 },
+            ] {
+                let event: serde_json::Value = serde_json::from_slice(&events.recv().await.unwrap()).unwrap();
+                assert_eq!(event, serde_json::to_value(want).unwrap());
+            }
+            assert!(events.recv().await.is_none());
+        }
     }
 }

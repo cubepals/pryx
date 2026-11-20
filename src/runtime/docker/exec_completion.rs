@@ -104,7 +104,7 @@ impl Session {
         self.retirement = None;
         Some((completion, std::mem::take(&mut self.tail).into()))
     }
-    pub(super) async fn complete(
+    pub(super) fn complete(
         &mut self,
         result: &mut ExecOutput,
         max_output: usize,
@@ -116,13 +116,14 @@ impl Session {
         result.timed_out = confirmed.timed_out;
         result.killed = confirmed.timed_out;
         let room = max_output.saturating_sub(result.stderr.len());
-        result.stderr.extend_from_slice(&stderr[..stderr.len().min(room)]);
+        let count = stderr.len().min(room);
+        result.stderr.extend_from_slice(&stderr[..count]);
         result.stderr_truncated |= stderr.len() > room;
-        let visible = stderr.slice(..stderr.len().min(room));
         if let Some(live) = live
-            && !visible.is_empty()
+            && count != 0
         {
-            let _ = live.send(LogChunk { stream: LogStream::Stderr, bytes: visible }).await;
+            // The stream can replay the retained suffix after draining its live queue.
+            let _ = live.try_send(LogChunk { stream: LogStream::Stderr, bytes: stderr.slice(..count) });
         }
         true
     }
@@ -319,7 +320,7 @@ where
         return Err(unheard(&problem));
     }
     result.exit_code = code;
-    if session.complete(&mut result, max_output, &live).await { Ok(result) } else { Err(session.failed().await) }
+    if session.complete(&mut result, max_output, &live) { Ok(result) } else { Err(session.failed().await) }
 }
 
 /// Live output through a forwarder of its own, which can be let go of when the client it waits on
@@ -447,7 +448,7 @@ mod tests {
         assert!(session.stderr(&tail).is_empty());
         let mut result = ExecOutput { stderr: b"prior".to_vec(), exit_code: Some(0), ..Default::default() };
         let (live, mut chunks) = tokio::sync::mpsc::channel(2);
-        assert!(session.complete(&mut result, 6, &Some(live)).await);
+        assert!(session.complete(&mut result, 6, &Some(live)));
         assert_eq!(result.stderr, b"priorv");
         assert!(result.stderr_truncated);
         assert_eq!(chunks.try_recv().unwrap().bytes.as_ref(), b"v");
