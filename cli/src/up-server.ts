@@ -16,7 +16,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { apiTlsReady, configureApiTls } from './up-acme.ts'
-import { dnsDomain, pebbleOptions } from './up-acme-config.ts'
+import { dnsDomain, managedApiTls, pebbleOptions } from './up-acme-config.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
@@ -98,7 +98,7 @@ export async function up(args: string[]) {
     )
   if (!plan.root) throw new Error('The server installer requires root; run sudo pryx up')
   if (args.includes('--image')) return upImage(args, domain, runInstallCommand)
-  const apiTls = domain !== 'localhost' && (!saved.PRYX_PUBLIC_URL || saved.PRYX_MANAGED_API_TLS === '1')
+  const apiTls = managedApiTls(domain, saved)
   const pebble = apiTls ? pebbleOptions() : undefined
   checkHostRuntime()
   for (const [path, mode] of [

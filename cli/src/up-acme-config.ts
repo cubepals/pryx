@@ -27,6 +27,10 @@ export function dnsDomain(value: string) {
   return name
 }
 
+export function managedApiTls(domain: string, saved: Record<string, string>) {
+  return domain !== 'localhost' && (!saved.PRYX_PUBLIC_DOMAIN || saved.PRYX_MANAGED_API_TLS === '1')
+}
+
 type Pebble = { directory: string; issuer: string; root: string }
 
 function publicCert(path: string) {

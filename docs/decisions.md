@@ -1714,4 +1714,4 @@
 
 - J2: Use upstream Caddy v2.11.9 (Apache-2.0) as a separate pinned API TLS service. The edge keeps its public TCP listener and sends only the API hostname's TLS to Caddy on loopback. TLS-ALPN-01 uses that same listener, and Caddy owns certificate storage and renewal. CI uses only the separate Pebble v2.10.3 test server (MPL-2.0) for ACME.
 
-- J2: Protect both TLS handoffs with service-owned Unix sockets. Control uses the private edge socket for its own agent calls so readiness and operations do not depend on public DNS or NAT hairpinning. Keep pre-existing explicit proxy URLs on upgrade. Test issuance and renewal on the existing one-box job with separate, explicitly trusted Pebble roots.
+- J2: Protect both TLS handoffs with service-owned Unix sockets. Control uses the private edge socket for its own agent calls so readiness and operations do not depend on public DNS or NAT hairpinning. Preserve pre-existing named installations' transport on upgrade, including private DNS names whose owners configured no public URL. Test issuance and renewal on the existing one-box job with separate, explicitly trusted Pebble roots.

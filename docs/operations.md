@@ -23,8 +23,8 @@ that exact hostname to the local `pryx-api-tls` unit. The unit obtains and renew
 certificate via ACME on TCP 443 and keeps its account and certificate keys in private service
 state. Point the API hostname's DNS A record at the server and keep TCP 443 reachable for
 renewals. The API certificate covers that hostname. Check `journalctl -u pryx-api-tls` if certificate validation fails.
-A server with an existing domain enables managed TLS on the next `pryx up` if it has no
-configured public URL. Upgrades preserve an existing operator-configured TLS proxy.
+Upgrades preserve existing named installations' transport, including operator-configured TLS proxies.
+New named server installations use managed TLS.
 Each sandbox owns its own TLS certificate and uses separately configured DNS.
 The API key printed once by up configures public clients.
 

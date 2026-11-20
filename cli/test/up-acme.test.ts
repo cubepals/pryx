@@ -2,7 +2,7 @@
 
 /** Cover the installer boundary for production hostnames and the separate loopback test trust. */
 import { expect, test } from 'bun:test'
-import { caddyConfig, dnsDomain, pebbleOptions } from '../src/up-acme-config.ts'
+import { caddyConfig, dnsDomain, managedApiTls, pebbleOptions } from '../src/up-acme-config.ts'
 
 test('server names use unambiguous DNS hostnames', () => {
   expect(dnsDomain('Sandboxes.Example.com')).toBe('sandboxes.example.com')
@@ -32,6 +32,17 @@ test('the ACME fixture refuses partial settings and non-loopback directories bef
       }),
     ).toThrow('must be a loopback HTTPS URL')
   }
+})
+
+test('repeat up keeps the recorded transport for named legacy and managed installations', () => {
+  const domain = 'sandboxes.example.com'
+  expect(managedApiTls(domain, {})).toBe(true)
+  expect(managedApiTls('localhost', {})).toBe(false)
+  expect(managedApiTls('pryx.test', { PRYX_PUBLIC_DOMAIN: 'pryx.test' })).toBe(false)
+  expect(managedApiTls(domain, { PRYX_PUBLIC_DOMAIN: domain, PRYX_PUBLIC_URL: `https://${domain}` })).toBe(
+    false,
+  )
+  expect(managedApiTls(domain, { PRYX_PUBLIC_DOMAIN: domain, PRYX_MANAGED_API_TLS: '1' })).toBe(true)
 })
 
 test('the test issuer and its fallback both use Pebble, with production renewal settings intact', () => {
