@@ -138,12 +138,13 @@ export class SandboxProxy {
   private key(route: EdgeRoute) {
     return `${route.epoch}:${route.agent?.manifest.publicKey}`
   }
-  private async exposed(route: EdgeRoute): Promise<Port[]> {
+  private async exposed(route: EdgeRoute, sandboxCapability?: string): Promise<Port[]> {
     const key = this.key(route),
       cached = this.ports.get(route.sandbox)
     const revision = route.agent?.manifest.portRevision ?? 0
     if (cached?.key === key && cached.revision >= revision) return cached.ports
-    if (route.state || !route.agent?.routeToken)
+    const capability = sandboxCapability ?? route.agent?.routeToken
+    if (route.state || !capability)
       return this.validPorts(
         route.agent?.manifest.exposed.map((p) => ({
           ...p,
@@ -152,20 +153,27 @@ export class SandboxProxy {
         route,
       )
     if (!this.pending.has(route.sandbox)) {
-      const work = (async () => {
-        const response = await fetch(`http://${route.destination}/_pryx/ports`, {
-          headers: { authorization: `Bearer ${route.agent?.routeToken}` },
-          signal: AbortSignal.timeout(5 * SECOND_MS),
-          redirect: 'manual',
+      const work: Promise<Port[]> = Promise.resolve()
+        .then(async () => {
+          const response = await fetch(`http://${route.destination}/_pryx/ports`, {
+            headers: { authorization: `Bearer ${capability}` },
+            signal: AbortSignal.timeout(5 * SECOND_MS),
+            redirect: 'manual',
+          })
+          if (!response.ok) return []
+          const body = (await response.json()) as { ports: Port[]; revision?: number }
+          const ports = this.validPorts(body.ports, route)
+          const current = this.ports.get(route.sandbox)
+          if (
+            this.pending.get(route.sandbox) === work &&
+            (current?.key !== key || current.revision <= (body.revision ?? 0))
+          )
+            this.ports.set(route.sandbox, { key, ports, revision: body.revision ?? 0 })
+          return ports
         })
-        if (!response.ok) return []
-        const body = (await response.json()) as { ports: Port[]; revision?: number }
-        const ports = this.validPorts(body.ports, route)
-        const current = this.ports.get(route.sandbox)
-        if (current?.key !== key || current.revision <= (body.revision ?? 0))
-          this.ports.set(route.sandbox, { key, ports, revision: body.revision ?? 0 })
-        return ports
-      })().finally(() => this.pending.delete(route.sandbox))
+        .finally(() => {
+          if (this.pending.get(route.sandbox) === work) this.pending.delete(route.sandbox)
+        })
       this.pending.set(route.sandbox, work)
     }
     return this.pending.get(route.sandbox) as Promise<Port[]>
@@ -311,9 +319,14 @@ export class SandboxProxy {
       request.method !== 'GET'
     ) {
       this.ports.delete(route.sandbox)
+      this.pending.delete(route.sandbox)
       // Read the complete assignment after mutation. Merging a POST response can resurrect
       // another slot concurrently removed by unexpose.
-      await this.exposed(route)
+      try {
+        await this.exposed(route, claims?.scope === 'sandbox' ? token : undefined)
+      } catch {
+        // The agent already accepted the change. The optional refresh cannot undo it.
+      }
     }
     if (!response.body) {
       untrack()

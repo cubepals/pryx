@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Agent authentication precedes wake and websocket relays preserve the first output frame. */
+/** Agent authentication precedes wake, port changes reach the public front, and websocket relays retain output. */
 import { expect, test } from 'bun:test'
+import { setTimeout as pause } from 'node:timers/promises'
 import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { Pryx } from '../../sdk/typescript/src/index.ts'
@@ -76,6 +77,118 @@ test('an exposed spare is public and the SDK terminal keeps initial output and s
     terminal.close()
     await output.return(undefined)
   } finally {
+    c.close()
+  }
+})
+
+for (const state of ['missing', 'expired'] as const) {
+  test(`signed port changes reach the public front while the route token is ${state}`, async () => {
+    const c = agentContext()
+    try {
+      if (!c.route.agent) throw new Error('Missing fixture agent')
+      if (state === 'expired') {
+        const now = Math.floor(Date.now() / SECOND_MS)
+        c.route.agent.routeToken = c.token({ scope: 'routes', issuedAt: now - 1, expiresAt: now })
+      } else delete c.route.agent.routeToken
+      c.table.apply({ routes: [c.route] })
+      const port = 3000
+      const app = 'http://one-3000.sandboxes.test/'
+      const ports = `${c.url}/_pryx/ports`
+      const headers = { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' }
+      expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
+      const added = await fetch(ports, { method: 'POST', headers, body: JSON.stringify({ port }) })
+      expect(added.status).toBe(StatusCodes.OK)
+      await added.body?.cancel()
+      const exposed = await c.proxy.fetch(new Request(app))
+      expect(exposed?.status).toBe(StatusCodes.OK)
+      expect(await exposed?.text()).toBe('exposed-app')
+
+      // A public lookup of an unassigned port cannot reuse the mutation's sandbox capability.
+      const unassigned = await c.proxy.fetch(new Request('http://one-3001.sandboxes.test/'))
+      expect(unassigned?.status).toBe(StatusCodes.NOT_FOUND)
+      expect(c.calls).toEqual(['POST /_pryx/ports', 'GET /_pryx/ports'])
+
+      const removed = await fetch(`${ports}/${port}`, { method: 'DELETE', headers })
+      expect(removed.status).toBe(StatusCodes.NO_CONTENT)
+      expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
+      expect(c.calls).toEqual([
+        'POST /_pryx/ports',
+        'GET /_pryx/ports',
+        'DELETE /_pryx/ports/3000',
+        'GET /_pryx/ports',
+      ])
+    } finally {
+      c.close()
+    }
+  })
+}
+
+test('a failed optional port refresh cannot hide the accepted mutation', async () => {
+  const c = agentContext()
+  try {
+    if (!c.route.agent) throw new Error('Missing fixture agent')
+    delete c.route.agent.routeToken
+    c.table.apply({ routes: [c.route] })
+    c.hooks.ports = () => new Response('unreadable port list')
+    const port = 3000
+    const added = await fetch(`${c.url}/_pryx/ports`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ port }),
+    })
+    expect(added.status).toBe(StatusCodes.OK)
+    expect(await added.json()).toMatchObject({ port })
+    expect((await c.proxy.fetch(new Request('http://one-3000.sandboxes.test/')))?.status).toBe(
+      StatusCodes.NOT_FOUND,
+    )
+    expect(c.calls).toEqual(['POST /_pryx/ports', 'GET /_pryx/ports'])
+  } finally {
+    c.close()
+  }
+})
+
+test('a port mutation replaces an earlier pending assignment refresh', async () => {
+  const c = agentContext()
+  const started = Promise.withResolvers<void>()
+  const oldList = Promise.withResolvers<Response>()
+  const timeout = new AbortController()
+  const requests: Promise<Response>[] = []
+  const port = 3000
+  try {
+    if (!c.route.agent) throw new Error('Missing fixture agent')
+    delete c.route.agent.routeToken
+    c.table.apply({ routes: [c.route] })
+    c.hooks.ports = () => {
+      if (c.calls.filter((call) => call === 'GET /_pryx/ports').length > 1) return
+      started.resolve()
+      return oldList.promise
+    }
+    const ports = `${c.url}/_pryx/ports`
+    const headers = { authorization: `Bearer ${c.token()}`, 'content-type': 'application/json' }
+    const added = fetch(ports, { method: 'POST', headers, body: JSON.stringify({ port }) })
+    requests.push(added)
+    expect(
+      await Promise.race([
+        started.promise.then(() => true),
+        pause(SECOND_MS, false, { signal: timeout.signal }),
+      ]),
+    ).toBe(true)
+    const removed = fetch(`${ports}/${port}`, { method: 'DELETE', headers })
+    requests.push(removed)
+    const confirmation = await Promise.race([removed, pause(SECOND_MS, null, { signal: timeout.signal })])
+    expect(confirmation?.status).toBe(StatusCodes.NO_CONTENT)
+    const app = 'http://one-3000.sandboxes.test/'
+    oldList.resolve(Response.json({ ports: [{ port, slot: 1, url: app }] }))
+    expect((await added).status).toBe(StatusCodes.OK)
+    expect((await c.proxy.fetch(new Request(app)))?.status).toBe(StatusCodes.NOT_FOUND)
+  } finally {
+    timeout.abort()
+    oldList.resolve(Response.json({ ports: [] }))
+    for (const pending of requests)
+      await pending.then(
+        (response) => response.body?.cancel(),
+        () => {},
+      )
     c.close()
   }
 })

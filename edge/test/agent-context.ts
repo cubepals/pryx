@@ -25,7 +25,11 @@ export function agentContext(sandbox = 'one') {
     stderrTruncated: false,
   }
   const requests: { path: string; body: unknown }[] = []
-  const hooks: { start?: () => Promise<Response | undefined>; output?: Promise<void> } = {}
+  const hooks: {
+    start?: () => Promise<Response | undefined>
+    output?: Promise<void>
+    ports?: () => Response | Promise<Response> | undefined
+  } = {}
   const calls: string[] = [],
     frames: unknown[] = []
   const output: components['schemas']['AgentEvent'][] = [{ type: 'exit', result }]
@@ -33,6 +37,8 @@ export function agentContext(sandbox = 'one') {
   let file = new Uint8Array(new ArrayBuffer(0)),
     processes = 0,
     wakes = 0
+  const assignment = { port: 3000, slot: 1, url: 'https://one-3000.sandboxes.test' }
+  let exposed = false
   let route: EdgeRoute
   const app = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('exposed-app') })
   const agent = Bun.serve({
@@ -86,12 +92,17 @@ export function agentContext(sandbox = 'one') {
         return new Response(logFrames.map((frame) => `${JSON.stringify(frame)}\n`).join(''), {
           headers: { 'content-type': 'application/x-ndjson' },
         })
-      if (path === '/_pryx/ports')
-        return Response.json(
-          request.method === 'POST'
-            ? { port: 3000, slot: 1, url: 'https://one-3000.sandboxes.test' }
-            : { ports: [{ port: 3000, slot: 1, url: 'https://one-3000.sandboxes.test' }] },
-        )
+      if (path === '/_pryx/ports') {
+        if (request.method === 'POST') {
+          exposed = true
+          return Response.json(assignment)
+        }
+        return hooks.ports?.() ?? Response.json({ ports: exposed ? [assignment] : [] })
+      }
+      if (path === `/_pryx/ports/${assignment.port}` && request.method === 'DELETE') {
+        exposed = false
+        return new Response(null, { status: StatusCodes.NO_CONTENT })
+      }
       if (path === '/_pryx/files/content') {
         if (request.method === 'PUT') {
           file = new Uint8Array(await request.arrayBuffer())
