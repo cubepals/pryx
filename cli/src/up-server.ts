@@ -16,7 +16,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { apiTlsReady, configureApiTls } from './up-acme.ts'
-import { dnsDomain, managedApiTls, pebbleOptions } from './up-acme-config.ts'
+import { managedApiTls, pebbleOptions, serverDomain } from './up-acme-config.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
@@ -79,25 +79,27 @@ async function until(work: () => Promise<boolean>, what: string) {
 }
 export async function up(args: string[]) {
   const saved = args.includes('--check') ? {} : readEnvironment('/etc/pryx/control.env')
-  const domain = dnsDomain(
+  const image = args.includes('--image')
+  const domain = serverDomain(
     option(args, '--domain') ?? saved.PRYX_PUBLIC_DOMAIN ?? process.env.PRYX_DOMAIN ?? 'localhost',
+    saved,
+    image,
   )
-  if (saved.PRYX_PUBLIC_DOMAIN && dnsDomain(saved.PRYX_PUBLIC_DOMAIN) !== domain)
+  if (saved.PRYX_PUBLIC_DOMAIN && serverDomain(saved.PRYX_PUBLIC_DOMAIN, saved, image) !== domain)
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
   const plan = upPlan(domain)
   if (!(plan.architecture in RELEASE_MACHINES))
     throw new Error(
       `This release is built for x86_64 and aarch64; detected ${plan.architecture}. Run pryx on one of them`,
     )
-  if (args.includes('--check'))
-    return args.includes('--image') ? { ...plan, image: imageReference(args) } : plan
+  if (args.includes('--check')) return image ? { ...plan, image: imageReference(args) } : plan
   if (!plan.linux) throw new Error('Linux is required; run pryx on a Linux host')
   if (!plan.systemd)
     throw new Error(
       'A systemd host is required by this installer; run the release image with docker run instead',
     )
   if (!plan.root) throw new Error('The server installer requires root; run sudo pryx up')
-  if (args.includes('--image')) return upImage(args, domain, runInstallCommand)
+  if (image) return upImage(args, domain, runInstallCommand)
   const apiTls = managedApiTls(domain, saved)
   const pebble = apiTls ? pebbleOptions() : undefined
   checkHostRuntime()

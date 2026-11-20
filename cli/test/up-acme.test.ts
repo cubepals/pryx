@@ -2,7 +2,7 @@
 
 /** Cover the installer boundary for production hostnames and the separate loopback test trust. */
 import { expect, test } from 'bun:test'
-import { caddyConfig, dnsDomain, managedApiTls, pebbleOptions } from '../src/up-acme-config.ts'
+import { caddyConfig, dnsDomain, managedApiTls, pebbleOptions, serverDomain } from '../src/up-acme-config.ts'
 
 test('server names use unambiguous DNS hostnames', () => {
   expect(dnsDomain('Sandboxes.Example.com')).toBe('sandboxes.example.com')
@@ -43,6 +43,11 @@ test('repeat up keeps the recorded transport for named legacy and managed instal
     false,
   )
   expect(managedApiTls(domain, { PRYX_PUBLIC_DOMAIN: domain, PRYX_MANAGED_API_TLS: '1' })).toBe(true)
+  const older = { PRYX_PUBLIC_DOMAIN: 'internal' }
+  expect(serverDomain('internal', older)).toBe('internal')
+  expect(managedApiTls(serverDomain('internal', older), older)).toBe(false)
+  expect(() => serverDomain('internal', {})).toThrow('--domain is a DNS hostname')
+  expect(serverDomain('internal', {}, true)).toBe('internal')
 })
 
 test('the test issuer and its fallback both use Pebble, with production renewal settings intact', () => {

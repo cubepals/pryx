@@ -27,8 +27,17 @@ export function dnsDomain(value: string) {
   return name
 }
 
+const legacyTransport = (saved: Record<string, string>) =>
+  Boolean(saved.PRYX_PUBLIC_DOMAIN) && saved.PRYX_MANAGED_API_TLS !== '1'
+
+export function serverDomain(value: string, saved: Record<string, string>, image = false) {
+  if (!image && !legacyTransport(saved)) return dnsDomain(value)
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(value)) throw new Error('--domain is a DNS hostname')
+  return value
+}
+
 export function managedApiTls(domain: string, saved: Record<string, string>) {
-  return domain !== 'localhost' && (!saved.PRYX_PUBLIC_DOMAIN || saved.PRYX_MANAGED_API_TLS === '1')
+  return domain !== 'localhost' && !legacyTransport(saved)
 }
 
 type Pebble = { directory: string; issuer: string; root: string }

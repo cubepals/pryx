@@ -44,7 +44,7 @@ case "$release" in
   http://127.0.0.1:*) ;;
   *) echo 'The ACME acceptance requires loopback release artifacts' >&2; exit 1 ;;
 esac
-readonly domain=pryx-j2.example.com
+readonly domain=sandboxes.example.com
 readonly pebble_directory=https://127.0.0.1:14000/dir
 readonly pebble_validation_port=443
 fixture=$(mktemp -d "${RUNNER_TEMP:?requires a CI runner temporary directory}/pryx-pebble.XXXXXX")
