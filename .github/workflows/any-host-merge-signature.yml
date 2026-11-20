@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k43-artifact-cancel
+          SOURCE_BRANCH: k35-archive-short
           BASE_BRANCH: any-host
-          SOURCE_HEAD: 'b0b3b6aab1bd6a632578e802b288d30bd8de3786'
-          ANY_HOST_HEAD: '4f3cb23ed7299174de5addd8a902b056417d9081'
-          MERGED_TREE: '611f83e5d84f47e2bf876564292844bb56cb1da8'
-          SUBJECT: 'Merge any-host into cancellation branch'
+          SOURCE_HEAD: '5ef3655f03e28098d5d6a4d4ae6a364c9a3bdf99'
+          ANY_HOST_HEAD: 'c6410c9477b334773d8f4baa89aad9bbcb844779'
+          MERGED_TREE: '7a302a3d34bbfe53130ad6dd1db99f7680386129'
+          SUBJECT: 'Merge any-host into archive download branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
