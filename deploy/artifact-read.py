@@ -92,9 +92,12 @@ def read(command, stage, log, idle_seconds):
     started = time.monotonic()
     deadline = started + idle_seconds
     most_bytes = 0
-    with tempfile.TemporaryDirectory(prefix='gh-artifact-read-', dir=stage.parent) as temporary:
+    with (
+        defer_cancellation() as check_cancellation,
+        tempfile.TemporaryDirectory(prefix='gh-artifact-read-', dir=stage.parent) as temporary,
+    ):
         # Go's os.CreateTemp("", ...) uses TMPDIR; the pinned CLI's http.go owns this layout.
-        with log.open('w') as output, defer_cancellation() as check_cancellation:
+        with log.open('w') as output:
             process = None
             try:
                 # The client's diagnostics can include a temporary download URL.
