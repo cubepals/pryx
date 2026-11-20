@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 _spec = importlib.util.spec_from_file_location('artifact_read', Path(__file__).with_name('artifact-read.py'))
 reader = importlib.util.module_from_spec(_spec)
@@ -142,6 +143,114 @@ class ReadTests(unittest.TestCase):
             if process.poll() is None:
                 process.terminate()
             process.wait(timeout=2)
+
+    def test_cancellation_during_spawn_retires_the_client(self):
+        self.assert_spawn_cancellation()
+
+    def test_repeated_cancellation_reaps_the_client_and_restores_handlers(self):
+        self.assert_spawn_cancellation(repeated=True)
+
+    def assert_spawn_cancellation(self, repeated=False):
+        children = []
+        interrupted = []
+        popen = subprocess.Popen
+        killpg = os.killpg
+        install = signal.signal
+
+        def stop_fixture(process):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=2)
+
+        def cancel_after_spawn(*args, **kwargs):
+            process = popen(*args, **kwargs)
+            self.addCleanup(stop_fixture, process)
+            children.append(process)
+            self.assertIsNone(process.poll())
+            signal.raise_signal(signal.SIGTERM)
+            return process
+
+        def cancel_during_stop(pid, sig):
+            if repeated and children and pid == children[0].pid and sig == signal.SIGTERM:
+                interrupted.append('stop')
+                signal.raise_signal(signal.SIGINT)
+            killpg(pid, sig)
+
+        def cancel_during_restore(sig, handler):
+            previous = install(sig, handler)
+            if interrupted == ['stop'] and sig == signal.SIGINT and handler is signal.default_int_handler:
+                interrupted.append('restore')
+                signal.raise_signal(signal.SIGINT)
+            return previous
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        command = ['artifact-read.py', str(self.stage), str(self.log), '1',
+                   sys.executable, '-c', 'import time; time.sleep(30)']
+        with mock.patch.object(subprocess, 'Popen', cancel_after_spawn), \
+                mock.patch.object(os, 'killpg', cancel_during_stop), \
+                mock.patch.object(signal, 'signal', cancel_during_restore), \
+                mock.patch.object(sys, 'argv', command):
+            try:
+                status = reader.main()
+            except KeyboardInterrupt:
+                status = -signal.SIGTERM
+
+        self.assertNotIn(status, (0, None, reader.TIMEOUT_EXIT_STATUS))
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll(), 'Cancellation must retire the spawned client')
+        self.assertEqual(list(self.root.glob('gh-artifact-read-*')), [])
+        if repeated:
+            self.assertEqual(interrupted, ['stop', 'restore'])
+            self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+            self.assertIs(signal.getsignal(signal.SIGTERM), signal.default_int_handler)
+
+
+class ArchiveCancellationTests(unittest.TestCase):
+    def test_repeated_cancellation_removes_the_archive_temp_directory(self):
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            previous = signal.signal(sig, signal.default_int_handler)
+            self.addCleanup(signal.signal, sig, previous)
+
+        child = mock.Mock(pid=object())
+        child.poll.return_value = None
+        child.wait.return_value = -signal.SIGTERM
+        remove_tree = tempfile.TemporaryDirectory._rmtree
+        archive_directory = None
+        repeated = False
+
+        def cancel_after_spawn(*args, **kwargs):
+            nonlocal archive_directory
+            archive_directory = Path(kwargs['env']['TMPDIR'])
+            signal.raise_signal(signal.SIGTERM)
+            return child
+
+        def cancel_during_cleanup(path, *args, **kwargs):
+            nonlocal repeated
+            if Path(path) == archive_directory:
+                child.wait.assert_called_once()
+                repeated = True
+                signal.raise_signal(signal.SIGINT)
+            return remove_tree(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = root / 'stage'
+            stage.mkdir()
+            with (
+                mock.patch.object(subprocess, 'Popen', side_effect=cancel_after_spawn),
+                mock.patch.object(os, 'killpg') as killpg,
+                mock.patch.object(tempfile.TemporaryDirectory, '_rmtree', side_effect=cancel_during_cleanup),
+                self.assertRaises(KeyboardInterrupt),
+            ):
+                reader.read(['fixture-client'], stage, root / 'client.log', 1)
+            killpg.assert_called_once_with(child.pid, signal.SIGTERM)
+            self.assertTrue(repeated, 'the test must interrupt archive cleanup after reaping')
+            self.assertFalse(
+                archive_directory.exists(),
+                'repeated cancellation must remove the private archive directory',
+            )
 
 
 if __name__ == '__main__':
