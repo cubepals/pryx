@@ -6,8 +6,10 @@
 Adapted from Cubepals' fleet operations guide. The operator API owns node identity, lifecycle,
 placement and history; the public API owns sandbox lifecycles. Nodes never choose assignments.
 
-For an ordinary account, follow [installation](install.md); local upgrades and purge keep their files below home. For one Linux systemd host, run `pryx up --check --domain pryx.test`, then, as root,
-`pryx up --preset server --domain pryx.test`. Debian and Ubuntu install missing Docker from Docker's own repository
+For an ordinary account, follow [installation](install.md). Local upgrades and purge keep
+their files below home. Use the same guide to install on a Linux systemd server.
+`pryx up --check --domain sandboxes.example.com` shows the server install plan when
+run as root. Debian and Ubuntu install missing Docker from Docker's own repository
 and nftables from apt. Other systemd Linux hosts need Docker and nftables installed first.
 The installer downloads its exact release's binaries and checks SHA256SUMS before installation.
 It keeps Postgres and the S3 store in persistent Docker volumes, runs control and edge as systemd
@@ -16,12 +18,18 @@ A repeated run retains credentials, data, binaries and files already matching th
 The domain is immutable until existing public address assignments are migrated deliberately.
 
 Control, operator, node endpoint, Postgres and S3 bind to loopback in the one-box setup. Public
-HTTP/TLS/raw fronts belong to edge. Add a trusted TLS reverse proxy for remote API access and DNS
-for the public domain; pryx does not manage your DNS or issue sandbox TLS certificates. The
-sandbox owns its TLS certificate. The API key printed once by up configures public clients:
+HTTP/TLS/raw fronts belong to edge. On a server installed with a domain, edge forwards TLS for
+that exact hostname to the local `pryx-api-tls` unit. The unit obtains and renews the API
+certificate via ACME on TCP 443 and keeps its account and certificate keys in private service
+state. Point the API hostname's DNS A record at the server and keep TCP 443 reachable for
+renewals. The API certificate covers that hostname. Check `journalctl -u pryx-api-tls` if certificate validation fails.
+A server with an existing domain enables managed TLS on the next `pryx up` if it has no
+configured public URL. Upgrades preserve an existing operator-configured TLS proxy.
+Each sandbox owns its own TLS certificate and uses separately configured DNS.
+The API key printed once by up configures public clients.
 
 ```sh
-export PRYX_API_URL=http://127.0.0.1:8082
+export PRYX_API_URL=https://sandboxes.example.com
 export PRYX_API_KEY=...                 # the initial key, printed once
 pryx run --image alpine:3.22 -- echo hello
 ```
@@ -127,9 +135,10 @@ identity, then `pryx node clear-quarantine <node-id>`. Templates must have an em
 before first boot. Keep metrics private: pryxd's ops listener, edge's metrics listener and the
 operator summary. No event or metric is a reason to declare a host lost by a timer.
 
-Up prints its undo commands. Stop/disable pryx-edge, pryx-control, pryxd, pryx-store and
-pryx-postgres; remove their managed unit files and reload systemd. Keep /etc/pryx and Docker
-volumes until credentials/backups/data are saved. Removing pryx-postgres and pryx-store volumes
+Up prints its undo commands. Stop and disable pryx-api-tls if installed, then pryx-edge,
+pryx-control, pryxd, pryx-store and pryx-postgres. Remove their managed unit files and reload
+systemd. Keep `/etc/pryx`, `/var/lib/private/pryx-api-tls` and Docker volumes until credentials,
+backups and data are saved. Removing pryx-postgres and pryx-store volumes
 and /var/lib/pryxd destroys data and is always a separate explicit operator action. Docker,
 nftables and Docker's daemon.json remain installed; existing Docker settings are merged, and
 running containers cause a reload rather than an automatic restart.
@@ -137,9 +146,9 @@ running containers cause a reload rather than an automatic restart.
 ## CLI installation and client credentials
 
 The release includes install.sh in SHA256SUMS and the release attestation. The script pins its
-release version, verifies the CLI digest before execution, and installs on Linux x86_64.
-The README's four commands need no manual exports: after installation, up writes only the public
-API URL/key to ~/.config/pryx/client.json (0600, private directory) for the invoking user.
+release version, verifies the CLI digest before execution, and installs on Linux x86_64 and aarch64.
+After installation, up writes the public API URL and key to ~/.config/pryx/client.json (0600,
+private directory) for the invoking user. The local CLI reads that file without manual exports.
 All root operations finish before up drops groups/gid/uid to write that file. PRYX_CONFIG may
 select another owned/private client file; an environment API URL never borrows a saved key for
 a different endpoint. PRYX_API_KEY explicitly overrides saved credentials.

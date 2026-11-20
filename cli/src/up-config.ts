@@ -15,7 +15,7 @@ const secret = () => randomBytes(32).toString('hex')
 // AWS IAM credential format: 20-character access id and 40-character secret; S3-compatible stores accept these.
 const S3_ACCESS_RANDOM_BYTES = 10
 const S3_SECRET_RANDOM_BYTES = 20
-export async function configurations(domain: string, folder = '/etc/pryx') {
+export async function configurations(domain: string, folder = '/etc/pryx', apiTls = false) {
   const control = readEnvironment(join(folder, 'control.env'))
   const fresh = !control.PRYX_CA_KEY
   if (fresh) {
@@ -64,21 +64,26 @@ export async function configurations(domain: string, folder = '/etc/pryx') {
       ...(control.PRYX_REQUIRE ?? process.env.PRYX_REQUIRE ?? '').split(',').filter(Boolean),
     ]),
   ].join(',')
-  if (domain === 'localhost') control.PRYX_PUBLIC_URL ??= 'http://127.0.0.1:7331'
+  if (apiTls) {
+    control.PRYX_PUBLIC_URL = `https://${domain}`
+    control.PRYX_MANAGED_API_TLS = '1'
+  } else if (domain === 'localhost') control.PRYX_PUBLIC_URL ??= 'http://127.0.0.1:7331'
   const changed = writeEnvironment(join(folder, 'control.env'), control)
   const edgeChanged = writeEnvironment(join(folder, 'edge.env'), {
     PRYX_CONTROL_URL: 'http://127.0.0.1:8082',
     PRYX_EDGE_TOKEN: control.PRYX_EDGE_TOKEN as string,
     PRYX_EDGE_HOST: '0.0.0.0',
     PRYX_EDGE_METRICS_HOST: '127.0.0.1',
-    ...(control.PRYX_PUBLIC_URL
-      ? {
-          PRYX_PUBLIC_URL: control.PRYX_PUBLIC_URL,
-          PRYX_EDGE_HTTP_ONLY: '1',
-          PRYX_EDGE_HTTP_PORT: new URL(control.PRYX_PUBLIC_URL).port,
-          PRYX_EDGE_HOST: '127.0.0.1',
-        }
-      : {}),
+    ...(apiTls
+      ? { PRYX_PUBLIC_URL: control.PRYX_PUBLIC_URL as string, PRYX_MANAGED_API_TLS: '1' }
+      : control.PRYX_PUBLIC_URL
+        ? {
+            PRYX_PUBLIC_URL: control.PRYX_PUBLIC_URL,
+            PRYX_EDGE_HTTP_ONLY: '1',
+            PRYX_EDGE_HTTP_PORT: new URL(control.PRYX_PUBLIC_URL).port,
+            PRYX_EDGE_HOST: '127.0.0.1',
+          }
+        : {}),
   })
   return { control, changed, edgeChanged, fresh }
 }

@@ -44,8 +44,11 @@ only when this installation enabled it. Save backups before purging.
 
 ## Server with root
 
+Point a DNS A record at the server and allow inbound TCP 443 for HTTPS and
+certificate validation. The edge needs local TCP ports 80 and 443 for its HTTP and TLS fronts.
+
 ```sh
-curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sudo sh
+curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sudo PRYX_DOMAIN=sandboxes.example.com sh
 ```
 
 A systemd host gets Docker, nftables, persistent database/object-store Docker volumes,
@@ -53,9 +56,10 @@ control/edge units and its enrolled local node. Debian and Ubuntu can install mi
 packages automatically; other distributions need Docker and nftables installed and
 receive their names before any provisioning. Server sandbox placement requires
 private network/PID namespaces and enforced CPU/memory limits. The main daemon's
-unit hardening remains in force. A domainless server uses loopback port 7331 and
-path aliases; `pryx up --preset server --domain sandboxes.example.com` selects a
-domain at first installation. Existing domains stay immutable. See
+unit hardening remains in force. The API is available at
+`https://sandboxes.example.com` with an automatically renewed certificate. Omit
+`PRYX_DOMAIN` to install a local server with loopback port 7331 and path aliases.
+Existing domains stay immutable. See
 [operations](operations.md) for DNS, TLS, server upgrades and explicit data removal.
 
 ## Inside a container

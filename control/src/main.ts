@@ -150,6 +150,7 @@ export async function startControl(
     defaultIsolation: config.defaultIsolation,
     require: config.require,
     publicOrigin: config.publicOrigin,
+    managedApiTls: config.managedApiTls,
     nodes,
     domain: config.publicDomain,
     edgePortRange: config.edgePortRange,

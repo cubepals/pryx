@@ -8,12 +8,15 @@ import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX } from '../../control/src/join-bootstrap.ts'
+import { API_TLS_UNIT } from '../../control/src/managed-api.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
+import { apiTlsReady, configureApiTls } from './up-acme.ts'
+import { dnsDomain, pebbleOptions } from './up-acme-config.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
@@ -57,6 +60,9 @@ export function upPlan(domain: string) {
         needed: !existsSync('/etc/systemd/system/pryx-postgres.service'),
       },
       { item: 'control and edge units', needed: !existsSync('/etc/systemd/system/pryx-control.service') },
+      ...(domain === 'localhost'
+        ? []
+        : [{ item: 'managed API TLS', needed: !existsSync(`/etc/systemd/system/${API_TLS_UNIT}.service`) }]),
       { item: 'local pryxd enrollment', needed: !existsSync('/etc/pryxd/pryxd.toml') },
     ],
   }
@@ -73,11 +79,11 @@ async function until(work: () => Promise<boolean>, what: string) {
 }
 export async function up(args: string[]) {
   const saved = args.includes('--check') ? {} : readEnvironment('/etc/pryx/control.env')
-  const domain =
-    option(args, '--domain') ?? saved.PRYX_PUBLIC_DOMAIN ?? process.env.PRYX_DOMAIN ?? 'localhost'
-  if (saved.PRYX_PUBLIC_DOMAIN && saved.PRYX_PUBLIC_DOMAIN !== domain)
+  const domain = dnsDomain(
+    option(args, '--domain') ?? saved.PRYX_PUBLIC_DOMAIN ?? process.env.PRYX_DOMAIN ?? 'localhost',
+  )
+  if (saved.PRYX_PUBLIC_DOMAIN && dnsDomain(saved.PRYX_PUBLIC_DOMAIN) !== domain)
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(domain)) throw new Error('--domain is a DNS hostname')
   const plan = upPlan(domain)
   if (!(plan.architecture in RELEASE_MACHINES))
     throw new Error(
@@ -92,6 +98,8 @@ export async function up(args: string[]) {
     )
   if (!plan.root) throw new Error('The server installer requires root; run sudo pryx up')
   if (args.includes('--image')) return upImage(args, domain, runInstallCommand)
+  const apiTls = domain !== 'localhost' && (!saved.PRYX_PUBLIC_URL || saved.PRYX_MANAGED_API_TLS === '1')
+  const pebble = apiTls ? pebbleOptions() : undefined
   checkHostRuntime()
   for (const [path, mode] of [
     ['/etc/pryx', 0o700],
@@ -177,7 +185,8 @@ export async function up(args: string[]) {
     writeChanged('/opt/pryx/.assets.sha256', hash, 0o644)
     changed.add('pryx-control')
   }
-  const config = await configurations(domain)
+  if (apiTls && (await configureApiTls(domain, pebble, runInstallCommand))) changed.add(API_TLS_UNIT)
+  const config = await configurations(domain, '/etc/pryx', apiTls)
   if (config.changed) changed.add('pryx-control')
   if (config.edgeChanged) changed.add('pryx-edge')
   const docker = Bun.which('docker') as string
@@ -197,11 +206,17 @@ export async function up(args: string[]) {
       changed.add(`pryx-${name}`)
   }
   for (const name of ['control', 'edge'] as const)
-    if (writeChanged(`/etc/systemd/system/pryx-${name}.service`, service(name), 0o644))
+    if (writeChanged(`/etc/systemd/system/pryx-${name}.service`, service(name, apiTls), 0o644))
       changed.add(`pryx-${name}`)
   await runInstallCommand(['systemctl', 'daemon-reload'])
-  for (const name of ['postgres', 'store', 'control', 'edge']) {
-    const unit = `pryx-${name}`
+  const units = [
+    'pryx-postgres',
+    'pryx-store',
+    'pryx-control',
+    'pryx-edge',
+    ...(apiTls ? [API_TLS_UNIT] : []),
+  ]
+  for (const unit of units) {
     if (changed.has(unit) && active(unit)) await runInstallCommand(['systemctl', 'restart', unit])
     else await runInstallCommand(['systemctl', 'enable', '--now', unit])
   }
@@ -260,6 +275,11 @@ export async function up(args: string[]) {
     const b = (await r.json()) as { nodes: Array<{ health: string }> }
     return b.nodes.some((n) => n.health === 'healthy')
   }, 'the local node heartbeat')
+  if (apiTls)
+    await until(
+      () => apiTlsReady(domain, pebble?.root),
+      `HTTPS for ${domain}; check its public DNS and TCP 443 and the ${API_TLS_UNIT} journal`,
+    )
   const firstKey = !control.PRYX_BOOTSTRAP_PRINTED
   if (firstKey) {
     control.PRYX_BOOTSTRAP_PRINTED = '1'
@@ -269,9 +289,9 @@ export async function up(args: string[]) {
     version: PRYX_VERSION,
     domain,
     api: control.PRYX_PUBLIC_URL ?? 'http://127.0.0.1:8082',
-    units: ['pryx-postgres', 'pryx-store', 'pryx-control', 'pryx-edge', 'pryxd'],
+    units: [...units, 'pryxd'],
     undo: [
-      'systemctl disable --now pryx-edge pryx-control pryxd pryx-store pryx-postgres',
+      `systemctl disable --now ${apiTls ? `${API_TLS_UNIT} ` : ''}pryx-edge pryx-control pryxd pryx-store pryx-postgres`,
       'Remove /etc/systemd/system/pryx-*.service and run systemctl daemon-reload',
       'Remove /opt/pryx and /etc/pryx after saving credentials/backups',
       'Explicit data removal: docker volume rm pryx-postgres pryx-store; remove /var/lib/pryxd only after saving sandbox data',

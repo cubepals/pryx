@@ -1713,3 +1713,5 @@
 - VM memory acceptance's counter is renamed into place: `echo $i > /tmp/counter` truncates before it writes, so a read in between, or a sleep that froze it there, saw an empty file ([VM experiments 44343170141](https://github.com/cubepals/pryx/actions/runs/44343170141/job/134959353536), `ParseIntError { kind: Empty }`).
 
 - J2: Use upstream Caddy v2.11.9 (Apache-2.0) as a separate pinned API TLS service. The edge keeps its public TCP listener and sends only the API hostname's TLS to Caddy on loopback. TLS-ALPN-01 uses that same listener, and Caddy owns certificate storage and renewal. CI uses only the separate Pebble v2.10.3 test server (MPL-2.0) for ACME.
+
+- J2: Protect both TLS handoffs with service-owned Unix sockets. Control uses the private edge socket for its own agent calls so readiness and operations do not depend on public DNS or NAT hairpinning. Keep pre-existing explicit proxy URLs on upgrade. Test issuance and renewal on the existing one-box job with separate, explicitly trusted Pebble roots.

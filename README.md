@@ -2,7 +2,9 @@
 
 Sandboxes on Linux hosts you own. [Compare capabilities and licences](docs/compare.md).
 
-Install on Linux, x86_64 or aarch64, as your ordinary user:
+## On your own Linux machine
+
+Install on x86_64 or aarch64 as your ordinary user.
 
 ```sh
 curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh
@@ -14,19 +16,24 @@ needs neither root nor Docker; its shared UID is for one person's work.
 [Installation](docs/install.md) covers servers, containers, platforms and fleet nodes;
 [operations](docs/operations.md) covers TLS, host policy, upgrades and recovery.
 
-Install `@cubepals/pryx` with your package manager, then set the API URL and key:
+## On a server
+
+Point the domain’s DNS A record at the server and allow inbound TCP 443. The installer starts
+pryx and obtains a TLS certificate for its API. pryx renews it automatically.
+
+```sh
+curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sudo PRYX_DOMAIN=sandboxes.example.com sh
+```
+
+Install `@cubepals/pryx` with your package manager and set `PRYX_API_URL` and
+`PRYX_API_KEY` to the values the installer prints.
 
 ```ts
 import { Pryx } from '@cubepals/pryx'
 const { PRYX_API_URL: url, PRYX_API_KEY: key } = process.env
 if (!url || !key) throw new Error('Set PRYX_API_URL and PRYX_API_KEY')
 const pryx = new Pryx({ url, key })
-const box = await pryx.sandbox({ image: 'node:22', idle: '10m' })
-try {
-  await box.write('hello.js', 'console.log("hello")')
-  const result = await box.run('node /data/hello.js')
-  console.log(result.stdout); if (result.code !== 0) throw new Error('Command failed')
-} finally { await box.delete() }
+console.log((await pryx.run('alpine:3.22', ['echo', 'hello'])).stdout)
 ```
 
 Container: Docker isolation and images; choose it for untrusted workloads.

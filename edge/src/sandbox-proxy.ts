@@ -4,6 +4,7 @@
 /** Direct agent HTTP/websocket relay. Verification precedes wake; exposed application forwards
  * require an assigned spare. Route and output state stay in memory; this module has no control
  * database client and makes no lifecycle call for a ready route. */
+import { chmodSync } from 'node:fs'
 import { StatusCodes } from 'http-status-codes'
 import WebSocket from 'ws'
 import { SECOND_MS } from '../../control/src/durations.ts'
@@ -34,6 +35,7 @@ export class SandboxProxy {
   readonly ports = new Map<string, { key: string; revision: number; ports: Port[] }>()
   readonly pending = new Map<string, Promise<Port[]>>()
   readonly server: ReturnType<typeof Bun.serve<SocketState>>
+  private managedServer?: ReturnType<typeof Bun.serve<SocketState>>
   private tlsServer?: ReturnType<typeof Bun.serve<SocketState>>
   private control?: string
   useControl(origin: string) {
@@ -51,14 +53,17 @@ export class SandboxProxy {
     if (this.tlsServer) throw new Error('Agent TLS listener already started')
     this.tlsServer = this.listen(tls)
   }
-  private listen(tls?: { cert: string; key: string }) {
-    return Bun.serve<SocketState>({
-      tls,
-      hostname: '127.0.0.1',
-      port: 0,
-      idleTimeout: 0,
+  enableManagedApi(socket: string) {
+    this.managedServer = this.listen(undefined, socket)
+    chmodSync(socket, 0o660)
+  }
+  private listen(tls?: { cert: string; key: string }, unix?: string) {
+    const options = {
       maxRequestBodySize: Number.MAX_SAFE_INTEGER,
-      fetch: (request, server) => this.fetch(request, server),
+      fetch: (request, server) => {
+        if (unix) server.timeout(request, 0)
+        return this.fetch(request, server)
+      },
       error: (error) => {
         console.error('Agent relay failed', {
           kind: error instanceof ReadinessFailure ? error.last : error.name,
@@ -102,7 +107,10 @@ export class SandboxProxy {
         backpressureLimit: 1024 * 1024,
         closeOnBackpressureLimit: true,
       },
-    })
+    } satisfies Bun.Serve.Options<SocketState, never>
+    return unix
+      ? Bun.serve<SocketState>({ ...options, unix })
+      : Bun.serve<SocketState>({ ...options, tls, hostname: '127.0.0.1', port: 0, idleTimeout: 0 })
   }
   destination(tls = false) {
     const server = tls ? this.tlsServer : this.server
@@ -111,6 +119,7 @@ export class SandboxProxy {
   close() {
     this.server.stop(true)
     this.tlsServer?.stop(true)
+    this.managedServer?.stop(true)
   }
 
   match(host: string, path: string): EdgeRoute | undefined {
