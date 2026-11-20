@@ -88,7 +88,7 @@ int main(void) {{
         assert_eq!(first.private_ingress, Some(false), "A failed probe must leave ingress off");
 
         let capabilities = pryx_agent::bootstrap_capabilities::probe();
-        std::fs::write(response, serde_json::to_vec(&capabilities).unwrap()).unwrap();
+        std::fs::write(&response, serde_json::to_vec(&capabilities).unwrap()).unwrap();
         assert_eq!(stamp(), original, "Only the metadata response changed");
         let metadata = crate::runtime::agent_metadata::query(&agent).await.unwrap();
         assert_eq!(metadata.internal_ingress_version, pryx_agent::exec_ingress::VERSION);
@@ -97,6 +97,8 @@ int main(void) {{
             Some(true),
             "The same protected executable now answers the ingress probe"
         );
+        std::fs::remove_file(response).unwrap();
+        assert_eq!(runtime.info().await.unwrap().private_ingress, Some(true), "Confirmed support is cached");
         server.abort();
     }
 
