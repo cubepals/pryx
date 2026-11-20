@@ -331,6 +331,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_interrupted_limits_only_launch_requires_cgroup_retirement() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = crate::config::ProcessConfig::default();
+        let runtime = ProcessRuntime::new(root.path(), policy.clone()).unwrap();
+        let mut spec = super::super::network::fixture_spec(root.path());
+        spec.agent = Some(AgentBoot {
+            public_origin: None,
+            binary: root.path().join("owned-supervisor-fixture"),
+            sandbox: spec.name.clone(),
+            epoch: 1,
+            secret_env: "FIXTURE_ONLY".into(),
+            domain: "pryx.test".into(),
+            agent_port: pryx_agent::contract::AGENT_PORT,
+            spare_ports: Vec::new(),
+            keep_alive: true,
+        });
+        let id = runtime.create_entry(&spec).unwrap();
+        let mut entry = runtime.entry(&id).unwrap();
+        let cgroup = root.path().join(format!("pryx-{}", super::super::network::key(&runtime.state.root, &spec.name)));
+        fs::create_dir(&cgroup).unwrap();
+        let frozen = cgroup.join("cgroup.freeze");
+        fs::write(&frozen, b"0").unwrap();
+        // Ordinary files simulate an owned member and a cgroup.kill operation that fails.
+        fs::write(cgroup.join("cgroup.procs"), format!("{}\n", u32::MAX)).unwrap();
+        fs::create_dir(cgroup.join("cgroup.kill")).unwrap();
+        entry.limits = Some(Record { cgroup, memory: true, cpu: true, pids: false });
+        entry.network_boot = Some(journal::UNKNOWN_BOOT.into());
+        entry.network_launch_pending = true;
+        // The intent is durable, but the daemon lost the PID checkpoint and kept `cleaned`.
+        assert!(entry.cleaned && entry.pid.is_none() && entry.network.is_none());
+        runtime.save(entry).unwrap();
+        drop(runtime);
+
+        let recovered = ProcessRuntime::new(root.path(), policy).unwrap();
+        let observed = recovered.inspect(&id).await;
+        assert_eq!(fs::read(&frozen).unwrap(), b"1", "restart must fence the pending limits-only cgroup");
+        assert!(observed.is_err(), "an unretired cgroup must refuse observation as a stopped sandbox");
+        assert!(recovered.entry(&id).unwrap().network_launch_pending, "retain ownership until retirement is proved");
+    }
+
+    #[tokio::test]
     async fn stats_keep_sampled_memory_with_cpu_only_delegation() {
         let root = tempfile::tempdir().unwrap();
         let runtime = ProcessRuntime::new(root.path(), crate::config::ProcessConfig::default()).unwrap();
