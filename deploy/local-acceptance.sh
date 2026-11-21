@@ -100,12 +100,6 @@ assert read(found[0], "memory.max")[0] != "max", read(found[0], "memory.max")
 print(found[0])')
     quota=$(python3 -c 'import sys; q, p = open(sys.argv[1] + "/cpu.max").read().split(); print(int(q) / int(p))' "$cgroup")
     counter() { sed -n "s/^$2 //p" "$cgroup/$1"; }
-    kills=$(counter memory.events oom_kill)
-    code=0
-    pryx sandbox exec "$box" -- python3 -c 'b = b"x" * (1024 << 20)' > "$HOME/oom.out" 2>&1 || code=$?
-    [ "$code" != 0 ]
-    [ "$(counter memory.events oom_kill)" -gt "$kills" ]
-    [ "$(pryx sandbox exec "$box" -- echo survived)" = survived ]
     throttled=$(counter cpu.stat nr_throttled)
     share=$(pryx sandbox exec "$box" -- python3 -c 'import time
 cpu, wall = time.process_time(), time.monotonic()
@@ -114,10 +108,13 @@ print(round((time.process_time() - cpu) / (time.monotonic() - wall), 3))')
     # Throttled to its ceiling, with room for the period's edges, and well short of a whole CPU.
     python3 -c 'import sys; share, quota = map(float, sys.argv[1:]); assert share < min(quota * 1.5, 0.9), (share, quota)' "$share" "$quota"
     [ "$(counter cpu.stat nr_throttled)" -gt "$throttled" ]
-    kills=$(($(counter memory.events oom_kill) - kills))
+    # The kernel can kill the supervisor too. Measure CPU while the sandbox is live, then
+    # verify OOM in its own leaf and exercise the installation again after deletion.
+    oom=$(python3 "$(dirname "$0")/process_oom.py" "$cgroup" "$config/node.log" "$HOME/oom.out" \
+      pryx sandbox exec "$box" -- python3 -c 'b = b"x" * (1024 << 20)')
     pryx sandbox rm "$box" > "$HOME/limited-deleted.json"
     [ "$(pryx run -- echo hello)" = hello ]
-    echo "process_limits=on oom_exit=$code oom_kills=$kills cpu_max=$quota cpu_share=$share host=survived"
+    echo "process_limits=on $oom cpu_max=$quota cpu_share=$share host=survived"
   else
     grep -q 'cpu-limit' "$HOME/limited.out"
     if [ "${PRYX_EXPECT_PROCESS_LIMITS:-}" = on ]; then

@@ -126,6 +126,7 @@ jobs:
             --output "$RUNNER_TEMP/vm-network-spike.json" | tee "$RUNNER_TEMP/vm-network-spike.log"
       - name: Build the independent pinned CNI TAP experiment
         id: root-network
+        if: ${{ !cancelled() && steps.network-prerequisites.outcome == 'success' }}
         working-directory: templates/vm-tools/root-network
         env:
           CGO_ENABLED: '0'

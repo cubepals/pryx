@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// A real DNS server observes the same client endpoint for all three continued lookups.
+// A real DNS server observes one client endpoint, and each lookup publishes that endpoint atomically.
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"net"
 	"os"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"golang.org/x/sys/unix"
 )
 
 func TestRetainedDNSUsesOneSocketAcrossLookups(t *testing.T) {
@@ -37,7 +40,17 @@ func TestRetainedDNSUsesOneSocketAcrossLookups(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer socket.Close()
-	ready := filepath.Join(t.TempDir(), "dns-ready")
+	dir := t.TempDir()
+	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch := os.NewFile(uintptr(fd), dir)
+	defer watch.Close()
+	if _, err := unix.InotifyAddWatch(fd, dir, unix.IN_CREATE|unix.IN_CLOSE_WRITE|unix.IN_MOVED_TO); err != nil {
+		t.Fatal(err)
+	}
+	ready := filepath.Join(dir, "dns-ready")
 	finished := make(chan error, 1)
 	go func() { finished <- retainedLookups(socket, "retained.pryx.invalid", ready) }()
 	for phase := 0; phase < 3; phase++ {
@@ -46,19 +59,14 @@ func TestRetainedDNSUsesOneSocketAcrossLookups(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		until := time.Now().Add(requestTimeout)
-		for {
-			endpoint, err := os.ReadFile(ready + strconv.Itoa(phase))
-			if err == nil {
-				if string(endpoint) != socket.LocalAddr().String() {
-					t.Fatalf("Phase %d changed the socket's local endpoint: %s", phase, endpoint)
-				}
-				break
-			}
-			if !os.IsNotExist(err) || time.Now().After(until) {
-				t.Fatalf("Phase %d did not publish its successful lookup: %v", phase, err)
-			}
-			time.Sleep(time.Millisecond)
+		marker := ready + strconv.Itoa(phase)
+		awaitRetainedDNSMarker(t, watch, filepath.Base(marker))
+		endpoint, err := os.ReadFile(marker)
+		if err != nil {
+			t.Fatalf("Phase %d did not publish its successful lookup: %v", phase, err)
+		}
+		if string(endpoint) != socket.LocalAddr().String() {
+			t.Fatalf("Phase %d changed the socket's local endpoint: %s", phase, endpoint)
 		}
 		select {
 		case endpoint := <-peers:
@@ -71,5 +79,39 @@ func TestRetainedDNSUsesOneSocketAcrossLookups(t *testing.T) {
 	}
 	if err := <-finished; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func awaitRetainedDNSMarker(t *testing.T, watch *os.File, marker string) {
+	t.Helper()
+	if err := watch.SetReadDeadline(time.Now().Add(requestTimeout)); err != nil {
+		t.Fatal(err)
+	}
+	var buffer [4096]byte
+	for {
+		n, err := watch.Read(buffer[:])
+		if err != nil {
+			t.Fatalf("Waiting for %s: %v", marker, err)
+		}
+		for events := buffer[:n]; len(events) > 0; {
+			var event unix.InotifyEvent
+			header, err := binary.Decode(events, binary.NativeEndian, &event)
+			if err != nil || int(event.Len) > len(events)-header {
+				t.Fatalf("Malformed inotify event: %v", err)
+			}
+			end := header + int(event.Len)
+			name := bytes.TrimRight(events[header:end], "\x00")
+			events = events[end:]
+			if string(name) != marker {
+				continue
+			}
+			if event.Mask&unix.IN_CREATE != 0 {
+				t.Errorf("%s became visible as a new file before publication finished", marker)
+			}
+			// Wait for the direct writer to close so the DNS assertions still see its endpoint.
+			if event.Mask&(unix.IN_MOVED_TO|unix.IN_CLOSE_WRITE) != 0 {
+				return
+			}
+		}
 	}
 }
