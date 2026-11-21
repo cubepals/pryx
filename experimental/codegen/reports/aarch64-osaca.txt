@@ -1,0 +1,126 @@
+osaca 0.7.1
+
+pryx_static_16_1 (16 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       N1
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                              Port pressure in cycles                              
+     |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
+------------------------------------------------------------------------------------
+   1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:
+   2 |      |      |      |      |             |      | 0.50 | 0.50 ||  6.0 |      |   ldr q1, [x0]
+   3 |      |      |      |      |             |      |      |      ||  0.0 |      | X orr v0.16b, v0.16b, v1.16b
+   4 |      | 0.33 | 0.33 | 0.33 |             |      |      |      ||      |  1.0 |   add x0, x0, #0x10
+   5 |      |      |      |      |             |      |      |      ||      |      | X subs x1, x1, #0x1
+   6 | 1.00 |      |      |      |             |      |      |      ||      |      |   b.ne .Lloop
+
+------------------ WARNING: The performance data for 2 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   3 |  0.0 | orr	v0.16b, v0.16b, v1.16b          | [3]
+   4 |  1.0 | add	x0, x0, #0x10                   | [4]
+   5 |  0.0 | subs	x1, x1, #0x1                   | [5]
+
+
+pryx_static_16_2 (32 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       N1
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                              Port pressure in cycles                              
+     |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
+------------------------------------------------------------------------------------
+   1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:
+   2 |      |      |      |      |             |      | 0.50 | 0.50 ||  6.0 |      |   ldr q1, [x0]
+   3 |      |      |      |      |             |      |      |      ||  0.0 |      | X orr v0.16b, v0.16b, v1.16b
+   4 |      |      |      |      |             |      | 0.50 | 0.50 ||      |      |   ldr q1, [x0, #0x10]
+   5 |      |      |      |      |             |      |      |      ||      |      | X orr v0.16b, v0.16b, v1.16b
+   6 |      | 0.33 | 0.33 | 0.33 |             |      |      |      ||      |  1.0 |   add x0, x0, #0x20
+   7 |      |      |      |      |             |      |      |      ||      |      | X subs x1, x1, #0x1
+   8 | 1.00 |      |      |      |             |      |      |      ||      |      |   b.ne .Lloop
+
+------------------ WARNING: The performance data for 3 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   3 |  0.0 | orr	v0.16b, v0.16b, v1.16b          | [3, 5]
+   6 |  1.0 | add	x0, x0, #0x20                   | [6]
+   7 |  0.0 | subs	x1, x1, #0x1                   | [7]
+
+
+pryx_static_16_4 (64 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       N1
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                              Port pressure in cycles                               
+     |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
+------------------------------------------------------------------------------------
+   1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:
+   2 |      |      |      |      |             |      | 0.50 | 0.50 ||  6.0 |      |   ldr q1, [x0]
+   3 |      |      |      |      |             |      |      |      ||  0.0 |      | X orr v0.16b, v0.16b, v1.16b
+   4 |      |      |      |      |             |      | 0.50 | 0.50 ||      |      |   ldr q1, [x0, #0x10]
+   5 |      |      |      |      |             |      |      |      ||      |      | X orr v0.16b, v0.16b, v1.16b
+   6 |      |      |      |      |             |      | 0.50 | 0.50 ||      |      |   ldr q1, [x0, #0x20]
+   7 |      |      |      |      |             |      |      |      ||      |      | X orr v0.16b, v0.16b, v1.16b
+   8 |      |      |      |      |             |      | 0.50 | 0.50 ||      |      |   ldr q1, [x0, #0x30]
+   9 |      |      |      |      |             |      |      |      ||      |      | X orr v0.16b, v0.16b, v1.16b
+  10 |      | 0.33 | 0.33 | 0.33 |             |      |      |      ||      |  1.0 |   add x0, x0, #0x40
+  11 |      |      |      |      |             |      |      |      ||      |      | X subs x1, x1, #0x1
+  12 | 1.00 |      |      |      |             |      |      |      ||      |      |   b.ne .Lloop
+
+------------------ WARNING: The performance data for 5 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+  10 |  1.0 | add	x0, x0, #0x40                   | [10]
+  11 |  0.0 | subs	x1, x1, #0x1                   | [11]
+   3 |  0.0 | orr	v0.16b, v0.16b, v1.16b          | [3, 5, 7, 9]
+

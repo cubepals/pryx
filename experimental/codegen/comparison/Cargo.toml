@@ -1,0 +1,12 @@
+[package]
+name = "pryx-lab-compare-scans"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "FSL-1.1-ALv2"
+
+[dependencies]
+pryx-lab-codegen = { path = "..", features = ["experimental"] }
+pryx-page-kernels = { path = "../../pages", features = ["page-kernels"] }
+
+[workspace]

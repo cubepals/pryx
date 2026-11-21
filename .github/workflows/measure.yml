@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '41 2 * * *'
   workflow_dispatch:
+    inputs:
+      codegen_lab:
+        description: Measure experimental startup-specialized page scans
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,6 +23,7 @@ env:
 
 jobs:
   e2e:
+    if: inputs.codegen_lab != true
     name: Measure control end to end
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -233,6 +239,7 @@ jobs:
             ${{ runner.temp }}/process-speed-after.json
 
   one-box:
+    if: inputs.codegen_lab != true
     name: Measure one box
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -331,3 +338,55 @@ jobs:
       - name: Service journals on failure
         if: failure()
         run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+
+  codegen-lab:
+    if: github.event_name == 'workflow_dispatch' && inputs.codegen_lab
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 07b4732183b684ab1775951314c3b5d3ae99ba74
+          path: comparator
+          sparse-checkout: experimental/pages
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: asmjit/asmjit
+          ref: 677a10bac2c24f7e068cf1f9e675bf51c7b534ea
+          path: assembler
+          persist-credentials: false
+      - name: Test generation and collect native pairs
+        env:
+          ASMJIT_SOURCE: ${{ github.workspace }}/assembler
+        run: |
+          rustup toolchain install
+          mkdir "$RUNNER_TEMP/codegen"
+          lscpu -J > "$RUNNER_TEMP/codegen/cpu.json"
+          cat /proc/cpuinfo > "$RUNNER_TEMP/codegen/cpuinfo.txt"
+          uname -a > "$RUNNER_TEMP/codegen/kernel.txt"
+          rustc -vV > "$RUNNER_TEMP/codegen/rust.txt"
+          findmnt -T "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/filesystem.txt"
+          mkdir "$RUNNER_TEMP/paired"
+          cp -a experimental/codegen "$RUNNER_TEMP/paired/codegen"
+          cp rust-toolchain.toml "$RUNNER_TEMP/paired/"
+          ln -s "$GITHUB_WORKSPACE/comparator/experimental/pages" "$RUNNER_TEMP/paired/pages"
+          cd "$RUNNER_TEMP/paired/codegen"
+          cargo test --locked --features experimental
+          cargo run --locked --release --features experimental -- self-check
+          cargo run --locked --release --manifest-path comparison/Cargo.toml -- "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/pairs.csv"
+          python3 summary.py "$RUNNER_TEMP/codegen/pairs.csv" | tee "$RUNNER_TEMP/codegen/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: codegen-${{ matrix.runner }}
+          path: ${{ runner.temp }}/codegen
+          if-no-files-found: warn

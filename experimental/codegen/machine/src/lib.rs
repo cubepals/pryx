@@ -1,0 +1,137 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
+//
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Dispatch only for page scans. Machine code receives positive whole-group counts.
+//! Parts (`machine/src/`): `lib.rs` safe dispatch, `generator.cpp` runtime emitter,
+//! `x86_64.S` and `aarch64.S` matched static specializations.
+
+#[cfg(not(miri))]
+use std::ffi::c_void;
+
+pub fn scalar(bytes: &[u8]) -> bool {
+    bytes.iter().all(|&byte| byte == 0)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Plan {
+    width: usize,
+    unroll: usize,
+}
+
+impl Plan {
+    pub fn static_choices() -> Vec<Self> {
+        #[cfg(all(not(miri), target_arch = "x86_64"))]
+        let widths: &[usize] = if std::is_x86_feature_detected!("avx2") {
+            &[16, 32]
+        } else if std::is_x86_feature_detected!("sse2") {
+            &[16]
+        } else {
+            &[]
+        };
+        #[cfg(all(not(miri), target_arch = "aarch64"))]
+        let widths: &[usize] = if std::arch::is_aarch64_feature_detected!("neon") { &[16] } else { &[] };
+        #[cfg(any(miri, not(any(target_arch = "aarch64", target_arch = "x86_64"))))]
+        let widths: &[usize] = &[];
+        widths.iter().flat_map(|&width| [1, 2, 4].map(|unroll| Self { width, unroll })).collect()
+    }
+
+    pub fn detected() -> Option<Self> {
+        let choices = Self::static_choices();
+        let width = choices.last()?.width;
+        let size = std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size")
+            .ok()
+            .and_then(|text| text.trim().parse::<usize>().ok())
+            .unwrap_or(64);
+        choices.into_iter().rev().find(|p| p.width == width && p.width * p.unroll <= size.max(width))
+    }
+}
+
+#[cfg(not(miri))]
+type Scan = unsafe extern "C" fn(*const u8, usize) -> u32;
+
+pub struct Kernel {
+    plan: Plan,
+    #[cfg(not(miri))]
+    entry: Scan,
+    #[cfg(not(miri))]
+    owner: *mut c_void,
+}
+
+#[cfg(not(miri))]
+unsafe extern "C" {
+    fn pryx_generate_scan(width: u32, count: u32) -> *mut c_void;
+    fn pryx_scan_entry(handle: *mut c_void) -> Scan;
+    fn pryx_free_scan(handle: *mut c_void);
+    fn pryx_static_16_1(data: *const u8, groups: usize) -> u32;
+    fn pryx_static_16_2(data: *const u8, groups: usize) -> u32;
+    fn pryx_static_16_4(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_32_1(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_32_2(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_32_4(data: *const u8, groups: usize) -> u32;
+}
+
+impl Kernel {
+    pub fn generate(plan: Plan) -> Option<Self> {
+        #[cfg(not(miri))]
+        unsafe {
+            // Plan is constructible only through checked host detection.
+            let owner = pryx_generate_scan(plan.width as u32, plan.unroll as u32);
+            if !owner.is_null() {
+                return Some(Self { plan, entry: pryx_scan_entry(owner), owner });
+            }
+        }
+        let _ = plan;
+        None
+    }
+
+    pub fn precompiled(plan: Plan) -> Option<Self> {
+        #[cfg(not(miri))]
+        {
+            let entry = match (plan.width, plan.unroll) {
+                (16, 1) => pryx_static_16_1,
+                (16, 2) => pryx_static_16_2,
+                (16, 4) => pryx_static_16_4,
+                #[cfg(target_arch = "x86_64")]
+                (32, 1) => pryx_static_32_1,
+                #[cfg(target_arch = "x86_64")]
+                (32, 2) => pryx_static_32_2,
+                #[cfg(target_arch = "x86_64")]
+                (32, 4) => pryx_static_32_4,
+                _ => return None,
+            };
+            Some(Self { plan, entry, owner: std::ptr::null_mut() })
+        }
+        #[cfg(miri)]
+        {
+            let _ = plan;
+            None
+        }
+    }
+
+    pub fn scan(&self, bytes: &[u8]) -> bool {
+        let block = self.plan.width * self.plan.unroll;
+        let groups = bytes.len() / block;
+        #[cfg(not(miri))]
+        if groups > 0 {
+            // The private entry reads exactly groups * block bytes, all in this slice.
+            if unsafe { (self.entry)(bytes.as_ptr(), groups) } == 0 {
+                return false;
+            }
+            return scalar(&bytes[groups * block..]);
+        }
+        let _ = groups;
+        scalar(bytes)
+    }
+}
+
+impl Drop for Kernel {
+    fn drop(&mut self) {
+        #[cfg(not(miri))]
+        if !self.owner.is_null() {
+            unsafe { pryx_free_scan(self.owner) };
+        }
+    }
+}

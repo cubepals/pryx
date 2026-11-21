@@ -1,0 +1,176 @@
+Debian LLVM version 19.1.7
+
+pryx_static_16_1 (16 bytes per iteration)
+Iterations:        100
+Instructions:      500
+Total Cycles:      208
+Total uOps:        600
+
+Dispatch Width:    8
+uOps Per Cycle:    2.88
+IPC:               2.40
+Block RThroughput: 1.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      5     0.50    *                   ldr	q1, [x0]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 1      1     0.33                        add	x0, x0, #16
+ 1      1     0.33                        subs	x1, x1, #1
+ 1      1     1.00                        b.ne	.Lloop
+
+
+Resources:
+[0]   - N1UnitB
+[1.0] - N1UnitD
+[1.1] - N1UnitD
+[2.0] - N1UnitL
+[2.1] - N1UnitL
+[3]   - N1UnitM
+[4.0] - N1UnitS
+[4.1] - N1UnitS
+[5]   - N1UnitV0
+[6]   - N1UnitV1
+
+
+Resource pressure per iteration:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    
+1.00    -      -     0.50   0.50   1.00   1.00   1.00   0.50   0.50   
+
+Resource pressure by instruction:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    Instructions:
+ -      -      -     0.50   0.50    -      -     1.00    -      -     ldr	q1, [x0]
+ -      -      -      -      -      -      -      -     0.50   0.50   orr	v0.16b, v0.16b, v1.16b
+ -      -      -      -      -      -     1.00    -      -      -     add	x0, x0, #16
+ -      -      -      -      -     1.00    -      -      -      -     subs	x1, x1, #1
+1.00    -      -      -      -      -      -      -      -      -     b.ne	.Lloop
+
+pryx_static_16_2 (32 bytes per iteration)
+Iterations:        100
+Instructions:      700
+Total Cycles:      408
+Total uOps:        900
+
+Dispatch Width:    8
+uOps Per Cycle:    2.21
+IPC:               1.72
+Block RThroughput: 1.3
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      5     0.50    *                   ldr	q1, [x0]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 2      5     0.50    *                   ldr	q1, [x0, #16]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 1      1     0.33                        add	x0, x0, #32
+ 1      1     0.33                        subs	x1, x1, #1
+ 1      1     1.00                        b.ne	.Lloop
+
+
+Resources:
+[0]   - N1UnitB
+[1.0] - N1UnitD
+[1.1] - N1UnitD
+[2.0] - N1UnitL
+[2.1] - N1UnitL
+[3]   - N1UnitM
+[4.0] - N1UnitS
+[4.1] - N1UnitS
+[5]   - N1UnitV0
+[6]   - N1UnitV1
+
+
+Resource pressure per iteration:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    
+1.00    -      -     1.00   1.00   1.05   1.47   1.48   1.00   1.00   
+
+Resource pressure by instruction:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    Instructions:
+ -      -      -      -     1.00   0.05   0.47   0.48    -      -     ldr	q1, [x0]
+ -      -      -      -      -      -      -      -      -     1.00   orr	v0.16b, v0.16b, v1.16b
+ -      -      -     1.00    -     0.05   0.48   0.47    -      -     ldr	q1, [x0, #16]
+ -      -      -      -      -      -      -      -     1.00    -     orr	v0.16b, v0.16b, v1.16b
+ -      -      -      -      -     0.09   0.45   0.46    -      -     add	x0, x0, #32
+ -      -      -      -      -     0.86   0.07   0.07    -      -     subs	x1, x1, #1
+1.00    -      -      -      -      -      -      -      -      -     b.ne	.Lloop
+
+pryx_static_16_4 (64 bytes per iteration)
+Iterations:        100
+Instructions:      1100
+Total Cycles:      808
+Total uOps:        1500
+
+Dispatch Width:    8
+uOps Per Cycle:    1.86
+IPC:               1.36
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      5     0.50    *                   ldr	q1, [x0]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 2      5     0.50    *                   ldr	q1, [x0, #16]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 2      5     0.50    *                   ldr	q1, [x0, #32]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 2      5     0.50    *                   ldr	q1, [x0, #48]
+ 1      2     0.50                        orr	v0.16b, v0.16b, v1.16b
+ 1      1     0.33                        add	x0, x0, #64
+ 1      1     0.33                        subs	x1, x1, #1
+ 1      1     1.00                        b.ne	.Lloop
+
+
+Resources:
+[0]   - N1UnitB
+[1.0] - N1UnitD
+[1.1] - N1UnitD
+[2.0] - N1UnitL
+[2.1] - N1UnitL
+[3]   - N1UnitM
+[4.0] - N1UnitS
+[4.1] - N1UnitS
+[5]   - N1UnitV0
+[6]   - N1UnitV1
+
+
+Resource pressure per iteration:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    
+1.00    -      -     2.00   2.00   1.10   2.45   2.45   2.00   2.00   
+
+Resource pressure by instruction:
+[0]    [1.0]  [1.1]  [2.0]  [2.1]  [3]    [4.0]  [4.1]  [5]    [6]    Instructions:
+ -      -      -      -     1.00    -     0.45   0.55    -      -     ldr	q1, [x0]
+ -      -      -      -      -      -      -      -      -     1.00   orr	v0.16b, v0.16b, v1.16b
+ -      -      -     1.00    -      -     0.55   0.45    -      -     ldr	q1, [x0, #16]
+ -      -      -      -      -      -      -      -     1.00    -     orr	v0.16b, v0.16b, v1.16b
+ -      -      -      -     1.00   0.10   0.45   0.45    -      -     ldr	q1, [x0, #32]
+ -      -      -      -      -      -      -      -      -     1.00   orr	v0.16b, v0.16b, v1.16b
+ -      -      -     1.00    -     0.90    -     0.10    -      -     ldr	q1, [x0, #48]
+ -      -      -      -      -      -      -      -     1.00    -     orr	v0.16b, v0.16b, v1.16b
+ -      -      -      -      -      -     0.55   0.45    -      -     add	x0, x0, #64
+ -      -      -      -      -     0.10   0.45   0.45    -      -     subs	x1, x1, #1
+1.00    -      -      -      -      -      -      -      -      -     b.ne	.Lloop
