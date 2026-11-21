@@ -29,16 +29,16 @@ int main(void) {
         !getenv("GITHUB_ACTIONS") || strcmp(getenv("GITHUB_ACTIONS"), "true")) {
         fputs("native measurements run in pryx CI\n", stderr); return 2;
     }
-    pin_cpu();
+    int cpu = pin_cpu();
     int fd = open_cycles();
-    printf("pair,iterations,loop_ns,call_ns,loop_cycles,call_cycles,pmu_valid\n");
+    printf("pair,iterations,loop_ns,call_ns,loop_cycles,call_cycles,pmu_valid,cpu\n");
     for (int pair = 0; pair < 15; ++pair) {
         struct sample full, base;
         if (pair % 2) { base = time_calls(empty, fd); full = time_calls(pryx_proof_zero_blocks, fd); }
         else { full = time_calls(pryx_proof_zero_blocks, fd); base = time_calls(empty, fd); }
-        printf("%d,%u,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d\n", pair,
+        printf("%d,%u,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%d\n", pair,
             REPEATS * (BYTES / WIDTH), full.ns, base.ns, full.cycles, base.cycles,
-            full.has_cycles && base.has_cycles);
+            full.has_cycles && base.has_cycles, cpu);
     }
     if (fd >= 0) close(fd);
     return 0;
