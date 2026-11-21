@@ -403,7 +403,9 @@ jobs:
           sh ./build.sh "$proof" "$(rustc -vV | awk '/^host:/{print $2}')" "$out/scan.elf"
           src="$proof/machine/src/$(uname -m).S"
           cc -Wall -Wextra -Werror -O2 hot_loop.c "$src" -o "$out/hot"
-          sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" "$out/hot" > "$out/samples.csv" 2>"$out/pmu.txt"
+          {
+            sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" "$out/hot"
+          } > "$out/samples.csv" 2> "$out/pmu.txt"
           sha256sum "$out/hot" "$out/scan.elf" > "$out/binary-digests.txt"
           python model.py "$src" "$out/samples.csv" "$out/llvm.txt" | tee "$out/model-summary.txt" >> "$GITHUB_STEP_SUMMARY"
           cc -O2 -ffreestanding -fno-stack-protector -c controls.c -o "$out/negative-controls.o"
