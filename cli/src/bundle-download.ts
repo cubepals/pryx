@@ -38,7 +38,7 @@ function secure(url: URL, loopback: boolean) {
     (url.protocol === 'https:' || (loopback && url.protocol === 'http:' && url.hostname === '127.0.0.1'))
   )
 }
-async function download(base: string, name: string, target: string, maximum: number) {
+export async function download(base: string, name: string, target: string, maximum: number) {
   const origin = new URL(base)
   const loopback = origin.protocol === 'http:' && origin.hostname === '127.0.0.1'
   if (!secure(origin, loopback)) throw new Error('Release downloads require HTTPS or loopback HTTP artifacts')

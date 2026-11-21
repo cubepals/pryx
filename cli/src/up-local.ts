@@ -43,7 +43,12 @@ export async function runInstalled(preset: Preset) {
   }
   await followLocal(child)
 }
-export async function upLocal(args: string[], preset: 'user' | 'container', upgrading = false) {
+export async function upLocal(
+  args: string[],
+  preset: 'user' | 'container',
+  upgrading = false,
+  onReady?: () => void,
+) {
   const paths = localPaths(preset)
   const port = configuredPort()
   localRequirements()
@@ -148,6 +153,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
       child = launchLocal(record)
       await localReady(record, child)
       await localSummary(record, action)
+      onReady?.()
     }
   } catch (error) {
     child?.kill('SIGTERM')

@@ -1,0 +1,35 @@
+osaca 0.7.1
+input machine/src/x86_64.S, --arch SKX
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+Timestamp:          2026-11-21 15:55:19
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles                                     
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   movdqu (%rdi), %xmm0
+   2 | 0.33        | 0.33 |             |             |      | 0.33 |      |      ||  1.0 |      |   por %xmm0, %xmm1
+   3 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $16, %rdi
+   4 | 0.17        | 0.16 |             |             |      | 0.17 | 0.50 |      ||      |  1.0 |   subq $16, %rsi
+   5 |             |      |             |             |      |      |      |      ||      |      | * jne .Lblocks
+
+       0.75          0.74   0.50   0.50   0.50   0.50          0.75   0.75              5    1.0  
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   2 |  1.0 | por %xmm0, %xmm1                    | [2]
+   3 |  1.0 | addq $16, %rdi                      | [3]
+   4 |  1.0 | subq $16, %rsi                      | [4]
+

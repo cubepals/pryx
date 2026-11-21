@@ -1,0 +1,25 @@
+[package]
+name = "pryx-lab-proof"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "FSL-1.1-ALv2"
+
+[workspace]
+members = ["machine"]
+default-members = ["."]
+
+[features]
+default = []
+experimental = ["dep:pryx-lab-machine"]
+
+[dependencies]
+pryx-lab-machine = { path = "machine", optional = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = "=0.2.191"
+
+[[bin]]
+name = "pryx-lab"
+path = "src/main.rs"
+required-features = ["experimental"]

@@ -8,6 +8,7 @@ import { SECOND_MS } from '../../control/src/durations.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
 import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { privateDirectory, stateRoot } from '../../deploy/local-layout.ts'
+import { installedLab, labInstalled, requestsLab } from './experimental-release.ts'
 import { containerPaths } from './up-paths.ts'
 
 function configuredNode() {
@@ -49,7 +50,9 @@ function configuredNode() {
 }
 
 export async function doctor(args: string[]) {
-  if (args.some((argument) => argument !== '--json')) throw new Error('usage: pryx doctor [--json]')
+  if (args.some((argument) => argument !== '--json' && argument !== '--experimental'))
+    throw new Error('usage: pryx doctor [--json] [--experimental]')
+  const lab = requestsLab(args) || labInstalled()
   const binary = probeBinary() ?? ['/usr/local/bin/pryxd'].find((path) => existsSync(path))
   if (!binary) throw new Error('pryxd is missing; install pryx on this host before running pryx doctor')
   const config = configuredNode()
@@ -66,9 +69,21 @@ export async function doctor(args: string[]) {
     ],
     {
       stdin: 'ignore',
-      stdout: 'inherit',
+      stdout: lab ? 'pipe' : 'inherit',
       stderr: 'inherit',
     },
   )
+  const output = lab ? await new Response(child.stdout as ReadableStream).text() : ''
   if (await child.exited) throw new Error('The host probe failed; inspect the reported requirement')
+  if (lab) {
+    const experimental = await installedLab('capabilities').catch((error) => ({
+      installed: false,
+      reason: error instanceof Error ? error.message : 'Experimental verification failed',
+    }))
+    if (args.includes('--json')) console.log(JSON.stringify({ ...JSON.parse(output), experimental }))
+    else {
+      process.stdout.write(output)
+      console.log('experimental', JSON.stringify(experimental))
+    }
+  }
 }

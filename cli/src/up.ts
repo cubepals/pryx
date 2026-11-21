@@ -4,6 +4,7 @@
 import { existsSync } from 'node:fs'
 import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
+import { experimentalUp, requestsLab } from './experimental-release.ts'
 import { joinHost } from './join.ts'
 import { option } from './sandbox.ts'
 import { dnsDomain } from './up-acme-config.ts'
@@ -18,6 +19,12 @@ import { upPlan, up as upServer } from './up-server.ts'
 export { runInstallCommand, upPlan } from './up-server.ts'
 
 export async function up(args: string[]) {
+  if (!args.includes('--run-installed') && (requestsLab(args) || args.includes('--feature')))
+    return await experimentalUp(args, upPreset)
+  return await upPreset(args)
+}
+
+async function upPreset(args: string[], onLocalReady?: () => void) {
   const preset = selectPreset(option(args, '--preset'))
   if (args.includes('--preflight')) {
     localRequirements()
@@ -59,5 +66,5 @@ export async function up(args: string[]) {
   if (args.includes('--run-installed')) return await runInstalled(preset)
   if (!existsSync(process.env.PRYX_BUNDLE_DIR ?? '') && !probeBinary())
     throw new Error('Install the release bootstrap with the one-line installer before pryx up')
-  return await upLocal(args, preset)
+  return await upLocal(args, preset, false, onLocalReady)
 }

@@ -45,7 +45,24 @@ if [ -z "$preset" ]; then
   else echo 'Root requires systemd or a container; run the command as an ordinary user' >&2; exit 1
   fi
 fi
+# Only an explicitly requested lab crosses the bootstrap handoff.
+experimental=${PRYX_EXPERIMENTAL:-0}
+lab_feature=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --experimental) experimental=1 ;;
+    --feature) [ -z "$lab_feature" ] || { echo 'supply --feature only once' >&2; exit 1; }
+      [ "$#" -ge 2 ] && [ -n "$2" ] || { echo '--feature needs a name' >&2; exit 1; }
+      lab_feature=$2; shift ;;
+  esac
+  shift
+done
 set -- --preset "$preset"
+if [ "$experimental" = 1 ]; then set -- "$@" --experimental; fi
+if [ -n "$lab_feature" ]; then
+  [ "$experimental" = 1 ] || { echo '--feature requires --experimental' >&2; exit 1; }
+  set -- "$@" --feature "$lab_feature"
+fi
 if [ "$preset" = server ] && [ -n "${PRYX_DOMAIN:-}" ]; then
   set -- "$@" --domain "$PRYX_DOMAIN"
 fi
@@ -75,4 +92,8 @@ fi
 if [ "${PRYX_NO_UP:-0}" != 1 ]; then
   # sh -s may be consuming the script from stdin; services never inherit that pipe.
   "$destination" up "$@" </dev/null
+elif [ "$experimental" = 1 ]; then
+  set -- --experimental
+  if [ -n "$lab_feature" ]; then set -- "$@" --feature "$lab_feature"; fi
+  "$destination" experimental install "$@" </dev/null
 fi

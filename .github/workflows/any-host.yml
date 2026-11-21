@@ -7,6 +7,11 @@ on:
   # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
+    inputs:
+      lab_scaffold:
+        description: Prove the optional signed lab and compare native default installs
+        type: boolean
+        default: false
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -304,6 +309,14 @@ jobs:
           PRYX_VM_SOURCE: ${{ github.sha }}
           PRYX_VM_CI_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash deploy/native-host-acceptance.sh
+      - name: Compare the default installation and test the signed lab
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_scaffold
+        run: |
+          bash experimental/acceptance/compare.sh x64 "$RUNNER_TEMP/native-host-release-server.log"
+          rustup toolchain install
+          cargo test --locked --manifest-path experimental/proof/Cargo.toml --features experimental
+          cargo build --release --locked --manifest-path experimental/proof/Cargo.toml --features experimental
+          PRYX_LAB_TEST_BINARY="$PWD/experimental/proof/target/release/pryx-lab" python3 -B experimental/install/acceptance.py
       - name: Hand the VM runtime and guest fixture to the root installation
         run: |
           mkdir "$RUNNER_TEMP/vm-installed-preview"
@@ -741,6 +754,14 @@ jobs:
           curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
           sh deploy/local-acceptance.sh | tee acceptance.txt
           cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Compare the default installation and test the signed lab
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_scaffold
+        run: |
+          bash experimental/acceptance/compare.sh arm64 "$RUNNER_TEMP/artifact-server.log"
+          rustup toolchain install
+          cargo test --locked --manifest-path experimental/proof/Cargo.toml --features experimental
+          cargo build --release --locked --manifest-path experimental/proof/Cargo.toml --features experimental
+          PRYX_LAB_TEST_BINARY="$PWD/experimental/proof/target/release/pryx-lab" python3 -B experimental/install/acceptance.py
       # K27 side piece, evidence only: what aarch64 process tool and VM bundles would take, the
       # aarch64 counterpart of each of the x86_64 bundles' pinned inputs fetched against the digest
       # its upstream publishes, and run or resolved here (deploy/arm64_bundle_attempts.py), with

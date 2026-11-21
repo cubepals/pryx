@@ -1,0 +1,53 @@
+Debian LLVM version 19.1.7
+input machine/src/x86_64.S, -mtriple=x86_64 -mcpu=skylake-avx512 -iterations=100
+Iterations:        100
+Instructions:      500
+Total Cycles:      109
+Total uOps:        500
+
+Dispatch Width:    6
+uOps Per Cycle:    4.59
+IPC:               4.59
+Block RThroughput: 0.8
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      6     0.50    *                   movdqu	(%rdi), %xmm0
+ 1      1     0.33                        por	%xmm0, %xmm1
+ 1      1     0.25                        addq	$16, %rdi
+ 1      1     0.25                        subq	$16, %rsi
+ 1      1     0.50                        jne	.Lblocks
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
+ -      -     1.00   1.00   0.50   0.50    -     1.01   0.99    -     
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.50   0.50    -      -      -      -     movdqu	(%rdi), %xmm0
+ -      -     0.01   0.02    -      -      -     0.97    -      -     por	%xmm0, %xmm1
+ -      -      -     0.96    -      -      -     0.02   0.02    -     addq	$16, %rdi
+ -      -      -     0.02    -      -      -     0.02   0.96    -     subq	$16, %rsi
+ -      -     0.99    -      -      -      -      -     0.01    -     jne	.Lblocks

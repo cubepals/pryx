@@ -1,0 +1,37 @@
+osaca 0.7.1
+input machine/src/aarch64.S, --arch N1
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       N1
+Timestamp:          2026-11-21 15:55:20
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                              Port pressure in cycles                              
+     |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
+------------------------------------------------------------------------------------
+   1 |      |      |      |      |             |      | 0.50 | 0.50 ||  6.0 |  1.0 |   ldr q0, [x0], #16
+   2 |      |      |      |      |             |      |      |      ||      |      | X orr v1.16b, v1.16b, v0.16b
+   3 |      |      |      |      |             |      |      |      ||      |      | X subs x1, x1, #16
+   4 | 1.00 |      |      |      |             |      |      |      ||      |      |   b.ne .Lblocks
+
+------------------ WARNING: The performance data for 2 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   2 |  0.0 | orr v1.16b, v1.16b, v0.16b          | [2]
+   3 |  0.0 | subs x1, x1, #16                    | [3]
+

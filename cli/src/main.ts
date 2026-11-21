@@ -8,6 +8,7 @@ import { bootstrapInstall } from './bootstrap-install.ts'
 import { readClientConfig } from './client-config.ts'
 import { doctor } from './doctor.ts'
 import { down } from './down.ts'
+import { experimentalUp, installedLab } from './experimental-release.ts'
 import { key } from './key.ts'
 import { node } from './node.ts'
 import { project } from './project.ts'
@@ -21,6 +22,19 @@ if (process.argv[2] === '--version') {
 }
 const [group, ...args] = process.argv.slice(2)
 try {
+  if (group === 'experimental') {
+    if (args[0] === 'install')
+      await experimentalUp(args.slice(1), async (stock) => {
+        if (stock.length) throw new Error('Unexpected experimental install arguments')
+      })
+    else if (args[0] === 'run' && args.length === 2) await installedLab('run', args.slice(1))
+    else throw new Error('usage: pryx experimental run <feature>')
+    process.exit(0)
+  }
+  if (group === 'capabilities') {
+    await doctor(['--json', ...args])
+    process.exit(0)
+  }
   const result =
     group === 'bootstrap-install'
       ? bootstrapInstall(args)

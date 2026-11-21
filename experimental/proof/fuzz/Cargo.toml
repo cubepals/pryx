@@ -1,0 +1,21 @@
+[package]
+name = "pryx-proof-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.10"
+pryx-lab-proof = { path = "..", features = ["experimental"] }
+
+[[bin]]
+name = "scan"
+path = "fuzz_targets/scan.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

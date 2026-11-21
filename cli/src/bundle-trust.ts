@@ -18,11 +18,16 @@ export function verifyBundleSignature(
 ) {
   if (signature.length !== 64) throw new Error('Host bundle signature must be Ed25519')
   const statement = Buffer.from(bundleStatement(version, digest))
-  const valid = (keys.match(/-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/g) ?? []).some(
-    (pem) => {
+  const valid = trustedSignature(statement, signature, keys)
+  if (!valid) throw new Error('Host bundle signature is not from a trusted release key; nothing was unpacked')
+}
+
+export function trustedSignature(statement: Buffer, signature: Uint8Array, keys = compiledKeys) {
+  return (
+    signature.length === 64 &&
+    (keys.match(/-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/g) ?? []).some((pem) => {
       const key = createPublicKey(pem)
       return key.asymmetricKeyType === 'ed25519' && verify(null, statement, key, signature)
-    },
+    })
   )
-  if (!valid) throw new Error('Host bundle signature is not from a trusted release key; nothing was unpacked')
 }
