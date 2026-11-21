@@ -23,6 +23,7 @@ def record(directory, name, command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="new directory for this invocation")
+    parser.add_argument("--bpftool", default="bpftool", help="absolute path to the pinned native executable")
     parser.add_argument("--verify", action="store_true", help="load all hooks temporarily, without attaching them")
     parser.add_argument("--skb", action="store_true", help="also test ingress/egress in the kernel packet harness")
     args = parser.parse_args()
@@ -40,22 +41,31 @@ def main():
             raise RuntimeError("a mounted BPF filesystem is required for --verify")
         with tempfile.TemporaryDirectory(prefix="pryx-lab-", dir="/sys/fs/bpf") as scratch:
             pins = Path(scratch) / "programs"
-            record(args.output, "verifier.txt", ["bpftool", "--debug", "prog", "loadall", source, pins])
+            maps = Path(scratch) / "maps"
+            maps.mkdir()
+            record(args.output, "verifier.txt", [args.bpftool, "--debug", "prog", "loadall", source, pins, "pinmaps", maps])
             result["hooks"] = {}
             for pin in sorted(pins.iterdir()):
-                info = json.loads(subprocess.check_output(["bpftool", "-j", "prog", "show", "pinned", pin]))
+                info = json.loads(subprocess.check_output([args.bpftool, "-j", "prog", "show", "pinned", pin]))
                 if isinstance(info, list):
                     info, = info
                 result["hooks"][pin.name] = info
             if args.skb:
                 result["skb"] = []
+                result["skb_context"] = "kernel test default loopback device, empty policy maps"
+                counter = [args.bpftool, "-j", "map", "dump", "pinned", maps / "counters"]
+                record(args.output, "counters-before.json", counter)
                 for label, packet in packets():
                     input_file = args.output / (label + ".bin")
                     input_file.write_bytes(packet)
                     for hook in ["ingress", "egress"]:
-                        raw = subprocess.check_output(["bpftool", "-j", "prog", "run", "pinned", pins / hook,
+                        raw = subprocess.check_output([args.bpftool, "-j", "prog", "run", "pinned", pins / hook,
                                                        "data_in", input_file, "repeat", "1000"], text=True)
-                        result["skb"].append({"packet": label, "hook": hook, "kernel": json.loads(raw)})
+                        sample = json.loads(raw)
+                        if sample.get("retval") not in (0, 1):
+                            raise RuntimeError(f"unexpected {hook} verdict for {label}: {sample}")
+                        result["skb"].append({"packet": label, "hook": hook, "kernel": sample})
+                record(args.output, "counters-after.json", counter)
             if not result["hooks"]:
                 raise RuntimeError("no verified hooks reported")
     (args.output / "metadata.json").write_text(json.dumps(result, indent=2) + "\n")

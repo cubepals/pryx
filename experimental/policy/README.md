@@ -14,7 +14,13 @@ cargo build --release --locked --manifest-path experimental/policy/Cargo.toml --
 python3 experimental/policy/seccomp.py experimental/policy/target/release/pryx-policy-cost > seccomp.json
 ```
 
-The paired samples use the same single CPU in alternating order. The process cohort inherits
+The baseline and candidate samples use the same single CPU in alternating order.
+The candidate checks the two measured syscall paths after the original architecture
+check and retains the complete original decision body. Each shortcut's action is derived
+from the original bytecode using only the architecture and syscall number. Encountering
+an argument-dependent action leaves that path in the original body. The ABI guard still
+wraps every install. A reference interpreter compares complete 32-bit actions for native and foreign
+audit values, rule numbers and argument patterns on each native runner. `pryx-policy-cost verify` checks every filter variant without installing it. The process cohort inherits
 the runner's seccomp policy, then installs the supervisor, child and network-off seccomp stack
 in its production order. The host cohort inherits just the runner's policy. Raw getpid takes
 the allowed path. Bind on an invalid descriptor normally returns EBADF and the network-off
@@ -33,7 +39,8 @@ sudo python3 experimental/policy/network.py "$RUNNER_TEMP/network-policy" --veri
 ```
 
 The script creates fresh pins under a mounted bpffs, requests kernel verification and runs
-IPv4/IPv6 TCP and UDP packets through the ingress and egress hooks with empty maps. All
+IPv4/IPv6 TCP and UDP packets through the ingress and egress hooks with the kernel test
+runner's default loopback interface and empty maps. All
 packet traffic stays within the kernel's test harness. This cohort omits real socket
 ownership and populated rules; the existing process network suite covers those cases.
 The standalone command without options reads only the shipped object's disassembly.
@@ -50,6 +57,7 @@ kernel JSON, including unavailable counters. Register every candidate before ben
 - `README.md` describes scope, commands and interpretation.
 - `Cargo.toml` declares the standalone package and off-by-default feature.
 - `Cargo.lock` pins the dependencies used by the agent's maintained filter compiler.
+- `decision.rs` builds the two-key candidate and differentially checks the reference bytecode.
 - `latency.rs` installs the production seccomp stack and checks the two syscall results.
 - `seccomp.py` pairs fresh processes and records distributions and raw samples.
 - `network.py` collects the compiled BPF and kernel verifier evidence.

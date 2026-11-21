@@ -4,21 +4,48 @@
 //! One sample of raw syscall latency with or without the real network-off guest policy.
 //! Filters apply only to this disposable process. No daemon, sandbox or socket is opened.
 
+#[cfg(not(test))]
 use std::{error::Error, io, time::Instant};
 
+mod decision;
+
+#[cfg(not(test))]
 #[allow(dead_code)]
 #[path = "../../agent/src/process_policy/filter.rs"]
 mod filter;
 #[allow(dead_code)]
 #[path = "../../agent/src/syscall_abi.rs"]
-mod syscall_abi;
+mod stock_abi;
 
+#[cfg(not(test))]
+mod syscall_abi {
+    use seccompiler::sock_filter;
+    use std::{error::Error, sync::OnceLock};
+    pub(super) static MODE: OnceLock<String> = OnceLock::new();
+
+    pub(super) fn apply(stock: &[sock_filter]) -> Result<(), Box<dyn Error>> {
+        if let Some(mode @ ("verify" | "candidate")) = MODE.get().map(String::as_str) {
+            let program = super::decision::tree(stock)?;
+            if mode == "candidate" {
+                super::stock_abi::apply(&program)?;
+            } else {
+                println!("checked {} stock and {} candidate instructions", stock.len(), program.len());
+            }
+        } else {
+            super::stock_abi::apply(stock)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 enum Call {
     Getpid,
     Bind,
 }
 
+#[cfg(not(test))]
 impl Call {
     fn batch(self, count: u32, filtered: bool) -> Result<u128, Box<dyn Error>> {
         let expected = match self {
@@ -49,14 +76,25 @@ impl Call {
     }
 }
 
+#[cfg(not(test))]
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["verify"] {
+        syscall_abi::MODE.set("verify".into()).unwrap();
+        filter::apply(false)?;
+        filter::apply(true)?;
+        filter::browser()?;
+        filter::desktop()?;
+        filter::child(std::process::id())?;
+        return Ok(());
+    }
     let [mode, call, iterations] = args.as_slice() else {
-        return Err("expected: host|process getpid|bind|cache COUNT".into());
+        return Err("expected: host|process|candidate getpid|bind|cache COUNT".into());
     };
+    syscall_abi::MODE.set(mode.clone()).unwrap();
     let filtered = match mode.as_str() {
         "host" => false,
-        "process" => true,
+        "process" | "candidate" => true,
         _ => return Err("unknown policy".into()),
     };
     if filtered {

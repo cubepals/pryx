@@ -33,18 +33,19 @@ def main():
         calls = ["getpid", "bind"] if pair % 4 < 2 else ["bind", "getpid"]
         for call in calls:
             sample = {"pair": pair, "call": call}
-            modes = ["host", "process"] if pair % 2 == 0 else ["process", "host"]
+            modes = ["host", "process", "candidate"] if pair % 2 == 0 else ["candidate", "process", "host"]
             for mode in modes:
                 duration = subprocess.check_output([binary, mode, call, str(args.iterations)], text=True)
                 sample[mode] = int(duration) / args.iterations
             sample["process_minus_host"] = sample["process"] - sample["host"]
+            sample["candidate_minus_process"] = sample["candidate"] - sample["process"]
             samples.append(sample)
 
     summaries = {}
     for call in ["getpid", "bind"]:
         rows = [row for row in samples if row["call"] == call]
         summaries[call] = {key: distribution([row[key] for row in rows]) for key in
-                           ["host", "process", "process_minus_host"]}
+                           ["host", "process", "candidate", "process_minus_host", "candidate_minus_process"]}
     print(json.dumps({"arch": platform.machine(), "kernel": platform.release(), "cpu": cpu,
                       "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                       "clock": "Rust Instant", "unit": "ns/syscall", "iterations": args.iterations,
