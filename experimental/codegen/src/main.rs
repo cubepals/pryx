@@ -37,7 +37,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         }
+        [mode, dir] if mode == "encodings" => {
+            std::fs::create_dir(dir)?;
+            for plan in Plan::static_choices() {
+                let kernel = Kernel::generate(plan).ok_or("generation refused")?;
+                let path = std::path::Path::new(dir).join(plan.slug()).with_extension("bin");
+                std::fs::write(path, kernel.encoding().ok_or("missing finalized bytes")?)?;
+            }
+            Ok(())
+        }
         [mode, dir] if mode == "sleep" => pryx_lab_codegen::sample(dir, &[]),
-        _ => Err("usage: pryx-codegen self-check | sleep EXISTING_DIRECTORY".into()),
+        _ => Err("usage: pryx-codegen self-check | encodings NEW_DIRECTORY | sleep EXISTING_DIRECTORY".into()),
     }
 }

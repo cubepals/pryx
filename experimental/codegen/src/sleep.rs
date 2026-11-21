@@ -14,9 +14,11 @@ use std::{
 const PAGE: usize = 4096;
 const MIB: usize = 1024 * 1024;
 
+type PagePredicate = dyn Fn(&[u8]) -> bool;
+
 pub struct Baseline {
     pub name: String,
-    pub scan: Box<dyn Fn(&[u8]) -> bool>,
+    pub scan: Box<PagePredicate>,
 }
 
 fn once(

@@ -382,6 +382,8 @@ jobs:
           cd "$RUNNER_TEMP/paired/codegen"
           cargo test --locked --features experimental
           cargo run --locked --release --features experimental -- self-check
+          cargo run --locked --release --features experimental -- encodings "$RUNNER_TEMP/codegen/encodings"
+          (cd "$RUNNER_TEMP/codegen/encodings" && sha256sum ./*.bin > SHA256SUMS)
           cargo run --locked --release --manifest-path comparison/Cargo.toml -- "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/pairs.csv"
           python3 summary.py "$RUNNER_TEMP/codegen/pairs.csv" | tee "$RUNNER_TEMP/codegen/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

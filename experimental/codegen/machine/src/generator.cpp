@@ -22,9 +22,12 @@ struct Handler final : ErrorHandler {
 };
 
 struct Kernel {
-    JitAllocator::CreateParams params{.options = JitAllocatorOptions::kUseDualMapping};
-    JitRuntime runtime{&params};
-    Scan scan = nullptr;
+    void* image = nullptr;
+    size_t mapped_size = 0;
+    size_t code_size = 0;
+    ~Kernel() {
+        if (image) (void)VirtMem::release(image, mapped_size);
+    }
 };
 
 #if defined(__x86_64__)
@@ -80,17 +83,34 @@ extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
     Kernel* kernel = new(storage) Kernel;
     Handler handler;
     CodeHolder code;
-    if (code.init(kernel->runtime.environment()) == Error::kOk) {
+    if (code.init(Environment::host()) == Error::kOk) {
         code.set_error_handler(&handler);
         emit(code, width, count);
-        if (!handler.failed && kernel->runtime.add(&kernel->scan, &code) == Error::kOk) return kernel;
+        const size_t page = VirtMem::info().page_size;
+        if (!handler.failed && code.flatten() == Error::kOk &&
+            code.resolve_cross_section_fixups() == Error::kOk && code.code_size() <= page) {
+            // The fixed emitter fits one page and has no externally supplied instructions.
+            kernel->mapped_size = page;
+            if (VirtMem::alloc(&kernel->image, page, VirtMem::MemoryFlags::kAccessRW) == Error::kOk &&
+                code.relocate_to_base(reinterpret_cast<uintptr_t>(kernel->image)) == Error::kOk &&
+                code.copy_flattened_data(kernel->image, page) == Error::kOk &&
+                VirtMem::protect(kernel->image, page, VirtMem::MemoryFlags::kAccessRX) == Error::kOk) {
+                kernel->code_size = code.code_size();
+                VirtMem::flush_instruction_cache(kernel->image, kernel->code_size);
+                return kernel;
+            }
+        }
     }
     kernel->~Kernel();
     std::free(kernel);
     return nullptr;
 }
 
-extern "C" Scan pryx_scan_entry(const Kernel* kernel) { return kernel->scan; }
+extern "C" Scan pryx_scan_entry(const Kernel* kernel) { return reinterpret_cast<Scan>(kernel->image); }
+extern "C" const uint8_t* pryx_scan_bytes(const Kernel* kernel, size_t* size) {
+    *size = kernel->code_size;
+    return static_cast<const uint8_t*>(kernel->image);
+}
 extern "C" void pryx_free_scan(Kernel* kernel) {
     kernel->~Kernel();
     std::free(kernel);
