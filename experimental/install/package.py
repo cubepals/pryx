@@ -16,5 +16,6 @@ machine = {"x64": 62, "arm64": 183}[args.arch]
 if binary[:6] != b"\x7fELF\x02\x01" or int.from_bytes(binary[18:20], "little") != machine:
     parser.error("expected a little-endian 64-bit ELF for the specified architecture")
 with zipfile.ZipFile(args.output, "w") as archive:
-    for name, data in [("__main__.py", Path(__file__).with_name("lab.py").read_bytes()), ("pryx-lab", binary)]:
+    for name, data in [("__main__.py", Path(__file__).with_name("lab.py").read_bytes()),
+                       ("controller.mjs", Path(__file__).with_name("controller.mjs").read_bytes()), ("pryx-lab", binary)]:
         archive.writestr(zipfile.ZipInfo(name), data)

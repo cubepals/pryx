@@ -8,7 +8,7 @@ import { SECOND_MS } from '../../control/src/durations.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
 import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { privateDirectory, stateRoot } from '../../deploy/local-layout.ts'
-import { installedLab, labInstalled, requestsLab } from './experimental-release.ts'
+import { handoff, labInstalled, requestsLab } from './experimental-release.ts'
 import { containerPaths } from './up-paths.ts'
 
 function configuredNode() {
@@ -76,16 +76,18 @@ export async function doctor(args: string[]) {
   const output = lab ? await new Response(child.stdout as ReadableStream).text() : ''
   if (await child.exited) throw new Error('The host probe failed; inspect the reported requirement')
   if (lab) {
-    const experimental = await installedLab('capabilities').catch((error) => ({
-      installed: false,
-      reason: error instanceof Error ? error.message : 'Experimental verification failed',
-      action:
-        'Reinstall with pryx experimental install --experimental and supply --feature with the desired name',
-    }))
-    if (args.includes('--json')) console.log(JSON.stringify({ ...JSON.parse(output), experimental }))
-    else {
-      process.stdout.write(output)
-      console.log('experimental', JSON.stringify(experimental))
+    try {
+      await handoff(false, 'doctor', args, output)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Experimental release unavailable'
+      const experimental = {
+        installed: false,
+        reason,
+        action:
+          'Reinstall with pryx experimental install --experimental and supply --feature with the desired name',
+      }
+      if (args.includes('--json')) console.log(JSON.stringify({ ...JSON.parse(output), experimental }))
+      else process.stdout.write(`${output}experimental: off (${reason})\n`)
     }
   }
 }

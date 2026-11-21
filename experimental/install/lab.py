@@ -134,24 +134,33 @@ def main():
         raise ValueError("the lab requires Python 3.8 or later")
     command, *args = sys.argv[1:]
     archive = Path(sys.argv[0])
-    if command == "validate":
+    if command == "controller" and not args:
+        with zipfile.ZipFile(archive) as payload:
+            sys.stdout.buffer.write(payload.read("controller.mjs"))
+    elif command == "validate":
         selection(args)
     elif command == "activate" and args:
         activate(archive, Path(args[0]), selection(args[1:]))
-    elif command in ("capabilities", "run") and len(args) >= 2:
+    elif command == "capabilities" and len(args) == 2:
+        try:
+            generation = protected(Path(args[0]), stat.S_ISDIR)
+            selected = recorded_selection(generation, archive, Path(args[1]))
+            state = {"on": bool(selected),
+                     "reason": "explicitly selected" if selected else "feature was not selected"}
+        except (OSError, ValueError) as error:
+            state = {"on": False, "reason": str(error),
+                     "action": "Reinstall with pryx experimental install --experimental and the desired --feature"}
+        print(json.dumps({FEATURE: state}))
+    elif command == "run" and len(args) == 3:
         generation = protected(Path(args[0]), stat.S_ISDIR)
         selected = recorded_selection(generation, archive, Path(args[1]))
-        if command == "capabilities" and len(args) == 2:
-            print(json.dumps({FEATURE: {"on": bool(selected),
-                  "reason": "explicitly selected" if selected else "feature was not selected"}}))
-        elif command == "run" and args[2:] == [FEATURE] and selected == FEATURE:
-            with tempfile.TemporaryDirectory(dir=storage()) as scratch, zipfile.ZipFile(archive) as payload:
-                binary = Path(scratch) / "pryx-lab"
-                binary.write_bytes(payload.read("pryx-lab"))
-                binary.chmod(0o700)
-                subprocess.run([binary, FEATURE], check=True)
-        else:
+        if args[2] != FEATURE or selected != FEATURE:
             raise ValueError(f"the requested experiment must be selected with --feature {FEATURE}")
+        with tempfile.TemporaryDirectory(dir=storage()) as scratch, zipfile.ZipFile(archive) as payload:
+            binary = Path(scratch) / "pryx-lab"
+            binary.write_bytes(payload.read("pryx-lab"))
+            binary.chmod(0o700)
+            subprocess.run([binary, FEATURE], check=True)
     else:
         raise ValueError("unsupported lab command")
 

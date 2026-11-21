@@ -69,7 +69,7 @@ jobs:
         run: |
           # A dispatch can reserve the new version while its main CI is running. The ordinary
           # release waits in the existing concurrency group and later sees the published tag.
-          for attempt in {1..12}; do
+          for _ in {1..12}; do
             run=$(gh run list --workflow ci.yml --event push --branch main --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
             [ -z "$run" ] || break
             sleep 5

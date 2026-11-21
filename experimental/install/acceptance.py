@@ -52,12 +52,12 @@ def exercise(tmp, server):
     pub = subprocess.check_output(["openssl", "pkey", "-in", key, "-pubout"]).decode()
     public_key = tmp / "preview.pub"
     public_key.write_text(pub)
-    cli = tmp / "pryx.js"
-    subprocess.run(["bun", "build", "--target=bun", "cli/src/main.ts",
+    cli = tmp / "pryx"
+    subprocess.run(["bun", "build", "--compile", "cli/src/main.ts",
                     "--define", "PRYX_PREVIEW_PUBLIC_KEY=" + json.dumps(pub), "--outfile", cli],
                    cwd=REPO, check=True)
     def run(args, ok=True, overrides=None, shell=False, diagnostic=None):
-        cmd = ["sh", REPO / "deploy/install.sh", *args] if shell else ["bun", cli, *args]
+        cmd = ["sh", REPO / "deploy/install.sh", *args] if shell else [cli, *args]
         child = subprocess.run(cmd, env=env | (overrides or {}), capture_output=True, text=True)
         assert (child.returncode == 0) == ok, (cmd, child.stdout, child.stderr)
         if diagnostic:
@@ -88,7 +88,7 @@ def exercise(tmp, server):
     wrapper = boot / "pryx"
     # The fixture only replaces the initial bootstrap extractor/installer. Installed commands are the stock CLI.
     wrapper.write_text('#!/bin/sh\nif [ "$1" = bootstrap-install ]; then mkdir -p "$(dirname "$4")"; '
-                       'cp "$0" "$4"; exit; fi\nexec bun "$PRYX_TEST_CLI" "$@"\n')
+                       'cp "$0" "$4"; exit; fi\nexec "$PRYX_TEST_CLI" "$@"\n')
     wrapper.chmod(0o755)
     env["PRYX_TEST_CLI"] = str(cli)
     archive = source / f"pryx-bootstrap-linux-{ARCH}.tar.gz"
@@ -105,14 +105,20 @@ echo '{"architecture":"fixture-host"}'
     assert server.paths == ["/SHA256SUMS", "/" + archive.name]
     root = home / ".pryx-experimental"
     assert not root.exists()
+    stock_probe = {"PRYX_BUNDLE_DIR": str(probe.parent)}
+    for command in [["doctor"], ["doctor", "--json"], ["capabilities"]]:
+        assert run(command, overrides=stock_probe) == '{"architecture":"fixture-host"}\n'
     run(["up", "--experimental", "--check"])
     run(["up", "--experimental", "--check"], ok=False, overrides={"XDG_CONFIG_HOME": str(tmp / "outside")})
     run(["up", "--experimental", "--check", "--feature", "unknown"], diagnostic="unverified until installation")
     for flags in [["--feature"], ["--feature", "--invalid"], ["--feature", "self-check", "--feature", "self-check"]]:
-        run(["up", "--experimental", "--check", *flags], ok=False)
+        run(["up", "--experimental", "--check", *flags], diagnostic="unverified until installation")
     assert len(server.paths) == 2 and not root.exists()
-    run(["--experimental", "--feature", "unknown", "--feature", "self-check"], shell=True, ok=False)
+    run(["--feature", "self-check"], shell=True, ok=False)
     assert server.paths[2:] == ["/SHA256SUMS", "/" + archive.name] and not root.exists()
+    for flags in [["--feature"], ["--feature", "--invalid"], ["--feature", "unknown", "--feature", "self-check"]]:
+        run(["--experimental", *flags], shell=True, ok=False, diagnostic="supported selection")
+        assert server.paths[-2:] == ["/" + name + ".sig", "/" + name] and not root.exists()
 
     run(["--experimental", "--run-installed", "--check", "--preset", "node"], shell=True)
     assert server.paths[-2:] == ["/" + name + ".sig", "/" + name]
@@ -122,7 +128,9 @@ echo '{"architecture":"fixture-host"}'
     (initial / "selection").write_text("self-check")
     run(["experimental", "run", "self-check"], ok=False, diagnostic="selection failed its content check")
     forged = json.loads(run(["doctor", "--json"], overrides={"PRYX_BUNDLE_DIR": str(probe.parent)}))
-    assert forged["experimental"]["installed"] is False and "content check" in forged["experimental"]["reason"]
+    damaged = forged["experimental"]["self-check"]
+    assert damaged["on"] is False and "content check" in damaged["reason"]
+    assert "pryx experimental install --experimental" in damaged["action"]
     run(["--feature", "self-check"], shell=True, overrides={"PRYX_EXPERIMENTAL": "1"})
     active = (root / "active").resolve()
     assert active != initial and (active / "selection").read_text() == "self-check"
@@ -134,6 +142,8 @@ echo '{"architecture":"fixture-host"}'
     assert (root / "active").resolve() == active
     report = json.loads(run(["capabilities"], overrides={"PRYX_BUNDLE_DIR": str(probe.parent)}))
     assert report["experimental"]["self-check"]["on"]
+    human = run(["doctor"], overrides=stock_probe)
+    assert human.startswith('{"architecture":"fixture-host"}\n') and 'self-check: on (explicitly selected)' in human
     for version, arch in [("999.0.0", ARCH), (VERSION, "arm64" if ARCH == "x64" else "x64")]:
         sign(version, arch)
         run(["experimental", "install", "--experimental"], ok=False)
@@ -183,6 +193,12 @@ echo '{"architecture":"fixture-host"}'
     output = run(["experimental", "run", "self-check"])
     if native:
         assert output.strip() == "self-check passed"
+    (root / "active").unlink()
+    (root / "active").symlink_to("missing-generation")
+    missing = json.loads(run(["doctor", "--json"], overrides=stock_probe))
+    assert missing["architecture"] == "fixture-host"
+    assert missing["experimental"]["installed"] is False
+    assert "pryx experimental install --experimental" in missing["experimental"]["action"]
     print("passed stock installer and CLI opt-in, preflight, rollback, signature and capability checks")
 
 

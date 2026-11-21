@@ -4,7 +4,7 @@
 import { existsSync } from 'node:fs'
 import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
-import { experimentalUp, requestsLab } from './experimental-release.ts'
+import { handoff, requestsLab } from './experimental-release.ts'
 import { joinHost } from './join.ts'
 import { option } from './sandbox.ts'
 import { dnsDomain } from './up-acme-config.ts'
@@ -19,12 +19,16 @@ import { upPlan, up as upServer } from './up-server.ts'
 export { runInstallCommand, upPlan } from './up-server.ts'
 
 export async function up(args: string[]) {
-  if (
-    args.includes('--installer-arguments') ||
-    (!args.includes('--run-installed') && (requestsLab(args) || args.includes('--feature')))
-  )
-    return await experimentalUp(args, upPreset)
-  return await upPreset(args)
+  if (!requestsLab(args)) return await upPreset(args)
+  const delimiter = args.indexOf('--installer-arguments')
+  const stock = delimiter < 0 ? args : args.slice(0, delimiter)
+  if (stock.includes('--run-installed')) return await upPreset(stock)
+  if (stock.includes('--check') || stock.includes('--preflight')) {
+    if (args.includes('--feature'))
+      console.error('Experimental selection is unverified until installation authenticates the archive')
+    return await upPreset(stock)
+  }
+  return await handoff(true, 'up', args, upPreset)
 }
 
 async function upPreset(args: string[], onLocalReady?: () => void) {
