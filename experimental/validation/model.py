@@ -51,12 +51,14 @@ else:
     analysis = subprocess.run(["osaca","--arch",models[cpu],"--consider-flag-deps","--yaml-out",str(raw),"/dev/stdin"],
                               input=hot,text=True,capture_output=True,check=True)
     args.out.with_name("osaca.txt").write_text(analysis.stdout + analysis.stderr)
-    parsed=YAML(typ="safe").load(raw.read_text())
+    # OSACA serializes custom tagged operands in its instruction listing.
+    # Read only standard scalar strings from the separate top-level summary.
+    parsed=YAML(typ="base").load(raw.read_text())
     if parsed.get("Warnings") or "No final analysis" in analysis.stdout:
         print(f"OSACA withheld a complete prediction for {models[cpu]}.")
     else:
         summary=parsed["Summary"]
-        predicted=max(summary["LCD"], *summary["PortPressure"].values())
+        predicted=max(float(summary["LCD"]), *(float(v) for v in summary["PortPressure"].values()))
         print(f"OSACA {models[cpu]} predicts {predicted:.4f} cycles per 16 bytes.")
         if all(r["pmu_valid"] == "1" for r in rows):
             native = statistics.median((int(r["loop_cycles"])-int(r["call_cycles"]))/int(r["iterations"]) for r in rows)
