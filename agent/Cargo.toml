@@ -57,7 +57,6 @@ tempfile = { version = "3", optional = true }
 linux-raw-sys = { version = "=0.12.1", default-features = false, features = ["general", "ioctl"], optional = true }
 
 [features]
-lab-observation = ["server"]
 default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
@@ -83,9 +82,3 @@ unreachable_pub = "warn"
 [lints.clippy]
 undocumented_unsafe_blocks = "warn"
 use_self = "warn"
-
-[[example]]
-name = "observation_floor"
-path = "../experimental/observation/floor.rs"
-crate-type = ["staticlib"]
-required-features = ["lab-observation"]

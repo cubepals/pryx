@@ -1,6 +1,6 @@
 # Process-tier syscall observation
 
-A manual `measure.yml` dispatch with `observe_syscalls=true` starts native x86-64 and AArch64 jobs serially. The process floor comes from the ordinary pryx agent. Each method runs inside a disposable unprivileged child after the same Landlock, network-off seccomp, resource and child restrictions are installed. A previously readable file outside the allowed tree must return EACCES. An invalid bind must change from the host's EBADF to the policy's EPERM. Failure of either check invalidates the sample.
+A manual `measure.yml` dispatch with `observe_syscalls=true` starts native x86-64 and AArch64 jobs serially. The build copies the stock Cargo manifests and lockfile into a temporary workspace and declares the observation feature and example there. It compiles the existing agent policy source with the server feature. A separate Cargo workspace boundary keeps these lab files out of stock source packages. Each method runs inside a disposable unprivileged child after the same Landlock, network-off seccomp, resource and child restrictions are installed. A previously readable file outside the allowed tree must return EACCES. An invalid bind must change from the host's EBADF to the policy's EPERM. Failure of either check invalidates the sample.
 
 The fixture runs 128 warm-up and 4,096 timed raw getpid calls. Every return must equal the child's known PID. Its harmless, unused first argument identifies fixture calls in the observer. The control, ptrace, seccomp notification and cooperative User Dispatch workloads all enter the same fixed assembly site. User Dispatch covers only that function. Each signal handler obtains the child's actual PID, and every sample requires one signal from that exact function and one correct result per call. The reported delta includes the cooperative wrapper, kernel signal delivery, a real getpid in the handler and count validation. The kernel must support inclusive mode under the installed floor.
 
@@ -13,7 +13,8 @@ The runner pins both processes to one CPU and alternates the raw/control order a
 Parts (`observation/`):
 
 - `README.md` describes the fixed workload and timing protocol.
-- `build.sh` builds the optional policy library and native static fixture.
+- `Cargo.toml` establishes a separate package boundary for these lab sources.
+- `build.sh` creates the private Cargo build and links the native static fixtures.
 - `floor.rs` applies the production restrictions in the child.
 - `workload.c` owns the child, safety checks, timer and validated native return values.
 - `link-count.S` counts calls in the separate link-time executable and enters the fixed assembly body.

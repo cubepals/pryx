@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: FSL-1.1-ALv2
+# This lab owns a separate source distribution. Its private build.sh workspace
+# links the policy adapter using the product lock and the installed musl toolchain.
+[workspace]
+members = []
+resolver = "3"
