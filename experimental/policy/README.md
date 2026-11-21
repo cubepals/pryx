@@ -52,6 +52,30 @@ requires a separate tracing or interpreter comparison on the chosen workload. Re
 native instructions from a host PMU use a different unit. Keep the raw verifier log and
 kernel JSON, including unavailable counters. Register every candidate before benchmarking.
 
+### Count executed original BPF instructions
+
+This second test-run-only cohort covers the two skb hooks. It restricts its input to the exact
+stock object and the fixed IPv4/IPv6 corpus. It opens new private maps for each pass and never
+attaches either object. The original program supplies the verifier result and stock outputs.
+Each diagnostic copy preserves the original classifier and counters and accumulates a unique path number
+for this acyclic program. A conditional's taken-edge paths occupy the first range of ranks,
+followed by its fall-through paths. The kernel writes the rank to the test packet's scratch
+words at exit. The collector decodes the full path from this single invocation and emits every original instruction PC. A two-slot 64-bit immediate counts as one
+instruction. Calls to map-lookup and socket-storage-get are counted separately. Kernel helper
+internals, verifier visits and JIT instructions are different quantities.
+
+Every event must match stock return, output packet, all other skb output context and complete
+per-CPU counter map after each diagnostic invocation. A failure produces no count file. Regular
+socket-address and socket-creation hooks need real contexts in a separate workload.
+
+From the existing native A2 worker, use its already verified bpftool and LLVM 18 package:
+
+```sh
+python3 -B experimental/policy/trace_test.py
+sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" \
+  python3 -B experimental/policy/run_coverage.py bpf/network.bpf.o "$RUNNER_TEMP/policy/trace" --bpftool "$bpftool"
+```
+
 ## Parts (`experimental/policy/`)
 
 - `README.md` describes scope, commands and interpretation.
@@ -62,3 +86,7 @@ kernel JSON, including unavailable counters. Register every candidate before ben
 - `seccomp.py` pairs fresh processes and records distributions and raw samples.
 - `network.py` collects the compiled BPF and kernel verifier evidence.
 - `corpus.py` generates valid Ethernet frames for the isolated kernel packet test.
+- `layout.c` obtains offsets, structure size and helper identifiers from the runner's UAPI.
+- `counted_object.py` builds the disposable annotated copy of the pinned fixture.
+- `run_coverage.py` cross-checks kernel outcomes and reconstructs executed paths.
+- `trace_test.py` tests relocation and path ordering in isolation.

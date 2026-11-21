@@ -152,6 +152,7 @@ jobs:
       - name: Build the process policy benchmark
         run: |
           rustup toolchain install
+          python3 -B experimental/policy/trace_test.py
           cargo test --locked --manifest-path experimental/policy/Cargo.toml --features experimental
           cargo build --locked --release --manifest-path experimental/policy/Cargo.toml --features experimental
       - name: Measure the existing installed seccomp stack
@@ -191,6 +192,11 @@ jobs:
           llvm-objdump-18 --version > "$RUNNER_TEMP/policy/llvm"
           "$bpftool" version > "$RUNNER_TEMP/policy/bpftool"
           sudo python3 experimental/policy/network.py "$RUNNER_TEMP/policy/network" --verify --skb --bpftool "$bpftool"
+      - name: Count original BPF instructions in disposable packet test runs
+        run: |
+          sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
+            python3 -B experimental/policy/run_coverage.py bpf/network.bpf.o "$RUNNER_TEMP/policy/trace" \
+              --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
