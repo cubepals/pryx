@@ -68,7 +68,7 @@ async fn captured_sleep_image() {
     directory(&data).unwrap();
     let mut workload = spec(&data, inputs[0]["reference"].as_str().unwrap());
     workload.agent.as_mut().unwrap().keep_alive = false;
-    workload.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), "exec /bin/sleep 3600".into()]);
+    workload.entrypoint = Some(vec!["/bin/sleep".into(), Duration::from_hours(1).as_secs().to_string()]);
     assert_eq!(u64::try_from(workload.memory_bytes).unwrap(), BYTES);
     let id = runtime.create(&workload).await.unwrap();
     runtime.start(&id).await.unwrap();
