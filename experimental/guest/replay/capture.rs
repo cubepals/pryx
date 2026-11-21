@@ -24,7 +24,7 @@ impl Drop for OutputFile {
     }
 }
 
-fn private_input(path: &Path) -> io::Result<Vec<u8>> {
+pub(super) fn private_input(path: &Path) -> io::Result<Vec<u8>> {
     let mut f = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
     let meta = f.metadata()?;
     if !meta.is_file()

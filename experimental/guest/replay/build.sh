@@ -14,8 +14,8 @@ mkdir -m 700 -- "$2"
 target=$(cd "$2" && pwd)
 git -C "$checkout" archive "$pin" experimental/pages | tar -x -C "$target"
 workspace=$target/experimental/pages
-cp "$adapter/capture.rs" "$workspace/examples/capture.rs"
-printf '\n#[path = "capture.rs"]\nmod capture_replay;\n' >> "$workspace/examples/sleep_file.rs"
+cp "$adapter/capture.rs" "$adapter/dedup.rs" "$workspace/examples/"
+printf '\n#[path = "capture.rs"]\nmod capture_replay;\n#[path = "dedup.rs"]\nmod fork_replay;\n' >> "$workspace/examples/sleep_file.rs"
 export CARGO_TARGET_DIR="$target/compiled"
 cargo test --locked --release --no-run --features page-kernels \
     --manifest-path "$workspace/Cargo.toml" --example sleep_file --message-format=json > "$target/artifacts.json"
@@ -33,4 +33,7 @@ shutil.copy2(binary, root / "replay-tests")
 PY
 "$target/replay-tests" --list --exact capture_replay::captured_image | grep -Fx 'capture_replay::captured_image: test' > /dev/null
 "$target/replay-tests" --exact capture_replay::protected_small_fixture
+"$target/replay-tests" --list --exact fork_replay::captured_fork_lookup | grep -Fx 'fork_replay::captured_fork_lookup: test' > /dev/null
+"$target/replay-tests" --exact fork_replay::equal_nonzero_unmatched_and_colliding_pages
 install -m 700 "$adapter/run.sh" "$target/replay"
+install -m 700 "$adapter/fork.sh" "$target/fork-lookup"

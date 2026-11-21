@@ -116,6 +116,7 @@ Parts (`guest/`):
 - `framed_health.rs` invokes the production forwarding and readiness APIs for the external acceptance fixture.
 - `baseline_summary.py` verifies accepted samples and computes phase and RSS percentiles.
 - `prove.sh` runs the opt-in experiment with the existing workflow inputs.
+- `fork_replay.rs` captures a diverged, authenticated fork for private page matching.
 - `snapshot_replay.rs` captures the real RAM after a successful pause and checks the restored service.
 - `replay/` contains the pinned writer adapter and protected synthetic correctness fixture.
 - `test_boot.py` and `test_agent_baseline.py` check markers, summaries, accepted samples and thresholds.

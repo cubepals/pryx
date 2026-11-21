@@ -575,11 +575,13 @@ jobs:
           umask 077
           export PRYX_LAB_REPLAY_REPORT="$RUNNER_TEMP/lab-snapshot-report"
           export PRYX_LAB_REPLAY="$RUNNER_TEMP/lab-snapshot-writer/replay"
+          export PRYX_LAB_FORK_LOOKUP="$RUNNER_TEMP/lab-snapshot-writer/fork-lookup"
           mkdir -m 700 "$PRYX_LAB_REPLAY_REPORT"
           bash experimental/guest/replay/build.sh "$GITHUB_WORKSPACE/lab-pinned-pages" "$RUNNER_TEMP/lab-snapshot-writer"
           cargo test --locked --features lab-memory-replay --lib runtime::vm::instance::lab_memory_replay::captured_sleep_image -- --ignored --exact
           test -s "$PRYX_LAB_REPLAY_REPORT/capture.json"
           test -s "$PRYX_LAB_REPLAY_REPORT/writer.csv"
+          test -s "$PRYX_LAB_REPLAY_REPORT/fork-lookup.csv"
           printf '%s\n' "$GITHUB_SHA" > "$PRYX_LAB_REPLAY_REPORT/vm-commit.txt"
           git -C lab-pinned-pages rev-parse HEAD > "$PRYX_LAB_REPLAY_REPORT/writer-commit.txt"
       - name: Retain aggregate snapshot capture and writer evidence
@@ -590,6 +592,7 @@ jobs:
           path: |
             ${{ runner.temp }}/lab-snapshot-report/capture.json
             ${{ runner.temp }}/lab-snapshot-report/writer.csv
+            ${{ runner.temp }}/lab-snapshot-report/fork-lookup.csv
             ${{ runner.temp }}/lab-snapshot-report/vm-commit.txt
             ${{ runner.temp }}/lab-snapshot-report/writer-commit.txt
 

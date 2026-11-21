@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Separate, opt-in test using a real committed RAM snapshot and the verified stock wake.
+#[path = "fork_replay.rs"]
+mod fork_replay;
+
 use super::memory::MEMORY;
 use super::tests::{artifact_server, exec, spec};
 use super::{Settings, VmRuntime, directory};
@@ -91,8 +94,8 @@ async fn captured_sleep_image() {
     let wake = wake_started.elapsed();
     assert!(exec(&runtime, &id, "cat /tmp/lab-replay-marker").await == b"captured");
     let cycle = started.elapsed();
-    runtime.remove(&id).await.unwrap();
-    server.abort();
+    // Park the parent again so the offline writer and fork lookup run without a live guest.
+    runtime.pause(&id).await.unwrap();
 
     let scratch = tempfile::tempdir_in(private.path()).unwrap();
     std::fs::set_permissions(scratch.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -126,4 +129,9 @@ async fn captured_sleep_image() {
         .unwrap();
     assert!(result.success(), "Writer replay must restore every file");
     assert!(std::fs::metadata(report.join("writer.csv")).is_ok_and(|file| file.len() > 0));
+    std::fs::remove_file(source).unwrap();
+
+    fork_replay::compare(&runtime, &id, &workload, private.path(), &report).await;
+    runtime.remove(&id).await.unwrap();
+    server.abort();
 }

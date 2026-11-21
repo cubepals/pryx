@@ -1729,3 +1729,5 @@
 - K62 reuses the lab's signed A1 writer at 07b4732183b684ab1775951314c3b5d3ae99ba74 for one supplemental real snapshot. Its Rust comparison, byte verifier and checked-in assembly are FSL-1.1-ALv2. The pinned crate retains its Cargo.lock and existing dependency licences. The added test-only module calls those sources from a private build directory. Only per-run aggregate values leave the runner.
 
 - K62 measures A3 readiness through the runtime's reserved HTTP/2 management forwarder and its existing launch readiness function. The same forwarding address carries the subsequent RSS observation and wrong-bearer control. The test-only helper uses the existing Rust and Go runtime code and adds no external dependency.
+
+- K62 measures A1 fork-page matching only in an isolated caller-owned fixture after the production fork has resumed, changed tmpfs and slept again. Compare the two distinct private RAM images with a full-byte equality oracle and report only counts and timings. Both guests must wake with their own tmpfs contents. This reuses the pinned A1 crate and Rust standard library under their previously recorded licences.
