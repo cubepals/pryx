@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k36-relay-empty
+          SOURCE_BRANCH: k38-stderr-completion
           BASE_BRANCH: any-host
-          SOURCE_HEAD: 'e7f4083af0c26f368d512afffcfcacd565b45b74'
-          ANY_HOST_HEAD: '571fcfc400dd27592f5c0579674a49daac455130'
-          MERGED_TREE: '75d9ae8e9c8308842a46520c6e7fd0185408b2be'
-          SUBJECT: 'Merge any-host into empty relay branch'
+          SOURCE_HEAD: 'e9ef1bebfa397ff670b2d2a5f21f8ad600cf2c51'
+          ANY_HOST_HEAD: 'd63a738e2422fa5181c6d6f65582d97ac8beebf2'
+          MERGED_TREE: '5053334f3e3d62a890b179cd300753dc86e6224a'
+          SUBJECT: 'Merge any-host into stderr completion branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
