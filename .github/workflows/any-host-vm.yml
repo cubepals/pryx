@@ -7,6 +7,15 @@ on:
   # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
+    inputs:
+      lab_guest:
+        description: Compare experimental PID 1 implementations on KVM
+        type: boolean
+        default: false
+      lab_agent_baseline:
+        description: Measure guest agent RSS and authenticated readiness
+        type: boolean
+        default: false
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -59,7 +68,7 @@ jobs:
         startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
         startsWith(github.head_ref, 'codex/')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.lab_guest || inputs.lab_agent_baseline) && 55 || 30 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -321,6 +330,49 @@ jobs:
             --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+      - name: Measure the current guest agent at authenticated readiness
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_agent_baseline
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          python3 templates/vm-tools/agent_acceptance.py --lab-baseline \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
+            --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --work "$RUNNER_TEMP/agent-baseline"
+      - name: Retain the guest agent baseline
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_agent_baseline
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: experimental-agent-baseline
+          path: |
+            ${{ runner.temp }}/agent-baseline/samples.json
+            ${{ runner.temp }}/agent-baseline/sample-*/baseline-0.json
+      - name: Compare the experimental PID 1 programs
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: bash experimental/guest/prove.sh
+      - name: Retain experimental boot samples
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: experimental-guest-boots
+          path: |
+            ${{ runner.temp }}/lab-boots/samples.json
+            ${{ runner.temp }}/lab-boots/table.md
+            ${{ runner.temp }}/lab-boots/**/serial.log
+            ${{ runner.temp }}/lab-boots/kernel-build*
+            ${{ runner.temp }}/lab-kernels/*.config
+            ${{ runner.temp }}/lab-kernel-pair/samples.json
+            ${{ runner.temp }}/lab-kernel-pair/table.md
+            ${{ runner.temp }}/lab-kernel-pair/**/serial.log
       - name: Retain bounded runtime diagnostics separately
         if: always()
         uses: ./.github/actions/upload-evidence

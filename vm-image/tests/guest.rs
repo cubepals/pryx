@@ -2,6 +2,10 @@
 //! Boot the actual agent with real OCI layers and KVM, using the maintained monitor SDK.
 //! This input-backed acceptance proves guest init and durable shutdown, not production
 //! monitor confinement, network policy or the still-unadvertised VM runtime.
+#[cfg(feature = "lab-guest-baseline")]
+#[path = "../../experimental/guest/agent_baseline.rs"]
+mod agent_baseline;
+
 use axum::http::{Method, StatusCode};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use pryx_agent::{
@@ -454,6 +458,8 @@ async fn boot(
         write: vec![writes.into()],
         role: Role::Ordinary,
     };
+    #[cfg(feature = "lab-guest-baseline")]
+    let launched = std::time::Instant::now();
     let mut monitor = pryxd::runtime::vm::machine::Machine::launch(
         &input("PRYX_VM_HOST_LAUNCHER"),
         &plan,
@@ -467,6 +473,8 @@ async fn boot(
     .unwrap();
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
     guest.ready().await;
+    #[cfg(feature = "lab-guest-baseline")]
+    agent_baseline::observe(&guest, launched.elapsed(), directory, round).await;
     let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
     assert_eq!(
         rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
