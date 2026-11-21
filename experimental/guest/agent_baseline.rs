@@ -8,27 +8,48 @@
 use super::{FilesystemTools, Guest, Images, Method, Run, StatusCode, Value, boot, fs, input, json};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-pub(super) async fn observe(guest: &Guest, ready: Duration, directory: &Path, round: usize) {
+pub(super) async fn observe(
+    guest: &Guest,
+    launched: Instant,
+    launch_return: Duration,
+    delivery: Duration,
+    directory: &Path,
+    round: usize,
+) {
+    let ready = launched.elapsed();
     // The authenticated exec shell is a direct child of the serving agent.
     // Check its executable and parent before attributing the parent's resident pages.
     let executable = format!("{}/init", pryx_agent::vm_boot::BOOTSTRAP_ROOT);
     let sample = r#"set -eu
 test "$PPID" -gt 1
+awk '/^VmRSS:/ && $3 == "kB" {print $2}' /proc/1/status /proc/$PPID/status > /data/lab-rss
 test "$(tr '\000' '\n' < /proc/$PPID/cmdline | sed -n 1p)" = "$1"
 test "$(awk '/^PPid:/ {print $2}' /proc/$PPID/status)" = 1
-awk '/^VmRSS:/ && $3 == "kB" {print $2}' /proc/1/status /proc/$PPID/status > /data/lab-rss
 "#;
     guest.command(vec!["/bin/sh".into(), "-c".into(), sample.into(), "rss".into(), executable]).await;
+    let rss_exec_completed = launched.elapsed();
     let (status, data) = guest.call(Method::GET, "/_pryx/files/content?path=lab-rss", Value::Null, None).await;
     assert_eq!(status, StatusCode::OK);
     let rss = String::from_utf8(data).unwrap();
     let values: Vec<u64> = rss.lines().map(|line| line.parse().unwrap()).collect();
     assert_eq!(values.len(), 2, "Expected two VmRSS samples reported in KiB");
     assert!(values.iter().all(|rss| *rss > 0));
-    let row = json!({"launchToAuthenticatedReadyNs": ready.as_nanos() as u64,
-                     "guestInitRssKiB": values[0], "guestServingAgentRssKiB": values[1]});
+    let unauthorized = Guest {
+        channel: guest.channel.clone(),
+        client: guest.client.clone(),
+        token: "invalid-lab-health-proof".into(),
+    };
+    let (status, _) = unauthorized.call(Method::GET, "/_pryx/health", Value::Null, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let row = json!({"launchToMonitorPlanSentNs": launch_return.as_nanos() as u64,
+                     "launchToBootstrapDeliveredNs": delivery.as_nanos() as u64,
+                     "launchToAuthenticatedReadyNs": ready.as_nanos() as u64,
+                     "bootstrapDeliveredToAuthenticatedReadyNs": (ready - delivery).as_nanos() as u64,
+                     "readyToRssExecCompletedNs": (rss_exec_completed - ready).as_nanos() as u64,
+                     "guestInitRssKiB": values[0], "guestServingAgentRssKiB": values[1],
+                     "invalidBearerHealthRefused": true});
     fs::write(directory.join(format!("baseline-{round}.json")), serde_json::to_vec_pretty(&row).unwrap()).unwrap();
 }
 
@@ -64,7 +85,8 @@ async fn measure_stock_agent() {
         let observation: Value = serde_json::from_slice(&fs::read(dir.join("baseline-0.json")).unwrap()).unwrap();
         samples.push(json!({"sample": i + 1, "observation": observation, "acceptance": acceptance}));
         fs::remove_file(writes).unwrap();
-        let report = json!({"image": image.digest, "samples": samples, "complete": samples.len() == 15});
+        let report = json!({"image": image.digest, "healthRetryIntervalMs": super::HEALTH_RETRY_MS,
+                            "samples": samples, "complete": samples.len() == 15});
         fs::write(work.join("samples.json"), serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     }
 }

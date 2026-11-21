@@ -33,6 +33,9 @@ mod diagnostics;
 mod fork;
 mod guest;
 mod journal;
+#[cfg(all(test, feature = "lab-memory-replay"))]
+#[path = "../../../experimental/guest/snapshot_replay.rs"]
+mod lab_memory_replay;
 mod launch;
 mod logs;
 mod maintenance;

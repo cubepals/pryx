@@ -21,14 +21,3 @@ python3 templates/vm-tools/bootstrap.py --agent "$build/stamped-agent" \
   --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$build/stamped-root"
 python3 "$src/cohort.py" --staged "$RUNNER_TEMP" --build "$build" --agent "$build/stamped-root" \
   --work "$RUNNER_TEMP/lab-boots"
-# A cancelled or over-budget optional build leaves the first cohort intact.
-set +e
-timeout --kill-after=5s 15m python3 "$src/kernel_pair.py" "$RUNNER_TEMP" "$RUNNER_TEMP/lab-kernels" \
-  >"$RUNNER_TEMP/lab-boots/kernel-build.log" 2>&1
-status=$?
-set -e
-printf 'kernel pair build exit %s\n' "$status" >"$RUNNER_TEMP/lab-boots/kernel-build-status.txt"
-if (( status == 0 )); then
-  python3 "$src/cohort.py" --staged "$RUNNER_TEMP" --build "$build" --agent "$build/stamped-root" \
-    --kernel-pair "$RUNNER_TEMP/lab-kernels" --work "$RUNNER_TEMP/lab-kernel-pair"
-fi

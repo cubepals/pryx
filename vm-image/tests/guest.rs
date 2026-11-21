@@ -67,6 +67,9 @@ async fn request(client: &Path, message: Value) -> Result<(StatusCode, Vec<u8>),
     .map_err(|error| error.to_string())
 }
 
+// The live runtime retries authenticated health every 10 ms.
+const HEALTH_RETRY_MS: u64 = if cfg!(feature = "lab-guest-baseline") { 10 } else { 25 };
+
 struct Guest {
     channel: PathBuf,
     client: PathBuf,
@@ -98,7 +101,7 @@ impl Guest {
                 break;
             }
             assert!(tokio::time::Instant::now() < until, "Actual VM agent did not become ready");
-            tokio::time::sleep(Duration::from_millis(25)).await;
+            tokio::time::sleep(Duration::from_millis(HEALTH_RETRY_MS)).await;
         }
     }
 
@@ -472,9 +475,15 @@ async fn boot(
     .await
     .unwrap();
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
+    #[cfg(feature = "lab-guest-baseline")]
+    let (launch_return, delivery) = {
+        let launch_return = launched.elapsed();
+        monitor.delivered(tokio::time::Instant::now() + Duration::from_secs(15)).await.unwrap();
+        (launch_return, launched.elapsed())
+    };
     guest.ready().await;
     #[cfg(feature = "lab-guest-baseline")]
-    agent_baseline::observe(&guest, launched.elapsed(), directory, round).await;
+    agent_baseline::observe(&guest, launched, launch_return, delivery, directory, round).await;
     let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
     assert_eq!(
         rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),

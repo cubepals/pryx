@@ -16,6 +16,10 @@ on:
         description: Check only native ARM guest executables and KVM access
         type: boolean
         default: false
+      lab_memory_replay:
+        description: Replay a real slept guest image with the pinned experimental writers
+        type: boolean
+        default: false
       lab_agent_baseline:
         description: Measure guest agent RSS and authenticated readiness
         type: boolean
@@ -58,11 +62,13 @@ defaults:
 jobs:
   inputs:
     name: Published kernel and network spikes
+    outputs:
+      lab-baseline: ${{ steps.lab-baseline.outcome }}
     # A worker branch's push skips this and so memory, and so does a pull request from a worker
     # branch of this repository: a dispatch on that branch proves its commits. Forks, other
     # branches, any-host's push, dispatches and the schedule run it as before.
     if: >-
-      (github.event_name != 'workflow_dispatch' || !inputs.lab_guest_arm || inputs.lab_guest || inputs.lab_agent_baseline) &&
+      (github.event_name != 'workflow_dispatch' || !inputs.lab_guest_arm || inputs.lab_guest || inputs.lab_agent_baseline || inputs.lab_memory_replay) &&
       (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
@@ -75,6 +81,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.lab_guest || inputs.lab_agent_baseline) && 55 || 30 }}
     steps:
+      - name: Record the optional kernel comparison's job deadline
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        run: |
+          start=$(cut -d. -f1 /proc/uptime)
+          echo "PRYX_LAB_KERNEL_END=$((start + 53 * 60))" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -336,6 +347,7 @@ jobs:
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
       - name: Measure the current guest agent at authenticated readiness
+        id: lab-baseline
         if: github.event_name == 'workflow_dispatch' && inputs.lab_agent_baseline
         env:
           CARGO_PROFILE_DEV_DEBUG: '0'
@@ -343,41 +355,46 @@ jobs:
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
+          python3 experimental/guest/facts.py "$RUNNER_TEMP" target/x86_64-unknown-linux-musl/debug/pryx-agent "$RUNNER_TEMP/agent-baseline-host.json"
           python3 templates/vm-tools/agent_acceptance.py --lab-baseline \
             --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
             --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
             --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
             --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --work "$RUNNER_TEMP/agent-baseline"
+          python3 experimental/guest/baseline_summary.py "$RUNNER_TEMP/agent-baseline/samples.json" > "$RUNNER_TEMP/agent-baseline/table.md"
       - name: Retain the guest agent baseline
         if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_agent_baseline
         uses: ./.github/actions/upload-evidence
         with:
           name: experimental-agent-baseline
+          if-no-files-found: error
           path: |
+            ${{ runner.temp }}/agent-baseline-host.json
+            ${{ runner.temp }}/agent-baseline/table.md
             ${{ runner.temp }}/agent-baseline/samples.json
             ${{ runner.temp }}/agent-baseline/sample-*/baseline-0.json
       - name: Compare the experimental PID 1 programs
-        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        id: lab-pid1
+        if: >-
+          !cancelled() && github.event_name == 'workflow_dispatch' && inputs.lab_guest &&
+          steps.vm-bootstrap.outcome == 'success' && steps.filesystems.outcome == 'success'
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
         run: bash experimental/guest/prove.sh
       - name: Retain experimental boot samples
+        id: lab-boot-evidence
         if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_guest
         uses: ./.github/actions/upload-evidence
         with:
           name: experimental-guest-boots
+          if-no-files-found: error
           path: |
             ${{ runner.temp }}/lab-boots/samples.json
             ${{ runner.temp }}/lab-boots/table.md
             ${{ runner.temp }}/lab-boots/**/serial.log
-            ${{ runner.temp }}/lab-boots/kernel-build*
-            ${{ runner.temp }}/lab-kernels/*.config
-            ${{ runner.temp }}/lab-kernel-pair/samples.json
-            ${{ runner.temp }}/lab-kernel-pair/table.md
-            ${{ runner.temp }}/lab-kernel-pair/**/serial.log
       - name: Retain bounded runtime diagnostics separately
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -456,6 +473,22 @@ jobs:
             ${{ runner.temp }}/vm-network-prerequisites/**/*.log
           if-no-files-found: error
 
+      - name: Attempt the bounded experimental kernel comparison
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest && steps.lab-pid1.outcome == 'success' && steps.lab-boot-evidence.outcome == 'success'
+        run: bash experimental/guest/kernel_proof.sh
+      - name: Retain experimental kernel comparison and build status
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: experimental-guest-kernel-pair
+          path: |
+            ${{ runner.temp }}/lab-kernels/build-status.txt
+            ${{ runner.temp }}/lab-kernels/build.log
+            ${{ runner.temp }}/lab-kernels/*.config
+            ${{ runner.temp }}/lab-kernel-pair/samples.json
+            ${{ runner.temp }}/lab-kernel-pair/table.md
+            ${{ runner.temp }}/lab-kernel-pair/**/serial.log
+
   # Memory sleep and forks with memory, on their own runner so neither job nears its time limit:
   # the first job took 23 of its 30 minutes with them. They run the VM runtime that job built and
   # retained, unchanged, as an ordinary user with KVM and no other host change.
@@ -518,6 +551,47 @@ jobs:
             ${{ runner.temp }}/vm-memory-sleep.log
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
+
+      - name: Check out the pinned page writer for the captured RAM comparison
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_memory_replay && (!inputs.lab_agent_baseline || needs.inputs.outputs.lab-baseline == 'success')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 07b4732183b684ab1775951314c3b5d3ae99ba74
+          path: lab-pinned-pages
+          sparse-checkout: experimental/pages
+          persist-credentials: false
+      - name: Compare writers on one authenticated guest snapshot
+        if: github.event_name == 'workflow_dispatch' && inputs.lab_memory_replay && (!inputs.lab_agent_baseline || needs.inputs.outputs.lab-baseline == 'success')
+        timeout-minutes: 12
+        env:
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          PRYX_VM_POLICY_PROBE: ${{ runner.temp }}/vm-network-probe
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          umask 077
+          export PRYX_LAB_REPLAY_REPORT="$RUNNER_TEMP/lab-snapshot-report"
+          export PRYX_LAB_REPLAY="$RUNNER_TEMP/lab-snapshot-writer/replay"
+          mkdir -m 700 "$PRYX_LAB_REPLAY_REPORT"
+          bash experimental/guest/replay/build.sh "$GITHUB_WORKSPACE/lab-pinned-pages" "$RUNNER_TEMP/lab-snapshot-writer"
+          cargo test --locked --features lab-memory-replay --lib runtime::vm::instance::lab_memory_replay::captured_sleep_image -- --ignored --exact
+          test -s "$PRYX_LAB_REPLAY_REPORT/capture.json"
+          test -s "$PRYX_LAB_REPLAY_REPORT/writer.csv"
+          printf '%s\n' "$GITHUB_SHA" > "$PRYX_LAB_REPLAY_REPORT/vm-commit.txt"
+          git -C lab-pinned-pages rev-parse HEAD > "$PRYX_LAB_REPLAY_REPORT/writer-commit.txt"
+      - name: Retain aggregate snapshot capture and writer evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_memory_replay
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: experimental-real-snapshot-writers
+          path: |
+            ${{ runner.temp }}/lab-snapshot-report/capture.json
+            ${{ runner.temp }}/lab-snapshot-report/writer.csv
+            ${{ runner.temp }}/lab-snapshot-report/vm-commit.txt
+            ${{ runner.temp }}/lab-snapshot-report/writer-commit.txt
 
   lab-guest-arm:
     name: Native ARM guest prerequisites

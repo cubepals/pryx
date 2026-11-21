@@ -27,7 +27,8 @@ def main():
     parser.add_argument('dest', type=Path)
     args = parser.parse_args()
     stage, dest = args.staged.resolve(), args.dest.resolve()
-    dest.mkdir(mode=0o700)
+    workspace = dest / 'build'
+    workspace.mkdir(mode=0o700)
     linux = json.loads((VM_TOOLS / 'kernel-source.json').read_text())
     selection = json.loads((VM_TOOLS / 'kernel-selection.json').read_text())
     inspection = json.loads((stage / 'vm-archive-inspection.json').read_text())
@@ -37,9 +38,9 @@ def main():
         if hashlib.file_digest(archive_file, 'sha256').hexdigest() != linux['sha256']:
             raise ValueError('Kernel source hash differs from the committed selection')
     with tarfile.open(archive) as sources:
-        sources.extractall(dest, filter='data')
-    src = dest / f"linux-{linux['version']}"
-    build = dest / 'obj'
+        sources.extractall(workspace, filter='data')
+    src = workspace / f"linux-{linux['version']}"
+    build = workspace / 'obj'
     build.mkdir()
     (build / '.config').write_text(config)
     jobs = len(os.sched_getaffinity(0))
@@ -51,6 +52,7 @@ def main():
     config_cmd = [src / 'scripts/config', '--file', build / '.config']
     subprocess.run([*config_cmd, '--set-str', 'SYSTEM_TRUSTED_KEYS', '',
                     '--set-str', 'SYSTEM_REVOCATION_KEYS', ''], check=True)
+    control = None
     for label in ['control', 'no-print-time']:
         if label == 'no-print-time':
             subprocess.run([*config_cmd, '--disable', 'PRINTK_TIME'], check=True)
@@ -59,6 +61,11 @@ def main():
         want = 'CONFIG_PRINTK_TIME=y' if label == 'control' else '# CONFIG_PRINTK_TIME is not set'
         if want not in actual:
             raise ValueError(f'Timestamp setting unavailable in kernel {label}')
+        settings = {line for line in actual if line.startswith(('CONFIG_', '# CONFIG_'))}
+        if control is None:
+            control = settings
+        elif settings ^ control != {'CONFIG_PRINTK_TIME=y', '# CONFIG_PRINTK_TIME is not set'}:
+            raise ValueError('Matched kernel configurations differ outside PRINTK_TIME')
         missing = [k for k in selection['requiredConfiguration'] if f'{k}=y' not in actual]
         if missing:
             raise ValueError(f'Rebuilt kernel lacks required capabilities: {missing}')

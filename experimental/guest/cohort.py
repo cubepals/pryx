@@ -6,27 +6,21 @@ Raw observations and a table survive a partial run. Only complete cohorts receiv
 a per-architecture verdict. The host clock never gets subtracted from the guest clock.
 """
 import argparse
-import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import platform
 import statistics
-import subprocess
 import sys
 
 from boot import sample
+from facts import digest, host
 
 VM_TOOLS = Path(__file__).resolve().parents[2] / 'templates/vm-tools'
 sys.path.insert(0, str(VM_TOOLS))
 from filesystem import command
 from kernel import root_image, selected
-
-
-def digest(path):
-    with path.open('rb') as source:
-        return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
 def percentiles(values):
@@ -100,15 +94,9 @@ def main():
         trials = [(name, 'agent', (args.kernel_pair / f'{name}.elf').resolve(), [])
                   for name in ['control', 'no-print-time']]
     labels = [name for name, *_ in trials]
-    report = {'host': platform.uname()._asdict(), 'kernel': digest(kernel),
-              'monitor': digest(monitor), 'realAgent': bootstrap['agentSha256'],
+    report = {**host(work), 'kernel': digest(kernel), 'monitor': digest(monitor),
+              'realAgent': bootstrap['agentSha256'],
               'kernelHashes': {name: digest(file) for name, _, file, _ in trials},
-              'commit': subprocess.check_output(['git', '-C', VM_TOOLS, 'rev-parse', 'HEAD'], text=True).strip(),
-              'cpu': Path('/proc/cpuinfo').read_text().split('\n\n', 1)[0],
-              'compiler': subprocess.check_output(['cc', '--version'], text=True).splitlines()[0],
-              'cache': {p.parent.name: p.read_text().strip() for p in
-                        Path('/sys/devices/system/cpu/cpu0/cache').glob('index*/size')},
-              'filesystem': subprocess.check_output(['stat', '-f', '-c', '%T', work], text=True).strip(),
               'images': {name: digest(path) for name, path in fixture.items()},
               'samples': [], 'complete': False}
     def save():
