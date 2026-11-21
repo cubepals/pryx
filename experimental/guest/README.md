@@ -6,7 +6,7 @@ The current VM guest agent is Rust. The SDK configurator, network helper and
 minimal filesystem proof include Go programs. The measurements below use the
 real Rust agent from the VM workflow's static bootstrap.
 
-The existing **VM experiments** dispatch accepts two independently named inputs.
+The existing **VM experiments** dispatch accepts independently named inputs.
 Set `lab_guest=true` to build the two freestanding inits and run fifteen cold
 rounds. Each round rotates the order of six cases across three init executables
 and the current and quiet kernel command lines. Each monitor gets one vCPU,
@@ -31,7 +31,9 @@ the connection ends before configuration or credentials are sent.
 | Unordered/same-poll pairs | Bootstrap arrives before serial, or both become readable in one poll; these rows retain their raw delta and leave the phase percentiles |
 
 Read the historical 816–832 ms in [the VM stage record](../../docs/decisions.md)
-as monitor startup to bootstrap. It includes part of guest userspace startup.
+as the wait after host forwarding was set up until bootstrap delivery completed.
+It includes guest userspace startup and uses a later endpoint than this
+experiment's bootstrap-connection acceptance.
 The per-guest kernel clock and the host clock have different origins. The
 small fixture has no authenticated service, so it cannot supply an agent-ready
 time. Host serial delivery includes console transit.
@@ -45,7 +47,12 @@ comparison. The build status, raw rows, logs and table live in the
 first cohort and supplies no configuration verdict. The pinned production
 monitor, configurator and kernel currently support x86-64. Both tiny programs
 build for AArch64; the ARM guest timing needs native KVM and a validated ARM
-VM input set.
+VM input set. The ARM step of the same dispatch runs each static executable
+as an ordinary native process, checks its executable identity and blocking
+syscall, opens the KVM device and requests its API revision. The
+`experimental-arm-guest-prerequisites` artifact records the real revision or
+errno. Selecting `lab_guest_arm=true` on its own runs only this short ARM check.
+An ELF run and a VM boot are separate observations.
 
 After the page benchmarks, set `lab_agent_baseline=true` in a separate dispatch
 to measure the unchanged agent. This collects fifteen fresh, disconnected,
@@ -65,6 +72,8 @@ Parts (`guest/`):
 - `build.sh` builds the native ELF probes and checks their program headers.
 - `boot.py` owns a fresh monitor, its clocks, bounded serial and private sockets.
 - `cohort.py` rotates the cases, writes raw rows and computes p50 and p95.
+- `native.py` checks both native ELF programs and records the host prerequisites.
+- `kvm_api.c` reads the host KVM API revision from the ordinary-user device.
 - `kernel_pair.py` prepares the verified, controlled kernel-config pair.
 - `agent_baseline.rs` collects authenticated service readiness and guest RSS.
 - `prove.sh` runs the opt-in experiment with the existing workflow inputs.

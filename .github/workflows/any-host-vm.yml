@@ -12,6 +12,10 @@ on:
         description: Compare experimental PID 1 implementations on KVM
         type: boolean
         default: false
+      lab_guest_arm:
+        description: Check only native ARM guest executables and KVM access
+        type: boolean
+        default: false
       lab_agent_baseline:
         description: Measure guest agent RSS and authenticated readiness
         type: boolean
@@ -58,6 +62,7 @@ jobs:
     # branch of this repository: a dispatch on that branch proves its commits. Forks, other
     # branches, any-host's push, dispatches and the schedule run it as before.
     if: >-
+      (github.event_name != 'workflow_dispatch' || !inputs.lab_guest_arm || inputs.lab_guest || inputs.lab_agent_baseline) &&
       (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
@@ -513,3 +518,23 @@ jobs:
             ${{ runner.temp }}/vm-memory-sleep.log
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
+
+  lab-guest-arm:
+    name: Native ARM guest prerequisites
+    needs: memory
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && (inputs.lab_guest || inputs.lab_guest_arm) }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the native inits and ordinary-user KVM access
+        run: |
+          test "$(uname -m)" = aarch64
+          python3 experimental/guest/native.py "$RUNNER_TEMP/arm-inits" "$RUNNER_TEMP/arm-guest.json"
+      - uses: ./.github/actions/upload-evidence
+        if: ${{ !cancelled() }}
+        with:
+          name: experimental-arm-guest-prerequisites
+          path: ${{ runner.temp }}/arm-guest.json
