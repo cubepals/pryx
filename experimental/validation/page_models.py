@@ -81,6 +81,22 @@ def inputs(pages, out, arch):
     return result
 
 
+def validate_cohorts(paths, groups):
+    # A1 takes these fixed strides in its assembled full-traversal paths.
+    # REP and ordinary Rust raw records use a complete page before lowering analysis.
+    units = {"diff_avx2": 32, "value_avx2": 32, "diff_avx512": 64, "value_avx512": 64,
+             "diff_neon": 16, "value_neon": 16, "hash_lanes": 16, "clear_zva": 64,
+             "copy_nt": 32, "clear_nt": 32, "copy_gpr": 8, "clear_gpr": 8,
+             "copy_rep": 4096, "clear_rep": 4096, "rust-copy": 4096, "rust-clear": 4096}
+    expected = {(name, units[name] if hinted else 0, fill) for name, hinted in paths if name != "zva64"
+                for fill in ((0, 90) if name.startswith("value_") else (90,))}
+    if set(groups) != expected:
+        raise ValueError("native scan values or prefetch distances differ from the A1 report set")
+    for (name, _, _), rows in groups.items():
+        if any(int(row["unit_bytes"]) != units[name] or int(row["page_bytes"]) != 4096 for row in rows):
+            raise ValueError("native unit size differs from the A1 full-traversal path")
+
+
 def llvm_model(hot, arch, cpu, out):
     if not cpu or cpu.startswith("generic") or cpu in ("unknown", "x86-64"):
         return {"reason": "unrecognized native scheduling CPU"}
@@ -176,9 +192,7 @@ def main():
     groups = defaultdict(list)
     for row in rows:
         groups[row["kernel"], int(row["hint"]), int(row["fill"])].append(row)
-    measured = {(name, bool(hint)) for name, hint, _ in groups}
-    if measured != {key for key in paths if key[0] != "zva64"}:
-        raise ValueError("native scenarios differ from the A1 report set")
+    validate_cohorts(paths, groups)
     results = {"a1_commit": PIN, "architecture": arch, "cpu": cpu, "logical_cpu": min(cpus),
                "samples_sha256": sha(samples), "results": []}
     cache = {}
@@ -190,8 +204,6 @@ def main():
     for (name, hint, fill), records in groups.items():
         key = name, bool(hint)
         hot, info, reason = paths[key]
-        if len({r["unit_bytes"] for r in records}) != 1:
-            raise ValueError("kernel block width changed during measurement")
         width = info.get("emitted_bytes_per_block", int(records[0]["unit_bytes"]))
         observation = observations(records, width)
         if key not in cache:
