@@ -94,12 +94,12 @@ fn check(stock: &[sock_filter], candidate: &[sock_filter], native: u32) -> Resul
     let mut seed = 0x7dc8_2d19u32;
     for arch in [native, native ^ 1] {
         for &nr in &numbers {
-            for pattern in [0, 1, u32::MAX, seed] {
+            for fixed in [Some(0), Some(1), Some(u32::MAX), None] {
                 let word = |offset| match offset {
                     NR => Some(nr),
                     ARCH => Some(arch),
                     _ if offset.is_multiple_of(4) && (offset as usize) < size_of::<libc::seccomp_data>() => {
-                        Some(if pattern == seed { pattern.rotate_left(offset) } else { pattern })
+                        Some(fixed.unwrap_or_else(|| seed.rotate_left(offset)))
                     }
                     _ => None,
                 };
@@ -107,10 +107,10 @@ fn check(stock: &[sock_filter], candidate: &[sock_filter], native: u32) -> Resul
                 if evaluate(candidate, word) != Some(original) {
                     return Err(format!("candidate action differs at syscall {nr}"));
                 }
-                seed ^= seed << 13;
-                seed ^= seed >> 17;
-                seed ^= seed << 5;
             }
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
         }
     }
     Ok(())
@@ -119,6 +119,22 @@ fn check(stock: &[sock_filter], candidate: &[sock_filter], native: u32) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn corpus_distinguishes_two_argument_words() {
+        let arg = offset_of!(libc::seccomp_data, args) as u32;
+        let seed = 0x7dc8_2d19u32;
+        let stmt = |code, jt, jf, k| sock_filter { code, jt, jf, k };
+        let stock = [
+            stmt(LOAD, 0, 0, arg),
+            stmt(EQ, 0, 3, seed.rotate_left(arg)),
+            stmt(LOAD, 0, 0, arg + 4),
+            stmt(EQ, 0, 1, seed.rotate_left(arg + 4)),
+            stmt(RET, 0, 0, libc::SECCOMP_RET_ERRNO),
+            stmt(RET, 0, 0, libc::SECCOMP_RET_ALLOW),
+        ];
+        assert!(check(&stock, &stock[5..], 0).is_err());
+    }
 
     #[test]
     fn conditional_shortcut_cannot_ignore_the_argument() {

@@ -152,6 +152,7 @@ jobs:
       - name: Build the process policy benchmark
         run: |
           rustup toolchain install
+          cargo test --locked --manifest-path experimental/policy/Cargo.toml --features experimental
           cargo build --locked --release --manifest-path experimental/policy/Cargo.toml --features experimental
       - name: Measure the existing installed seccomp stack
         run: |
