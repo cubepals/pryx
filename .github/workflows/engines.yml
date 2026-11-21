@@ -174,10 +174,14 @@ jobs:
           "$binary" host cache 1 > "$RUNNER_TEMP/policy/host-cache"
           "$binary" process cache 1 > "$RUNNER_TEMP/policy/process-cache"
           python3 experimental/policy/seccomp.py "$binary" > "$RUNNER_TEMP/policy/seccomp.json"
-      - name: Verify and exercise the stock cgroup program object
+      - name: Prepare the verified native BPF tools
+        id: policy_tools
+        if: ${{ !cancelled() }}
         run: |
+          mkdir -p "$RUNNER_TEMP/policy"
           sudo apt-get update -qq
-          sudo apt-get install -y llvm-18
+          sudo apt-get install -y llvm-18 iproute2
+          dpkg-query -W llvm-18 iproute2 linux-libc-dev libc6 > "$RUNNER_TEMP/policy/probe-packages"
           case "$(uname -m)" in
             aarch64) arch=arm64; digest=b53ff306dc1d51d64f13a2b717f6ba5687a3613b87277ad0108464cf7b886cb7 ;;
             x86_64) arch=amd64; digest=51ffd3dd4f46fdc46736433a971e828dc70835c6b18ad20cabffd10abcf00358 ;;
@@ -189,14 +193,26 @@ jobs:
           mkdir -m 700 "$RUNNER_TEMP/policy-tools"
           tar -xzf "$archive" -C "$RUNNER_TEMP/policy-tools" bpftool
           bpftool="$RUNNER_TEMP/policy-tools/bpftool"
+          chmod u+x "$bpftool"
           llvm-objdump-18 --version > "$RUNNER_TEMP/policy/llvm"
           "$bpftool" version > "$RUNNER_TEMP/policy/bpftool"
-          sudo python3 experimental/policy/network.py "$RUNNER_TEMP/policy/network" --verify --skb --bpftool "$bpftool"
+      - name: Verify and exercise the stock cgroup program object
+        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
+        run: |
+          sudo python3 -B experimental/policy/network.py "$RUNNER_TEMP/policy/network" --verify --skb \
+            --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
       - name: Count original BPF instructions in disposable packet test runs
+        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
         run: |
           sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
             python3 -B experimental/policy/run_coverage.py bpf/network.bpf.o "$RUNNER_TEMP/policy/trace" \
               --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+      - name: Time stock socket hooks on fixed private loopback traffic
+        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
+        run: |
+          sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
+            "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME" python3 -B experimental/policy/socket_hooks.py \
+            "$RUNNER_TEMP/policy/socket" --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:

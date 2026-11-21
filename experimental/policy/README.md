@@ -76,6 +76,18 @@ sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS"
   python3 -B experimental/policy/run_coverage.py bpf/network.bpf.o "$RUNNER_TEMP/policy/trace" --bpftool "$bpftool"
 ```
 
+### Time the seven socket hooks
+
+The disposable CI worker opens a fresh network namespace containing only loopback. It loads the digest-checked stock object with its own maps and attaches all nine programs to a new cgroup. Only the fixed UDP child enters that cgroup. For IPv4 and IPv6 it binds both sockets to loopback, sends to a peer owned by its cgroup, verifies the returned payload and source, and connects to the same peer. The two exact loopback prefixes use the stock OWNED policy.
+
+This test records the result of a direct, empty-context test-run probe per socket hook. Kernel errno 524 identifies a missing test-run operation on the checked kernels. Other results retain their raw errno. Linux runtime statistics measure the attached programs in the real socket context. The accounting descriptor enables kernel-wide BPF timing until it closes. Each reported duration uses the difference in `run_time_ns` and `run_cnt` of the same private program ID. A batch must observe four socket creations per round, one call to each of the six address hooks per round and traffic in both packet directions. The journal retains completed kernel snapshots after a partial failure. These counters include helpers and timing instrumentation. Original instructions per socket invocation remain unmeasured.
+
+```sh
+sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+  GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" python3 -B experimental/policy/socket_hooks.py \
+  "$RUNNER_TEMP/policy/socket" --bpftool "$bpftool"
+```
+
 ## Parts (`experimental/policy/`)
 
 - `README.md` describes scope, commands and interpretation.
@@ -90,3 +102,5 @@ sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS"
 - `counted_object.py` builds the disposable annotated copy of the pinned fixture.
 - `run_coverage.py` cross-checks kernel outcomes and reconstructs executed paths.
 - `trace_test.py` tests relocation and path ordering in isolation.
+- `socket_hooks.py` times stock programs on real private UDP sockets and journals their kernel counters.
+- `socket_uapi.c` obtains the native syscall, command, attachment and structure layout constants for those programs.
