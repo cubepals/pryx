@@ -1727,3 +1727,5 @@
 - Cross-check freestanding sources with Clang/LLVM 19.1.7 (Apache-2.0 WITH LLVM-exception, external compiler and linker). Compile natively for measured cohorts. The disposable runner's GNU Make, coreutils, Bash and awk (mawk GPL-2.0-or-later or GNU awk GPL-3.0-or-later) are separate GPL build tools; rebuilding changes only a lab output. Read /proc through the authenticated guest exec fixture for per-process RSS.
 
 - K62 reuses the lab's signed A1 writer at 07b4732183b684ab1775951314c3b5d3ae99ba74 for one supplemental real snapshot. Its Rust comparison, byte verifier and checked-in assembly are FSL-1.1-ALv2. The pinned crate retains its Cargo.lock and existing dependency licences. The added test-only module calls those sources from a private build directory. Only per-run aggregate values leave the runner.
+
+- K62 measures A3 readiness through the runtime's reserved HTTP/2 management forwarder and its existing launch readiness function. The same forwarding address carries the subsequent RSS observation and wrong-bearer control. The test-only helper uses the existing Rust and Go runtime code and adds no external dependency.

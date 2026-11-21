@@ -102,6 +102,8 @@ kvm-bindings = "=0.14.0"
 fake = []
 # Enables only the opt-in test module for the lab's real snapshot writer comparison.
 lab-memory-replay = []
+# Test fixture for the stock framed VM agent readiness path.
+lab-framed-health = []
 
 [dev-dependencies]
 pryx-agent = { workspace = true, features = ["schema"] }

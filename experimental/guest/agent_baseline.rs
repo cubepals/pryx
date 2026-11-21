@@ -10,15 +10,8 @@ use std::os::unix::fs::DirBuilderExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-pub(super) async fn observe(
-    guest: &Guest,
-    launched: Instant,
-    launch_return: Duration,
-    delivery: Duration,
-    directory: &Path,
-    round: usize,
-) {
-    let ready = launched.elapsed();
+pub(super) async fn observe(guest: &Guest, launched: Instant, phases: [Duration; 4], directory: &Path, round: usize) {
+    let [launch_return, forwarded, delivery, ready] = phases;
     // The authenticated exec shell is a direct child of the serving agent.
     // Check its executable and parent before attributing the parent's resident pages.
     let executable = format!("{}/init", pryx_agent::vm_boot::BOOTSTRAP_ROOT);
@@ -40,10 +33,13 @@ test "$(awk '/^PPid:/ {print $2}' /proc/$PPID/status)" = 1
         channel: guest.channel.clone(),
         client: guest.client.clone(),
         token: "invalid-lab-health-proof".into(),
+        framed: guest.framed.clone(),
     };
     let (status, _) = unauthorized.call(Method::GET, "/_pryx/health", Value::Null, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     let row = json!({"launchToMonitorPlanSentNs": launch_return.as_nanos() as u64,
+                     "launchToFramedForwarderNs": forwarded.as_nanos() as u64,
+                     "framedForwarderToBootstrapDeliveredNs": (delivery - forwarded).as_nanos() as u64,
                      "launchToBootstrapDeliveredNs": delivery.as_nanos() as u64,
                      "launchToAuthenticatedReadyNs": ready.as_nanos() as u64,
                      "bootstrapDeliveredToAuthenticatedReadyNs": (ready - delivery).as_nanos() as u64,
@@ -80,12 +76,14 @@ async fn measure_stock_agent() {
             file_bytes: disk_bytes,
         };
         assert!(tools.run(make, &work, None, 64 * 1024).await.unwrap().status.success());
-        let acceptance = boot(&tools, &image, &dir, &writes, 0, false).await;
+        let acceptance = boot(&tools, &image, &dir, &writes, 0, false, super::BootPurpose::AgentBaseline).await;
         assert_eq!(acceptance["signedCleanShutdown"], true);
         let observation: Value = serde_json::from_slice(&fs::read(dir.join("baseline-0.json")).unwrap()).unwrap();
         samples.push(json!({"sample": i + 1, "observation": observation, "acceptance": acceptance}));
         fs::remove_file(writes).unwrap();
-        let report = json!({"image": image.digest, "healthRetryIntervalMs": super::HEALTH_RETRY_MS,
+        let report = json!({"image": image.digest, "healthRetryIntervalMs": pryxd::runtime::vm::instance::lab_framed_health::RETRY.as_millis() as u64,
+                            "readinessTransport": "stock framed management forwarder",
+                            "rssObservationTransport": "stock framed management forwarder",
                             "samples": samples, "complete": samples.len() == 15});
         fs::write(work.join("samples.json"), serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     }

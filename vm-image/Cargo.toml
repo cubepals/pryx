@@ -12,7 +12,7 @@ description = "The separately bundled pryx VM image preparation helper"
 [workspace]
 
 [features]
-lab-guest-baseline = []
+lab-guest-baseline = ["pryxd/lab-framed-health"]
 
 [dependencies]
 pryxd = { path = "..", default-features = false }

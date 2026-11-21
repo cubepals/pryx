@@ -33,6 +33,9 @@ mod diagnostics;
 mod fork;
 mod guest;
 mod journal;
+#[cfg(feature = "lab-framed-health")]
+#[path = "../../../experimental/guest/framed_health.rs"]
+pub mod lab_framed_health;
 #[cfg(all(test, feature = "lab-memory-replay"))]
 #[path = "../../../experimental/guest/snapshot_replay.rs"]
 mod lab_memory_replay;

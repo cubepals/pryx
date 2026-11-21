@@ -5,10 +5,12 @@ from baseline_summary import summarize
 
 
 def fixture():
-    return {'complete': True, 'samples': [
+    return {'complete': True, 'readinessTransport': 'stock framed management forwarder',
+            'rssObservationTransport': 'stock framed management forwarder', 'samples': [
         {'sample': i + 1, 'acceptance': {'signedCleanShutdown': True, 'authenticatedInitShutdown': True,
                                          'shutdownReplayRefused': True},
-         'observation': {'launchToMonitorPlanSentNs': 1, 'launchToBootstrapDeliveredNs': 20 + i,
+         'observation': {'launchToMonitorPlanSentNs': 1, 'launchToFramedForwarderNs': 3,
+                         'framedForwarderToBootstrapDeliveredNs': 17+i, 'launchToBootstrapDeliveredNs': 20 + i,
                          'launchToAuthenticatedReadyNs': 40 + i, 'bootstrapDeliveredToAuthenticatedReadyNs': 20,
                          'readyToRssExecCompletedNs': 9, 'guestInitRssKiB': 2001, 'guestServingAgentRssKiB': 3002,
                          'invalidBearerHealthRefused': True}} for i in range(15)]}
@@ -20,6 +22,7 @@ class BaselineSummary(unittest.TestCase):
         self.assertIn('42.55%', table)
         self.assertIn('Guest PID 1 RSS | 2001.000', table)
         self.assertIn('Guest serving agent RSS | 3002.000', table)
+        self.assertIn('Combined process RSS | 5003.000', table)
 
     def test_rejects_clock_mismatch_and_unaccepted_shutdown(self):
         report = fixture()

@@ -65,12 +65,17 @@ An ELF run and a VM boot are separate observations.
 After the page benchmarks, set `lab_agent_baseline=true`
 to measure the unchanged agent. This collects fifteen fresh, disconnected,
 one-image boots. Each sample times monitor launch through the existing
-authenticated health check and reads VmRSS in KiB for PID 1 and the serving
-process via authenticated guest exec immediately afterwards. The report retains host-clock times for monitor plan sent, bootstrap delivery,
+authenticated health check. The host launches the production private forwarder,
+waits for bootstrap delivery and invokes the live runtime's readiness loop.
+The route-scoped signed request goes through the reserved stream-port HTTP/2
+CONNECT forwarder to the unchanged guest service. The first authenticated
+diagnostic exec uses that same forwarding address and reads VmRSS in KiB for PID 1 and the serving
+process immediately afterwards. The report retains host-clock times for monitor plan sent, forwarder listening, bootstrap delivery,
 authenticated health and completion of the first RSS exec. The last observation
 bounds the delay between readiness and the guest memory read. An invalid bearer
 must get HTTP 401 on that same health route. The per-process
-values can count shared pages twice. Every sample also completes the existing
+values can count shared pages twice. The combined process RSS row uses the sum
+from each individual boot before computing the median and tail. Every sample also completes the existing
 signed shutdown and replay check. The baseline uses the production 10 ms health retry interval. The `experimental-agent-baseline` artifact contains phase and RSS
 percentiles, raw rows and host and binary identities. Its conditional timing
 bound holds the observed bootstrap-delivery times fixed and sets all later work
@@ -108,6 +113,7 @@ Parts (`guest/`):
 - `kernel_pair.py` prepares the verified, controlled kernel-config pair.
 - `kernel_proof.sh` bounds that optional build and releases the source and object tree.
 - `agent_baseline.rs` collects authenticated service readiness and guest RSS.
+- `framed_health.rs` invokes the production forwarding and readiness APIs for the external acceptance fixture.
 - `baseline_summary.py` verifies accepted samples and computes phase and RSS percentiles.
 - `prove.sh` runs the opt-in experiment with the existing workflow inputs.
 - `snapshot_replay.rs` captures the real RAM after a successful pause and checks the restored service.
