@@ -20,7 +20,7 @@ model = subprocess.run([args.mca,"-mcpu=native","-iterations=100"], input=hot, t
                        capture_output=True, check=True)
 args.out.write_text(model.stdout + model.stderr)
 rows = list(csv.DictReader(args.samples.open()))
-if len(rows) != 15:
+if len(rows) != 15 or {int(row["pair"]) for row in rows} != set(range(15)):
     raise ValueError("expected 15 paired samples")
 nanos = [(int(r["loop_ns"])-int(r["call_ns"]))/int(r["iterations"]) for r in rows]
 print(f"Hot-loop median {statistics.median(nanos):.5f} ns per 16 bytes.")
@@ -28,9 +28,12 @@ pred = re.search(r"Block RThroughput:\s+([\d.]+)",model.stdout)
 if not pred:
     raise RuntimeError("missing scheduling model result")
 estimate=float(pred.group(1))
-if not model.stderr and all(r["pmu_valid"] == "1" for r in rows):
+observed = None
+if all(r["pmu_valid"] == "1" for r in rows):
     cycles = [(int(r["loop_cycles"])-int(r["call_cycles"]))/int(r["iterations"]) for r in rows]
-    observed = statistics.median(cycles)
+    if all(value > 0 for value in cycles):
+        observed = statistics.median(cycles)
+if not model.stderr and observed is not None:
     error = abs(observed-estimate)/observed
     print(f"Median {observed:.4f} cycles per 16 bytes; LLVM {estimate:.4f}; error {error:.1%}.")
     print("Within 20%." if error <= .20 else "Outside 20%.")
@@ -60,6 +63,5 @@ else:
         summary=parsed["Summary"]
         predicted=max(float(summary["LCD"]), *(float(v) for v in summary["PortPressure"].values()))
         print(f"OSACA {models[cpu]} predicts {predicted:.4f} cycles per 16 bytes.")
-        if all(r["pmu_valid"] == "1" for r in rows):
-            native = statistics.median((int(r["loop_cycles"])-int(r["call_cycles"]))/int(r["iterations"]) for r in rows)
-            print(f"OSACA relative error {abs(native-predicted)/native:.1%}.")
+        if observed is not None:
+            print(f"OSACA relative error {abs(observed-predicted)/observed:.1%}.")
