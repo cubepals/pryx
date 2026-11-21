@@ -10,6 +10,11 @@ on:
         description: Run only the opt-in process-policy baseline on both native architectures
         type: boolean
         default: false
+      policy_experiment:
+        description: Select the isolated network policy candidate
+        type: choice
+        default: stock
+        options: [stock, local-tcp-ack-first]
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -51,7 +56,7 @@ jobs:
     # repository: a dispatch on that branch proves its commits. Forks, other branches, any-host's
     # push and dispatches run it as before.
     if: >-
-      !(github.event_name == 'workflow_dispatch' && inputs.policy_cost) &&
+      !(github.event_name == 'workflow_dispatch' && (inputs.policy_cost || inputs.policy_experiment == 'local-tcp-ack-first')) &&
       (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
@@ -136,10 +141,10 @@ jobs:
           if [ -f "$path" ]; then tail -100 "$path"; fi
 
   policy-cost:
-    if: github.event_name == 'workflow_dispatch' && inputs.policy_cost
-    name: Process policy baseline on ${{ matrix.runner }}
+    if: github.event_name == 'workflow_dispatch' && (inputs.policy_cost || inputs.policy_experiment == 'local-tcp-ack-first')
+    name: Process policy experiment on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -150,12 +155,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Build the process policy benchmark
+        if: inputs.policy_cost
         run: |
           rustup toolchain install
           python3 -B experimental/policy/trace_test.py
           cargo test --locked --manifest-path experimental/policy/Cargo.toml --features experimental
           cargo build --locked --release --manifest-path experimental/policy/Cargo.toml --features experimental
       - name: Measure the existing installed seccomp stack
+        if: inputs.policy_cost
         run: |
           mkdir -p "$RUNNER_TEMP/policy"
           git rev-parse HEAD > "$RUNNER_TEMP/policy/commit"
@@ -197,25 +204,70 @@ jobs:
           llvm-objdump-18 --version > "$RUNNER_TEMP/policy/llvm"
           "$bpftool" version > "$RUNNER_TEMP/policy/bpftool"
       - name: Verify and exercise the stock cgroup program object
-        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
+        if: ${{ !cancelled() && inputs.policy_cost && steps.policy_tools.outcome == 'success' }}
         run: |
           sudo python3 -B experimental/policy/network.py "$RUNNER_TEMP/policy/network" --verify --skb \
             --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
       - name: Count original BPF instructions in disposable packet test runs
-        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
+        if: ${{ !cancelled() && inputs.policy_cost && steps.policy_tools.outcome == 'success' }}
         run: |
           sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
             python3 -B experimental/policy/run_coverage.py bpf/network.bpf.o "$RUNNER_TEMP/policy/trace" \
               --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
       - name: Time stock socket hooks on fixed private loopback traffic
-        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' }}
+        if: ${{ !cancelled() && inputs.policy_cost && steps.policy_tools.outcome == 'success' }}
         run: |
           sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
             "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME" python3 -B experimental/policy/socket_hooks.py \
             "$RUNNER_TEMP/policy/socket" --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+      - name: Prepare the candidate build and verify its offline checks
+        id: candidate_setup
+        if: ${{ !cancelled() && steps.policy_tools.outcome == 'success' && inputs.policy_experiment == 'local-tcp-ack-first' }}
+        run: |
+          sudo apt-get install -y clang-18 libbpf-dev
+          git rev-parse HEAD > "$RUNNER_TEMP/policy/commit"
+          uname -a > "$RUNNER_TEMP/policy/kernel"
+          lscpu --json > "$RUNNER_TEMP/policy/cpu.json"
+          lscpu --caches > "$RUNNER_TEMP/policy/caches"
+          cat /proc/meminfo > "$RUNNER_TEMP/policy/meminfo"
+          findmnt --target "$RUNNER_TEMP" > "$RUNNER_TEMP/policy/filesystem"
+          if test -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor; then
+            cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor > "$RUNNER_TEMP/policy/governor"
+          fi
+          dpkg-query -W clang-18 llvm-18 libbpf-dev linux-libc-dev > "$RUNNER_TEMP/policy/build-packages"
+          python3 -B experimental/policy/socket_compare_test.py
+      - name: Compare the named candidate on kernel packet events
+        if: ${{ !cancelled() && steps.candidate_setup.outcome == 'success' }}
+        run: |
+          sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
+            "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME" python3 -B experimental/policy/packet_candidate.py \
+            "$RUNNER_TEMP/policy/candidate-packets" --phase packet --experiment local-tcp-ack-first \
+            --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+      - name: Compare the named candidate on the private real UDP workload
+        if: ${{ !cancelled() && steps.candidate_setup.outcome == 'success' }}
+        run: |
+          sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
+            "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME" python3 -B experimental/policy/packet_candidate.py \
+            "$RUNNER_TEMP/policy/candidate-sockets" --phase socket --experiment local-tcp-ack-first \
+            --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+      - name: Check the seven fixed original socket instruction paths
+        if: ${{ !cancelled() && steps.candidate_setup.outcome == 'success' }}
+        run: |
+          python3 -B experimental/policy/test_socket_witness.py --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+          sudo env "GITHUB_ACTIONS=$GITHUB_ACTIONS" "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
+            "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME" python3 -B experimental/policy/socket_witness.py \
+            "$RUNNER_TEMP/policy/socket-paths" --bpftool "$RUNNER_TEMP/policy-tools/bpftool"
+      - name: Run the unchanged stock integration suite with the candidate object
+        if: ${{ !cancelled() && steps.candidate_setup.outcome == 'success' }}
+        run: |
+          rustup toolchain install
+          python3 -B experimental/policy/candidate_tests.py run "$RUNNER_TEMP/policy/candidate-acceptance" \
+            --experiment local-tcp-ack-first
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: policy-baseline-${{ matrix.runner }}
-          path: ${{ runner.temp }}/policy/
+          name: policy-${{ inputs.policy_experiment == 'local-tcp-ack-first' && 'candidate' || 'baseline' }}-${{ matrix.runner }}
+          path: |
+            ${{ runner.temp }}/policy/
+            !${{ runner.temp }}/policy/candidate-acceptance/process-network.log
           if-no-files-found: error

@@ -88,6 +88,14 @@ sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" GITHUB_REPOSITORY="$GITHUB_REPOSITORY"
   "$RUNNER_TEMP/policy/socket" --bpftool "$bpftool"
 ```
 
+### Compare a named egress candidate
+
+A manual `engines.yml` run selects the isolated packet and real-socket experiment with `policy_experiment=local-tcp-ack-first`. The default choice is `stock`. The experiment reproduces the shipped ELF with its own release recipe, then builds the one registered source edit in an empty directory. Its candidate ELF must have SHA-256 `1c7f2419490f4f270046fc056cdca0971834be7b2d5d8a31421fa17165164993`. The eight other program sections and their map relocation targets must match stock exactly.
+
+The packet test exercises both native address families, with explicit local and second-device contexts, positive local TCP ACKs, SYNs, other TCP flags and UDP. The kernel must return the expected interface, verdict, bytes, context and per-CPU counter state. The timing cohort uses the original 16 packets on both hooks in 31 alternating stock/candidate pairs with 1,000 repeats per event. Each worker also compares fourteen real private UDP checkpoints across two families, including peer addresses, delivery, EPERM, per-CPU state and live socket-storage values. The full unchanged process-network integration target uses a disposable checkout with the candidate embedded. Only the CI adapter uses the pinned stock test namespace and test services.
+
+The seven socket paths have a separate positive-UDP-only diagnostic. It appends its own map to a private copy, preserves the original non-diagnostic maps and kernel actions, and measures whether every invocation followed its complete registered path. Unsupported tracing or any mismatch leaves those counts unavailable. This diagnostic runs after the packet timing cohort.
+
 ## Parts (`experimental/policy/`)
 
 - `README.md` describes scope, commands and interpretation.
@@ -104,3 +112,13 @@ sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" GITHUB_REPOSITORY="$GITHUB_REPOSITORY"
 - `trace_test.py` tests relocation and path ordering in isolation.
 - `socket_hooks.py` times stock programs on real private UDP sockets and journals their kernel counters.
 - `socket_uapi.c` obtains the native syscall, command, attachment and structure layout constants for those programs.
+- `candidate_image.py` builds and identifies the precisely scoped compiler inputs and ELF pair.
+- `packet_candidate.py` compares the named packet candidate and measures the registered pairs.
+- `socket_compare.py` checks real socket actions and map effects across the two private images.
+- `socket_compare_test.py` exercises the socket-state comparison and failure cases offline.
+- `socket_state.c` reads socket storage from the original live descriptors in the test workload.
+- `candidate_tests.py` runs the protected revision's unchanged policy integration target.
+- `socket_witness.py` cross-checks the fixed socket path witnesses with a separate stock workload.
+- `socket_witness_object.py` constructs the fixed map-bearing copy for the seven original paths.
+- `socket_witness.bpf.c` declares the dedicated diagnostic map.
+- `test_socket_witness.py` checks original branch edges, relocation targets and return preservation.

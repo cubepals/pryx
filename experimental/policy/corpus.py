@@ -15,11 +15,11 @@ def checksum(data):
     return ~total & 0xffff
 
 
-def packet(ip_version, protocol, payload):
+def packet(ip_version, protocol, payload, tcp_flags=0x10):
     addresses = ("192.0.2.1", "192.0.2.2") if ip_version == 4 else ("2001:db8::1", "2001:db8::2")
     src, dst = [ipaddress.ip_address(address).packed for address in addresses]
     if protocol == socket.IPPROTO_TCP:
-        segment = struct.pack("!HHIIHHHH", 48152, 8080, 1, 1, (5 << 12) | 0x10, 65535, 0, 0)
+        segment = struct.pack("!HHIIHHHH", 48152, 8080, 1, 1, (5 << 12) | tcp_flags, 65535, 0, 0)
         field = 16
     else:
         segment = struct.pack("!HHHH", 48152, 8080, 8 + len(payload), 0)
