@@ -16,6 +16,18 @@ pub enum Store {
     #[cfg(all(not(miri), target_os = "linux", target_arch = "x86_64"))]
     Rep,
 }
+#[cfg(all(not(miri), target_os = "linux", target_endian = "little", target_arch = "aarch64"))]
+fn only_cpu() -> Option<i32> {
+    unsafe {
+        let mut set: libc::cpu_set_t = std::mem::zeroed();
+        if libc::sched_getaffinity(0, std::mem::size_of_val(&set), &mut set) != 0 || libc::CPU_COUNT(&set) != 1 {
+            return None;
+        }
+        let cpu = libc::sched_getcpu();
+        (cpu >= 0 && (cpu as usize) < libc::CPU_SETSIZE as usize && libc::CPU_ISSET(cpu as usize, &set)).then_some(cpu)
+    }
+}
+
 impl Store {
     pub fn for_clear(backend: Backend) -> &'static [Store] {
         #[cfg(all(not(miri), target_os = "linux", target_endian = "little", target_arch = "aarch64"))]
@@ -39,6 +51,19 @@ pub fn copy(backend: Backend, store: Store, dst: &mut [u8], src: &[u8], prefetch
     transfer(backend, store, dst, Some(src), prefetch);
 }
 pub fn clear(backend: Backend, store: Store, dst: &mut [u8]) {
+    #[cfg(all(not(miri), target_os = "linux", target_endian = "little", target_arch = "aarch64"))]
+    if store == Store::Zva64 {
+        // A heterogeneous host can expose different ZVA block sizes. A freely
+        // migrating caller gets the scalar answer. Hot-unplug forces a fresh clear.
+        if let Some(cpu) = only_cpu() {
+            transfer(backend, store, dst, None, 0);
+            if only_cpu() == Some(cpu) {
+                return;
+            }
+        }
+        dst.fill(0);
+        return;
+    }
     transfer(backend, store, dst, None, 0);
 }
 fn transfer(backend: Backend, store: Store, dst: &mut [u8], src: Option<&[u8]>, prefetch: usize) {

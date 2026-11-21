@@ -39,6 +39,14 @@ impl Drop for Guard {
 }
 #[test]
 fn inaccessible_neighbors() {
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        let cpu = libc::sched_getcpu();
+        assert!(cpu >= 0);
+        let mut mask: libc::cpu_set_t = std::mem::zeroed();
+        libc::CPU_SET(cpu as usize, &mut mask);
+        assert_eq!(libc::sched_setaffinity(0, std::mem::size_of_val(&mask), &mask), 0);
+    }
     let mut a = Guard::new();
     let mut b = Guard::new();
     let mut out = Guard::new();

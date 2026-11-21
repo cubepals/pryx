@@ -26,7 +26,9 @@ Reported bandwidth uses logical bytes divided by wall time; the paired control m
 two-read, copy or zero traffic. The 2 MiB cohort requests both disabled and enabled transparent
 huge pages and records the actual mapping's backing. ERMS and FSRM are recorded by lscpu;
 REP is measured directly on the same hardware. Copy prefetch distances are 0, 128, 256 and
-512 bytes. Scheduling, cache bandwidth, and DRAM bandwidth belong to the machine in the artifact.
+512 bytes. Before each copy and clear, workers warm and read a disjoint 256 KiB victim buffer.
+Reading it again after the stores measures cache pollution. Both victim probes are outside
+the operation timer. Scheduling, cache bandwidth, and DRAM bandwidth belong to the machine in the artifact.
 
 The sleep writer starts with 256 MiB of deterministic pages. One in ten 4 KiB pages holds
 pseudorandom data. End each write with data sync and verify every restored byte outside the timer.
@@ -45,6 +47,6 @@ preservation when their input form applies. A file-level result alone cannot gra
 | `machine/src/x86_64.S`, `machine/src/aarch64.S` | Hand-written implementations |
 | `machine/reports/` | Static models, their generator and report index |
 | `tests/differential.rs`, `tests/guard.rs` | Exhaustive values, alignments, tails, generated inputs and protected neighbors |
-| `fuzz/Cargo.toml`, `fuzz/Cargo.lock`, `fuzz/targets/page.rs` | Isolated coverage-guided differential fuzz target |
+| `fuzz/Cargo.toml`, `fuzz/Cargo.lock`, `fuzz/targets/page.rs`, `fuzz/native.sh` | Isolated coverage-guided differential fuzz target |
 | `examples/bandwidth.rs`, `examples/sleep_file.rs`, `examples/host/mod.rs` | Raw samples, verified writer and Linux CPU and mapping metadata |
 | `measure.py` | Native matrix, provenance and nearest-rank percentiles |

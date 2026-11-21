@@ -102,6 +102,12 @@ fn execute(case: Case, page: usize, a: &[u8], b: &mut [u8]) -> u64 {
 fn linear_read(bytes: &[u8]) -> u64 {
     bytes.as_chunks::<8>().0.iter().map(|b| u64::from_ne_bytes(*b)).fold(0, u64::wrapping_add)
 }
+fn probe(victim: &[u8]) -> u128 {
+    let begin = Instant::now();
+    black_box(linear_read(black_box(victim)));
+    begin.elapsed().as_nanos()
+}
+
 fn cases() -> Vec<Case> {
     let mut result = Vec::new();
     for backend in Backend::available() {
@@ -167,12 +173,23 @@ fn main() {
                     host::backing(a.bytes()),
                     host::backing(b.bytes())
                 );
-                done.send(()).unwrap();
+                let victim = vec![1; 256 << 10];
+                done.send(None).unwrap();
                 while let Ok(i) = go.recv() {
+                    let store = matches!(cases[i].op, Op::Copy | Op::Clear);
+                    let warm = if store {
+                        probe(&victim);
+                        probe(&victim)
+                    } else {
+                        0
+                    };
+                    let begin = Instant::now();
                     for _ in 0..passes {
                         black_box(execute(cases[i], page, a.bytes(), b.bytes()));
                     }
-                    done.send(()).unwrap();
+                    let end = Instant::now();
+                    let after = if store { probe(&victim) } else { 0 };
+                    done.send(Some((begin, end, warm, after))).unwrap();
                 }
             });
         }
@@ -180,18 +197,19 @@ fn main() {
             finished.recv().unwrap();
         }
         for &(trial, i) in &schedule {
-            let start = Instant::now();
             for (start, _) in &workers {
                 start.send(i).unwrap();
             }
-            for (_, finished) in &workers {
-                finished.recv().unwrap();
-            }
-            let ns = start.elapsed().as_nanos();
+            let samples: Vec<_> = workers.iter().map(|(_, finished)| finished.recv().unwrap().unwrap()).collect();
+            let begin = samples.iter().map(|s| s.0).min().unwrap();
+            let end = samples.iter().map(|s| s.1).max().unwrap();
+            let ns = (end - begin).as_nanos();
+            let warm = samples.iter().map(|s| s.2).sum::<u128>() / threads as u128;
+            let after = samples.iter().map(|s| s.3).sum::<u128>() / threads as u128;
             let case = cases[i];
             if trial != 0 {
                 println!(
-                    "{trial},{page},{total},{threads},{offset},{passes},{:?},{},{:?},{},{ns}",
+                    "{trial},{page},{total},{threads},{offset},{passes},{:?},{},{:?},{},{ns},{warm},{after}",
                     case.op,
                     case.backend.name(),
                     case.store,

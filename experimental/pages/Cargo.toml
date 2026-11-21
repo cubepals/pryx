@@ -11,9 +11,10 @@ license = "FSL-1.1-ALv2"
 
 [features]
 default = []
-page-kernels = ["dep:pryx-page-asm", "dep:blake3"]
+page-kernels = ["dep:pryx-page-asm", "dep:blake3", "dep:libc"]
 
 [dependencies]
+libc = { version = "=0.2.191", optional = true }
 pryx-page-asm = { path = "machine", optional = true }
 blake3 = { version = "=1.8.7", optional = true }
 

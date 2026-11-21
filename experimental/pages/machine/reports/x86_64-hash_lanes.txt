@@ -1,0 +1,97 @@
+pryx_page_hash_lanes / x86_64
+Input: ../src/x86_64.S (llvm-mc macro expansion)
+
+Path: full 16-byte group
+
+vpxor	(%rdi), %xmm0, %xmm0
+vpmulld	%xmm1, %xmm0, %xmm0
+addq	$16, %rdi
+decq	%rsi
+jne	.Lhash
+
+llvm-mca 19.1.7 -mtriple=x86_64 -mcpu=skylake-avx512 -iterations=100
+Iterations:        100
+Instructions:      500
+Total Cycles:      1109
+Total uOps:        700
+
+Dispatch Width:    6
+uOps Per Cycle:    0.63
+IPC:               0.45
+Block RThroughput: 1.2
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      7     0.50    *                   vpxor	(%rdi), %xmm0, %xmm0
+ 2      10    1.00                        vpmulld	%xmm1, %xmm0, %xmm0
+ 1      1     0.25                        addq	$16, %rdi
+ 1      1     0.25                        decq	%rsi
+ 1      1     0.50                        jne	.Lhash
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
+ -      -     1.40   2.19   0.50   0.50    -     1.30   1.11    -     
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.42   0.20   0.50   0.50    -     0.38    -      -     vpxor	(%rdi), %xmm0, %xmm0
+ -      -     0.20   1.80    -      -      -      -      -      -     vpmulld	%xmm1, %xmm0, %xmm0
+ -      -      -     0.07    -      -      -     0.33   0.60    -     addq	$16, %rdi
+ -      -     0.05   0.12    -      -      -     0.59   0.24    -     decq	%rsi
+ -      -     0.73    -      -      -      -      -     0.27    -     jne	.Lhash
+
+OSACA 0.7.1 --arch SKX --consider-flag-deps
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles                                     
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 | 0.25        | 0.26 | 0.50   0.50 | 0.50   0.50 |      | 0.48 |      |      ||      |  1.0 |   vpxor (%rdi), %xmm0, %xmm0
+   2 | 1.00        | 1.00 |             |             |      |      |      |      || 10.0 | 10.0 |   vpmulld %xmm1, %xmm0, %xmm0
+   3 | 0.00        | 0.00 |             |             |      | 0.50 | 0.50 |      ||      |      |   addq $16, %rdi
+   4 | 0.00        | 0.00 |             |             |      | 0.28 | 0.72 |      ||      |      |   decq %rsi
+   5 |             |      |             |             |      |      |      |      ||      |      | * jne .Lhash
+
+       1.25          1.26   0.50   0.50   0.50   0.50          1.26   1.22           10.0   11.0  
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   1 | 11.0 | vpxor	(%rdi), %xmm0, %xmm0          | [1, 2]
+   3 |  1.0 | addq	$16, %rdi                      | [3]
+   4 |  1.0 | decq	%rsi                           | [4]
+

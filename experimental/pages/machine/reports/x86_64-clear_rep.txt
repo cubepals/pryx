@@ -1,0 +1,90 @@
+pryx_page_clear_rep / x86_64
+Input: ../src/x86_64.S (llvm-mc macro expansion)
+
+Path: count in RCX; internal string loop is microcoded
+
+movq	%rdx, %rcx
+xorl	%eax, %eax
+rep		stosb	%al, %es:(%rdi)
+
+llvm-mca 19.1.7 -mtriple=x86_64 -mcpu=skylake-avx512 -iterations=100
+Iterations:        100
+Instructions:      300
+Total Cycles:      203
+Total uOps:        500
+
+Dispatch Width:    6
+uOps Per Cycle:    2.46
+IPC:               1.48
+Block RThroughput: 1.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      1     0.25                        movq	%rdx, %rcx
+ 1      0     0.17                        xorl	%eax, %eax
+ 3      2     1.00                  U     rep		stosb	%al, %es:(%rdi)
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
+ -      -     0.50   0.50   0.33   0.33   1.00   0.50   0.50   0.34   
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.28   0.22    -      -      -     0.28   0.22    -     movq	%rdx, %rcx
+ -      -      -      -      -      -      -      -      -      -     xorl	%eax, %eax
+ -      -     0.22   0.28   0.33   0.33   1.00   0.22   0.28   0.34   rep		stosb	%al, %es:(%rdi)
+
+OSACA 0.7.1 --arch SKX --consider-flag-deps
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles                                     
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   movq %rdx, %rcx
+   2 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||  1.0 |      |   xorl %eax, %eax
+   3 |             |      |             |             |      |      |      |      ||  0.0 |      | X rep  stosb %al, %es:(%rdi)
+
+------------------ WARNING: The performance data for 1 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+

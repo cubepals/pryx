@@ -17,7 +17,7 @@ from collections import defaultdict
 
 ROOT = Path(__file__).resolve().parent
 BIN = ROOT / "target/release/examples"
-MEMORY = "trial,page,total,threads,offset,passes,op,backend,store,prefetch,ns".split(",")
+MEMORY = "trial,page,total,threads,offset,passes,op,backend,store,prefetch,ns,victim_warm_ns,victim_after_ns".split(",")
 SLEEP = "trial,page,total,op,backend,store,prefetch,ns,blocks".split(",")
 
 
@@ -81,11 +81,14 @@ def table(out):
                     base = "ReadPair"
                 calibration = samples[(base, "library", "Native", "0")]
                 fraction = f"{statistics.median(int(r['ns']) for r in calibration) / p50:.4f}"
-            rows.append([path.stem, *key, int(p50), int(p95), f"{rate:.4f}", fraction])
+            warm = statistics.median(int(r.get("victim_warm_ns", 0)) for r in group)
+            after = statistics.median(int(r.get("victim_after_ns", 0)) for r in group)
+            rows.append([path.stem, *key, int(p50), int(p95), f"{rate:.4f}", fraction,
+                         int(warm) if warm else "", int(after) if after else ""])
     with (out / "summary.tsv").open("w") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(["cohort", "operation", "backend", "store", "prefetch_bytes", "median_ns",
-                         "p95_ns", "logical_GB_s", "fraction_of_bandwidth_control"])
+                         "p95_ns", "logical_GB_s", "fraction_of_bandwidth_control", "victim_warm_ns", "victim_after_ns"])
         writer.writerows(rows)
 
 

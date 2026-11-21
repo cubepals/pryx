@@ -120,6 +120,7 @@ name = "pryx-page-kernels"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "libc",
  "pryx-page-asm",
 ]
 

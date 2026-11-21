@@ -247,3 +247,50 @@ fn main() -> io::Result<()> {
     std::fs::remove_file(dir.join("holes"))?;
     std::fs::remove_dir(dir)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn full_partial_and_trailing_zero_runs_restore() -> io::Result<()> {
+        let dir = std::env::temp_dir().join(format!("pryx-page-writer-{}", std::process::id()));
+        std::fs::create_dir(&dir)?;
+        let result = (|| -> io::Result<()> {
+            let data = [0, 0, 0, 0, 7, 0, 9, 0, 0, 0, 0, 0, 13, 13, 13, 13, 0, 0, 0, 0];
+            for backend in Backend::available() {
+                for method in [
+                    Method::Dense,
+                    Method::Zero,
+                    Method::Runs,
+                    Method::Diff,
+                    Method::Fill,
+                    Method::Hash,
+                    Method::StageCopy,
+                    Method::StageClear,
+                ] {
+                    let path = dir.join("snapshot");
+                    let mut file = new_file(&path)?;
+                    write_pages(method, backend, &mut file, &data, 4, Store::Native, 0)?;
+                    file.set_len(data.len() as u64)?;
+                    verify(&mut file, &data)?;
+                    let dest = dir.join("extents");
+                    let mut copy = new_file(&dest)?;
+                    match extents(&mut file, &mut copy, data.len()) {
+                        Ok(()) => {
+                            copy.set_len(data.len() as u64)?;
+                            verify(&mut copy, &data)?;
+                        }
+                        Err(e) if matches!(e.raw_os_error(), Some(libc::EINVAL) | Some(libc::EOPNOTSUPP)) => {}
+                        Err(e) => return Err(e),
+                    }
+                    drop((file, copy));
+                    std::fs::remove_file(path)?;
+                    std::fs::remove_file(dest)?;
+                }
+            }
+            Ok(())
+        })();
+        std::fs::remove_dir_all(dir)?;
+        result
+    }
+}
