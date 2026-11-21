@@ -12,6 +12,9 @@
 
 int pryx_observe_floor(unsigned int supervisor);
 long fixed_getpid(void);
+int dispatch_install(void);
+long dispatch_getpid(void);
+int dispatch_count(void);
 int notify_install(int channel);
 int notify_observe(pid_t child, int channel);
 int trace_request(void);

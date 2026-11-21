@@ -16,7 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 
-enum mode { RAW, TRACE, NOTIFY };
+enum mode { RAW, TRACE, NOTIFY, DISPATCH };
 
 static uint64_t now(void) {
     struct timespec stamp;
@@ -38,13 +38,22 @@ static int workload(enum mode method, int channel, pid_t parent) {
     if (bind(-1, NULL, 0) >= 0 || errno != EPERM) return 1;
     /* musl raise uses tkill, denied by the real guest policy. Self-directed kill is allowed. */
     if (method == TRACE && kill(self, SIGSTOP)) return 1;
+    if (method == DISPATCH && dispatch_install() < 0) {
+        perror("fixed-site user dispatch unavailable under production policy");
+        return UNAVAILABLE;
+    }
+    long (*call)(void) = method == DISPATCH ? dispatch_getpid : fixed_getpid;
     for (int i = 0; i < WARM_CALLS; ++i)
-        if (fixed_getpid() != self) return 1;
+        if (call() != self) return 1;
     uint64_t begin = now();
     for (int i = 0; i < TIMED_CALLS; ++i)
-        if (fixed_getpid() != self) return 1;
+        if (call() != self) return 1;
     uint64_t elapsed = now() - begin;
     if (dprintf(STDOUT_FILENO, "%" PRIu64 " %d\n", elapsed, TIMED_CALLS) < 0) return 1;
+    if (method == DISPATCH) {
+        if (dispatch_count() != WARM_CALLS + TIMED_CALLS) return 1;
+        if (dprintf(STDOUT_FILENO, "%d %d\n", dispatch_count(), WARM_CALLS) < 0) return 1;
+    }
     return 0;
 }
 
@@ -54,6 +63,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "raw")) method = RAW;
     else if (!strcmp(argv[1], "trace")) method = TRACE;
     else if (!strcmp(argv[1], "notify")) method = NOTIFY;
+    else if (!strcmp(argv[1], "dispatch")) method = DISPATCH;
     else return 2;
     if (getuid() == 0) return 2;
     /* Positive control: a nonexistent sentinel or outer denial cannot count as Landlock proof. */
@@ -85,6 +95,7 @@ int main(int argc, char **argv) {
         if (WEXITSTATUS(status)) return WEXITSTATUS(status);
     }
     close(sockets[0]);
+    if (method == DISPATCH) return 0;
     if (method != RAW && observed != WARM_CALLS + TIMED_CALLS) return 1;
     printf("%d %d\n", observed, method == RAW ? 0 : WARM_CALLS);
     return 0;

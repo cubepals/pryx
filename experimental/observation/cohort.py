@@ -41,8 +41,10 @@ def main():
         (directory / "allowed").mkdir(mode=0o700)
         (directory / "read-control").write_text("ordinary-readable sentinel")
         unavailable = set()
+        methods = ["trace", "notify", "dispatch"]
         for iteration in range(15):
-            for mode in (["trace", "notify"] if iteration % 2 == 0 else ["notify", "trace"]):
+            offset = iteration % len(methods)
+            for mode in methods[offset:] + methods[:offset]:
                 if mode in unavailable:
                     continue
                 pair = {"pair": iteration + 1, "method": mode}
@@ -56,7 +58,7 @@ def main():
                     pair["delta_ns"] = pair[mode]["ns_per_call"] - pair["raw"]["ns_per_call"]
                 result["pairs"].append(pair)
                 args.output.write_text(json.dumps(result, indent=2) + "\n")
-    for mode in ["trace", "notify"]:
+    for mode in methods:
         deltas = [p["delta_ns"] for p in result["pairs"] if p["method"] == mode and "delta_ns" in p]
         if len(deltas) == 15:
             median = statistics.median(deltas)

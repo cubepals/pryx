@@ -3,9 +3,11 @@
 #include <asm/unistd.h>
 #include "mark.h"
 .text
+.global fixture_dispatch_start, fixture_dispatch_end
 .global fixed_getpid
 .type fixed_getpid,%function
 fixed_getpid:
+fixture_dispatch_start:
 #if defined(__x86_64__)
     mov $FIXTURE_MARK, %edi
     mov $__NR_getpid, %eax
@@ -20,5 +22,6 @@ fixed_getpid:
 #else
 #error Unsupported architecture
 #endif
+fixture_dispatch_end:
 .size fixed_getpid, .-fixed_getpid
 .section .note.GNU-stack,"",%progbits
