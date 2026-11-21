@@ -8,6 +8,8 @@ The optional Measure dispatch sets `codegen_lab=true` and runs one architecture 
 
 The static cohort includes A1's x86-64 winning Fill/AVX-512 scanner when available, its library comparator and AArch64's measured StageCopy/NEON with 512-byte prefetch. The transfer comparisons retain A1's library zero predicate for both generated and precompiled copy writers. A bulk dense write, dense staging, sparse fill, diff and zero writers, selected runs writers and the linked zero-scan plans compete on the same resident image. A1's ExtentsSparse requires an existing sparse disk file and belongs to its separate source-file study. The report compares each generated method with the fastest static complete writer on the current machine. It also retains finalized scan/copy encodings and their static byte comparisons. One architecture's result cannot establish graduation on both.
 
+The x86 worker also times fixed short copies from 1 through 512 bytes and at 4 KiB. It compares direct libc memcpy, REP MOVSB when available, and each available vector plan on 64-byte-aligned buffers and distinct offsets (+1 source, +3 destination). Methods rotate in reverse order over 15 rounds after one warmup. Each timed batch performs 65,536 copies, with a repeated L1-sized working set. Output bytes and untouched sentinels are checked after every batch. At lengths smaller than a vector group its Rust tail handles the copy; the CSV records the native prefix length. These same-CPU comparisons describe the observed methods with ERMS/FSRM fixed. They do not estimate the effect of switching a CPU feature on or off.
+
 ## Parts (`codegen/`)
 
 | Paths | Role |
@@ -18,6 +20,7 @@ The static cohort includes A1's x86-64 winning Fill/AVX-512 scanner when availab
 | `machine/src/lib.rs`, `machine/src/bulk.rs`, `machine/src/generator.cpp` | Checked CPU dispatch and fixed generated routines |
 | `machine/src/x86_64.S`, `machine/src/aarch64.S` | Matched precompiled routines |
 | `tests/guards.rs` | Fuzzed two-sided guard-page tests over every available native plan |
+| `examples/short_copy.rs`, `short_copy_summary.py` | Fixed x86 short-copy characterization and paired summary |
 | `comparison/Cargo.toml`, `comparison/Cargo.lock`, `comparison/src/main.rs` | Paired benchmark against each A1 backend |
 | `report.py`, `summary.py`, `compare_images.py` | Disassemble/model static loops, summarize native writer samples and check emitted bytes against static variants |
 | `reports/x86_64-llvm-mca.txt`, `reports/x86_64-osaca.txt`, `reports/aarch64-llvm-mca.txt`, `reports/aarch64-osaca.txt` | Static-loop predictions for Skylake Server and Neoverse N1; OSACA records each missing cost |

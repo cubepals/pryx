@@ -9,7 +9,8 @@ use super::{c_void, pryx_free_scan, pryx_scan_bytes};
 pub struct CopyPlan(Plan);
 
 impl CopyPlan {
-    fn string_features() -> (bool, bool) {
+    /// CPUID fast-string features in (ERMS, FSRM) order.
+    pub fn string_features() -> (bool, bool) {
         #[cfg(all(target_arch = "x86_64", not(miri)))]
         {
             use std::arch::x86_64::{__cpuid, __cpuid_count};
@@ -19,6 +20,10 @@ impl CopyPlan {
             }
         }
         (false, false)
+    }
+
+    pub fn group_bytes(self) -> usize {
+        self.0.width * self.0.unroll
     }
 
     fn rep() -> Self {
@@ -112,7 +117,7 @@ impl CopyKernel {
         let copied = 0;
         #[cfg(not(miri))]
         let copied = {
-            let group = self.plan.0.width * self.plan.0.unroll;
+            let group = self.plan.group_bytes();
             let groups = src.len() / group;
             if groups > 0 {
                 // Slice borrows are disjoint and contain this many whole groups.

@@ -27,3 +27,7 @@ optional = true
 
 [dev-dependencies]
 libc = "=0.2.191"
+
+[[example]]
+name = "short_copy"
+required-features = ["experimental"]
