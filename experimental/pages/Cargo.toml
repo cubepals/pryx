@@ -1,0 +1,29 @@
+[workspace]
+members = ["machine"]
+resolver = "3"
+
+[package]
+name = "pryx-page-kernels"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "FSL-1.1-ALv2"
+
+[features]
+default = []
+page-kernels = ["dep:pryx-page-asm", "dep:blake3"]
+
+[dependencies]
+pryx-page-asm = { path = "machine", optional = true }
+blake3 = { version = "=1.8.7", optional = true }
+
+[dev-dependencies]
+libc = "=0.2.191"
+
+[[example]]
+name = "bandwidth"
+required-features = ["page-kernels"]
+
+[[example]]
+name = "sleep_file"
+required-features = ["page-kernels"]

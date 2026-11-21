@@ -1,0 +1,116 @@
+pryx_page_value_avx2 / x86_64
+Input: ../src/x86_64.S (llvm-mc macro expansion)
+
+Path: whole equal block
+
+cmpq	$32, %rdx
+jb	.Ltail1
+vpcmpeqb	(%rdi,%rax), %ymm0, %ymm1
+vpmovmskb	%ymm1, %ecx
+notl	%ecx
+testl	%ecx, %ecx
+jne	.Lfound1
+addq	$32, %rax
+subq	$32, %rdx
+jmp	.Lblock1
+
+llvm-mca 19.1.7 -mtriple=x86_64 -mcpu=skylake-avx512 -iterations=100
+Iterations:        100
+Instructions:      1000
+Total Cycles:      263
+Total uOps:        1100
+
+Dispatch Width:    6
+uOps Per Cycle:    4.18
+IPC:               3.80
+Block RThroughput: 1.8
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      1     0.25                        cmpq	$32, %rdx
+ 1      1     0.50                        jb	.Ltail1
+ 2      8     0.50    *                   vpcmpeqb	(%rdi,%rax), %ymm0, %ymm1
+ 1      2     1.00                        vpmovmskb	%ymm1, %ecx
+ 1      1     0.25                        notl	%ecx
+ 1      1     0.25                        testl	%ecx, %ecx
+ 1      1     0.50                        jne	.Lfound1
+ 1      1     0.25                        addq	$32, %rax
+ 1      1     0.25                        subq	$32, %rdx
+ 1      1     0.50                        jmp	.Lblock1
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
+ -      -     2.51   2.49   0.50   0.50    -     2.48   2.52    -     
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -     0.52    -      -      -     0.38   0.10    -     cmpq	$32, %rdx
+ -      -     0.64    -      -      -      -      -     0.36    -     jb	.Ltail1
+ -      -     0.10   0.90   0.50   0.50    -      -      -      -     vpcmpeqb	(%rdi,%rax), %ymm0, %ymm1
+ -      -     1.00    -      -      -      -      -      -      -     vpmovmskb	%ymm1, %ecx
+ -      -      -     0.12    -      -      -     0.71   0.17    -     notl	%ecx
+ -      -     0.01   0.01    -      -      -     0.73   0.25    -     testl	%ecx, %ecx
+ -      -      -      -      -      -      -      -     1.00    -     jne	.Lfound1
+ -      -     0.11   0.29    -      -      -     0.52   0.08    -     addq	$32, %rax
+ -      -     0.18   0.65    -      -      -     0.14   0.03    -     subq	$32, %rdx
+ -      -     0.47    -      -      -      -      -     0.53    -     jmp	.Lblock1
+
+OSACA 0.7.1 --arch SKX --consider-flag-deps
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles                                      
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   cmpq $32, %rdx
+   2 | 0.50        |      |             |             |      |      | 0.50 |      ||      |      |   jb .Ltail1
+   3 | 0.50        | 0.50 | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  1.0 |      |   vpcmpeqb (%rdi,%rax), %ymm0, %ymm1
+   4 | 1.00        |      |             |             |      |      |      |      ||  3.0 |      |   vpmovmskb %ymm1, %ecx
+   5 | 0.00        | 0.34 |             |             |      | 0.33 | 0.33 |      ||  1.0 |      |   notl %ecx
+   6 | 0.00        | 0.41 |             |             |      | 0.42 | 0.17 |      ||  1.0 |      |   testl %ecx, %ecx
+   7 |             |      |             |             |      |      |      |      ||  0.0 |      | * jne .Lfound1
+   8 | 0.00        | 0.50 |             |             |      | 0.50 | 0.00 |      ||      |      |   addq $32, %rax
+   9 | 0.00        | 0.25 |             |             |      | 0.75 | 0.00 |      ||      |  1.0 |   subq $32, %rdx
+  10 | 0.00        |      |             |             |      |      | 1.00 |      ||      |      |   jmp .Lblock1
+
+       2.25          2.25   0.50   0.50   0.50   0.50          2.25   2.25           10.0    1.0  
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   8 |  1.0 | addq	$32, %rax                      | [8]
+   9 |  1.0 | subq	$32, %rdx                      | [9]
+

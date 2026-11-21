@@ -1,0 +1,120 @@
+pryx_page_diff_avx512 / x86_64
+Input: ../src/x86_64.S (llvm-mc macro expansion)
+
+Path: whole equal block
+
+cmpq	$64, %rdx
+jb	.Ltail2
+vmovdqu64	(%rsi,%rax), %zmm0
+vpcmpneqb	(%rdi,%rax), %zmm0, %k1
+kmovq	%k1, %rcx
+testq	%rcx, %rcx
+jne	.Lfound2
+addq	$64, %rax
+subq	$64, %rdx
+jmp	.Lblock2
+
+llvm-mca 19.1.7 -mtriple=x86_64 -mcpu=skylake-avx512 -iterations=100
+Iterations:        100
+Instructions:      1000
+Total Cycles:      271
+Total uOps:        1200
+
+Dispatch Width:    6
+uOps Per Cycle:    4.43
+IPC:               3.69
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      1     0.25                        cmpq	$64, %rdx
+ 1      1     0.50                        jb	.Ltail2
+ 2      8     0.50    *                   vmovdqu64	(%rsi,%rax), %zmm0
+ 2      11    1.00    *                   vpcmpneqb	(%rdi,%rax), %zmm0, %k1
+ 1      3     1.00                        kmovq	%k1, %rcx
+ 1      1     0.25                        testq	%rcx, %rcx
+ 1      1     0.50                        jne	.Lfound2
+ 1      1     0.25                        addq	$64, %rax
+ 1      1     0.25                        subq	$64, %rdx
+ 1      1     0.50                        jmp	.Lblock2
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
+ -      -     2.52   2.48   1.00   1.00    -     2.49   2.51    -     
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.02   0.89    -      -      -     0.04   0.05    -     cmpq	$64, %rdx
+ -      -     0.58    -      -      -      -      -     0.42    -     jb	.Ltail2
+ -      -     0.17   0.74   0.69   0.31    -     0.09    -      -     vmovdqu64	(%rsi,%rax), %zmm0
+ -      -      -      -     0.31   0.69    -     1.00    -      -     vpcmpneqb	(%rdi,%rax), %zmm0, %k1
+ -      -     1.00    -      -      -      -      -      -      -     kmovq	%k1, %rcx
+ -      -      -     0.17    -      -      -     0.83    -      -     testq	%rcx, %rcx
+ -      -     0.01    -      -      -      -      -     0.99    -     jne	.Lfound2
+ -      -     0.32   0.35    -      -      -     0.20   0.13    -     addq	$64, %rax
+ -      -     0.04   0.33    -      -      -     0.33   0.30    -     subq	$64, %rdx
+ -      -     0.38    -      -      -      -      -     0.62    -     jmp	.Lblock2
+
+OSACA 0.7.1 --arch SKX --consider-flag-deps
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles                                      
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||  1.0 |      |   cmpq $64, %rdx
+   2 | 0.50        |      |             |             |      |      | 0.50 |      ||  0.0 |      |   jb .Ltail2
+   3 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 (%rsi,%rax), %zmm0
+   4 |             |      |             |             |      |      |      |      ||      |      | X vpcmpneqb (%rdi,%rax), %zmm0, %k1
+   5 | 1.00        |      |             |             |      |      |      |      ||      |      |   kmovq %k1, %rcx
+   6 | 0.00        | 0.50 |             |             |      | 0.50 | 0.00 |      ||      |      |   testq %rcx, %rcx
+   7 |             |      |             |             |      |      |      |      ||      |      | * jne .Lfound2
+   8 | 0.00        | 0.50 |             |             |      | 0.50 | 0.00 |      ||      |      |   addq $64, %rax
+   9 | 0.00        | 0.50 |             |             |      | 0.50 | 0.00 |      ||      |  1.0 |   subq $64, %rdx
+  10 | 0.00        |      |             |             |      |      | 1.00 |      ||      |      |   jmp .Lblock2
+
+------------------ WARNING: The performance data for 2 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   8 |  1.0 | addq	$64, %rax                      | [8]
+   9 |  1.0 | subq	$64, %rdx                      | [9]
+

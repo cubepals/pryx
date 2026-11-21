@@ -9,6 +9,13 @@ on:
   schedule:
     - cron: '41 2 * * *'
   workflow_dispatch:
+    inputs:
+      page_lab:
+        description: "Optional native page experiment"
+        type: choice
+        required: false
+        default: disabled
+        options: [disabled, memory, sleep]
 
 permissions:
   contents: read
@@ -18,6 +25,7 @@ env:
 
 jobs:
   e2e:
+    if: inputs.page_lab != 'memory' && inputs.page_lab != 'sleep'
     name: Measure control end to end
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -233,6 +241,7 @@ jobs:
             ${{ runner.temp }}/process-speed-after.json
 
   one-box:
+    if: inputs.page_lab != 'memory' && inputs.page_lab != 'sleep'
     name: Measure one box
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -331,3 +340,35 @@ jobs:
       - name: Service journals on failure
         if: failure()
         run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+
+  page-lab:
+    if: github.event_name == 'workflow_dispatch' && (inputs.page_lab == 'memory' || inputs.page_lab == 'sleep')
+    name: Page experiment on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      - name: Check every detected page kernel
+        working-directory: experimental/pages
+        run: cargo test --release --locked --features page-kernels --tests
+      - name: Collect native raw paired samples and percentiles
+        working-directory: experimental/pages
+        env:
+          PAGE_LAB: ${{ inputs.page_lab }}
+        run: |
+          cargo build --release --locked --features page-kernels --examples
+          python3 measure.py "$PAGE_LAB" "$RUNNER_TEMP/page-results"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: page-${{ inputs.page_lab }}-${{ matrix.runner }}-${{ github.sha }}
+          path: ${{ runner.temp }}/page-results
+          if-no-files-found: warn
