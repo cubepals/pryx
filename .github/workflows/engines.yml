@@ -6,7 +6,11 @@ on:
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
   push:
-    branches: [any-host, 'k[0-9]*', 'codex/**']
+    branches:
+      - any-host
+      - '[kK][0-9]*'
+      - '[kK][0-9]*/**'
+      - '[cC][oO][dD][eE][xX]/**'
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
   pull_request:
@@ -30,7 +34,13 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   # On a worker branch only its newest commit needs proving: its push cancels an older proof.
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
+  cancel-in-progress: >-
+    ${{ startsWith(github.ref, 'refs/heads/k0') || startsWith(github.ref, 'refs/heads/k1') ||
+    startsWith(github.ref, 'refs/heads/k2') || startsWith(github.ref, 'refs/heads/k3') ||
+    startsWith(github.ref, 'refs/heads/k4') || startsWith(github.ref, 'refs/heads/k5') ||
+    startsWith(github.ref, 'refs/heads/k6') || startsWith(github.ref, 'refs/heads/k7') ||
+    startsWith(github.ref, 'refs/heads/k8') || startsWith(github.ref, 'refs/heads/k9') ||
+    startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read

@@ -8,7 +8,11 @@ on:
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
   push:
-    branches: [any-host, 'k[0-9]*', 'codex/**']
+    branches:
+      - any-host
+      - '[kK][0-9]*'
+      - '[kK][0-9]*/**'
+      - '[cC][oO][dD][eE][xX]/**'
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
   # A pull request that changes VM code runs the KVM acceptance too; any other starts no run.
@@ -32,8 +36,22 @@ on:
 # branch it shares the push group, so the branch's newest push or proof cancels an older proof; each
 # pull request has its own, where a newer commit stops the run it supersedes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && !(startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/')) && 'dispatch-' || '' }}${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' &&
+    !(startsWith(github.ref, 'refs/heads/k0') || startsWith(github.ref, 'refs/heads/k1') ||
+    startsWith(github.ref, 'refs/heads/k2') || startsWith(github.ref, 'refs/heads/k3') ||
+    startsWith(github.ref, 'refs/heads/k4') || startsWith(github.ref, 'refs/heads/k5') ||
+    startsWith(github.ref, 'refs/heads/k6') || startsWith(github.ref, 'refs/heads/k7') ||
+    startsWith(github.ref, 'refs/heads/k8') || startsWith(github.ref, 'refs/heads/k9') ||
+    startsWith(github.ref, 'refs/heads/codex/')) && 'dispatch-' || '' }}${{ github.ref }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' ||
+    startsWith(github.ref, 'refs/heads/k0') || startsWith(github.ref, 'refs/heads/k1') ||
+    startsWith(github.ref, 'refs/heads/k2') || startsWith(github.ref, 'refs/heads/k3') ||
+    startsWith(github.ref, 'refs/heads/k4') || startsWith(github.ref, 'refs/heads/k5') ||
+    startsWith(github.ref, 'refs/heads/k6') || startsWith(github.ref, 'refs/heads/k7') ||
+    startsWith(github.ref, 'refs/heads/k8') || startsWith(github.ref, 'refs/heads/k9') ||
+    startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read
