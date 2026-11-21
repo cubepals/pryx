@@ -6,9 +6,8 @@ in front of a stand-in for websockify on a Unix socket, which records every requ
 reaches it. Display programs, websockify itself and the edge are outside this test; the hosted
 desktop_application acceptance runs them with the same refusals.
 
-The stand-in closes each connection as late as a loaded host can, and the front's writes after
-a complete request wait until the stand-in has answered and closed, so the front must deliver
-every answer whatever the order the two processes run in.
+The stand-in closes connections at different points in a response so the front must deliver
+complete responses and terminate an interrupted response promptly.
 """
 from functools import partial
 from http import HTTPStatus
@@ -28,7 +27,7 @@ FRONT = r"""
 const fs=require('node:fs'), http=require('node:http'), net=require('node:net'), vm=require('node:vm');
 const {join}=require('node:path'), {constants}=require('node:http2');
 const {createHmac,randomBytes,timingSafeEqual}=require('node:crypto');
-const [adapter,scratch,web,listen]=process.argv.slice(1);
+const [adapter,scratch,web,listen,scenario]=process.argv.slice(1);
 const source=fs.readFileSync(adapter,'utf8');
 function part(from,to) {
   const start=source.indexOf(from), end=source.indexOf(to,start);
@@ -61,12 +60,13 @@ function grant(token,seconds) {
   fs.writeFileSync(join(scratch,'desktop-access.json'),
     JSON.stringify({token,expiresAt:Math.floor(Date.now()/1000)+seconds}));
 }
-function get(path,headers={},method='GET',body) {
+function get(path,headers={},{method='GET',body,signal}={}) {
   return new Promise((resolve,reject)=>{
-    const request=http.request({socketPath:listen,path,method,headers,agent:false},response=>{
+    const request=http.request({socketPath:listen,path,method,headers,agent:false,signal},response=>{
       let text='';
       response.setEncoding('utf8').on('data',chunk=>{text+=chunk}).on('end',()=>resolve({
         status:response.statusCode,body:text,cookie:response.headers['set-cookie']?.[0]??null}));
+      response.on('error',reject);
     });
     request.on('error',reject);
     request.end(body);
@@ -85,13 +85,11 @@ function raw(path,upgrade) {
       'Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n');
   });
 }
-(async()=>{
-  vm.runInNewContext(code,context);
-  await new Promise(resolve=>context.server.once('listening',resolve));
+async function verifyAccess() {
   const token='current-access-token', seen={};
   seen.neverOpened=await get('/vnc.html');
-  seen.command=await get(context.protocol.commandPath,{[context.protocol.privateHeader]:'private'},'POST',
-    JSON.stringify({name:'xdotool',args:['getmouselocation']}));
+  seen.command=await get(context.protocol.commandPath,{[context.protocol.privateHeader]:'private'},
+    {method:'POST',body:JSON.stringify({name:'xdotool',args:['getmouselocation']})});
   grant(token,60);
   seen.unauthenticatedPage=await get('/vnc.html');
   seen.unauthenticatedListing=await get('/');
@@ -112,6 +110,25 @@ function raw(path,upgrade) {
   seen.replacedCookie=await get('/app/ui.js',{cookie});
   seen.replacedToken=await get('/vnc.html?token='+token);
   seen.token=token;
+  return seen;
+}
+async function verifyInterruption() {
+  const token='current-access-token';
+  grant(token,60);
+  const signal=AbortSignal.timeout(3000);
+  let interruption;
+  try {
+    const response=await get('/interrupted.html?token='+token,{}, {signal});
+    interruption=response.status;
+  } catch {
+    interruption=signal.aborted?'deadline':'closed';
+  }
+  return {interruption,validPage:await get('/vnc.html?token='+token),token};
+}
+(async()=>{
+  vm.runInNewContext(code,context);
+  await new Promise(resolve=>context.server.once('listening',resolve));
+  const seen=await (scenario==='interrupted' ? verifyInterruption() : verifyAccess());
   context.server.close();
   console.log(JSON.stringify(seen));
 })().catch(error=>{console.error(error);process.exit(1)});
@@ -138,6 +155,15 @@ class Websockify(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self.server.seen.append([self.path, self.headers.get('upgrade')])
+        if self.path.split('?', 1)[0] == '/interrupted.html':
+            body = b'<title>noVNC</title>'
+            self.send_response(HTTPStatus.OK)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body[:-1])
+            self.connection.shutdown(socket.SHUT_WR)
+            self.close_connection = True
+            return
         if self.headers.get('upgrade', '').lower() == 'websocket':
             self.send_response(HTTPStatus.SWITCHING_PROTOCOLS)
             self.send_header('Upgrade', 'websocket')
@@ -156,7 +182,7 @@ class Websockify(SimpleHTTPRequestHandler):
 
 
 class DesktopFront(unittest.TestCase):
-    def test_only_the_current_unexpired_token_reaches_websockify(self):
+    def exercise_front(self, scenario):
         adapter = Path(__file__).parent / 'desktop/start.mjs'
         with tempfile.TemporaryDirectory(prefix='pryx-desktop-front-') as directory:
             root = Path(directory)
@@ -171,13 +197,16 @@ class DesktopFront(unittest.TestCase):
             threading.Thread(target=upstream.serve_forever, daemon=True).start()
             try:
                 result = subprocess.run(['node', '-e', FRONT, str(adapter), str(root / 'scratch'),
-                                         str(root / 'web.sock'), str(root / 'front.sock')],
+                                         str(root / 'web.sock'), str(root / 'front.sock'), scenario],
                                         capture_output=True, text=True, timeout=60)
             finally:
                 upstream.shutdown()
                 upstream.server_close()
             self.assertEqual(result.returncode, 0, result.stderr)
-            seen = json.loads(result.stdout)
+            return json.loads(result.stdout), upstream.seen
+
+    def test_only_the_current_unexpired_token_reaches_websockify(self):
+        seen, requests = self.exercise_front('access')
         token = seen['token']
         for name in ['neverOpened', 'unauthenticatedPage', 'unauthenticatedListing', 'wrongToken',
                      'cookieAsToken', 'expiredPage', 'expiredCookie', 'replacedCookie', 'replacedToken']:
@@ -199,12 +228,24 @@ class DesktopFront(unittest.TestCase):
         self.assertFalse(seen['validPlainUpgrade']['greeting'])
         self.assertEqual(seen['validUpgrade']['head'], head(HTTPStatus.SWITCHING_PROTOCOLS))
         self.assertTrue(seen['validUpgrade']['greeting'])
-        self.assertEqual(upstream.seen, [
+        self.assertEqual(requests, [
             ['/vnc.html?token=' + token, None],
             ['/app/ui.js', None],
             ['/websockify?token=' + token, None],
             ['/websockify?token=' + token, 'websocket'],
         ], 'Only the current, unexpired token reaches websockify, and a plain request stays plain')
+
+    def test_interrupted_response_ends_before_client_deadline(self):
+        seen, requests = self.exercise_front('interrupted')
+        token = seen['token']
+        self.assertEqual(requests, [
+            ['/interrupted.html?token=' + token, None],
+            ['/vnc.html?token=' + token, None],
+        ])
+        self.assertEqual((seen['validPage']['status'], seen['validPage']['body']),
+                         (HTTPStatus.OK, '<title>noVNC</title>'))
+        self.assertIn(seen['interruption'], ('closed', HTTPStatus.BAD_GATEWAY),
+                      'The front must end the interrupted response before the client deadline')
 
 
 if __name__ == '__main__':
