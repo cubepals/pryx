@@ -396,6 +396,22 @@ jobs:
           cc -Wall -Wextra -Werror -O2 cpu_features.c -o "$out/cpu-features"
           "$out/cpu-features" > "$out/features-native.txt"
           valgrind --quiet "$out/cpu-features" > "$out/features-memcheck.txt"
+          page_out="$out/page-models"
+          mkdir "$page_out"
+          cargo fetch --locked --manifest-path "$pages/Cargo.toml"
+          sh a1-vector.sh "$pages" "$page_out"
+          arch=$(uname -m)
+          flags=("-triple=$arch")
+          if [ "$arch" = x86_64 ]; then flags+=(-x86-asm-syntax=intel); fi
+          llvm-mc-19 "${flags[@]}" -filetype=obj "$pages/machine/src/$arch.S" -o "$page_out/pages.o"
+          cc -Wall -Wextra -Werror -O2 page_loops.c "$page_out/pages.o" "$page_out/vector.a" -o "$page_out/native"
+          cc -v 2> "$page_out/compiler.txt"
+          sha256sum "$page_out/native" "$page_out/pages.o" "$page_out/vector.a" > "$page_out/digests.txt"
+          "$page_out/native" --check > "$page_out/correctness.txt"
+          {
+            sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" "$page_out/native"
+          } > "$page_out/page-samples.csv" 2> "$page_out/pmu.txt"
+          LLVM_MC=llvm-mc-19 python page_models.py "$pages" "$page_out" | tee "$page_out/table.md" >> "$GITHUB_STEP_SUMMARY"
           python memcheck.py "$pages/Cargo.toml" page-kernels 2>&1 | tee "$out/pages-memcheck.txt"
           sh ./codegen.sh "$pages/Cargo.toml" page-kernels "$out/pages-codegen"
           python memcheck.py "$proof/Cargo.toml" experimental 2>&1 | tee "$out/memcheck.txt"
