@@ -1740,3 +1740,16 @@
 - Compare the egress policy's existing local TCP acknowledgement check ahead of its full-socket helper. The original trace recorded the helper in all eight egress ACK fixtures. The other eight program sections and their map relocations reproduce byte for byte. Keep the stock selector until the registered equivalence and native cost checks finish. [Candidate](https://github.com/cubepals/pryx/commit/6f7348766abfdbf83379308845a93e7aba1f5715)
 
 - Use the production Rust agent as the guest startup and RSS reference. Fifteen native x86-64 boots reached authenticated readiness at 684.25 ms median. In the separate 90-boot PID 1 trial, `quiet loglevel=1` reduced stock guest-clock entry from 216.17 to 93.92 ms. The hand-written init and C init each changed shipped-command-line entry time by less than 1%. Keep the command-line and service changes experimental pending the remaining native evidence and owner review. [Native guest measurements](https://github.com/cubepals/pryx/actions/runs/44942180667)
+
+- Compare repeated fork-page lookups with the scalar fingerprint as well as BLAKE3. On the real 256 MiB x86-64 guest fork, all four measurements agreed on page membership. The scalar fingerprint completed indexing and verified lookup in 124.37 ms median, AVX2 assembly in 136.11 ms and BLAKE3 in 195.74 ms. The separate complete sleep replay favored library fill by 0.27 ms at median. [Snapshot and fork trial](https://github.com/cubepals/pryx/actions/runs/44942180667)
+
+### Experimental review and graduation
+
+The [lab integration branch](https://github.com/cubepals/pryx/tree/k60-experimental) collects opt-in experiments for the owner's review. A worker branch starts at integration, records its hypothesis before timing, and retains both the baseline and the experimental implementation. An experiment enters integration only after independent review and native proofs.
+
+1. Inspect the worker commit, its actual baseline and its feature-off behavior. The default installer must make zero requests for lab artifacts. Only the stock command-line and installer hand-off may change the shipped bytes.
+2. Read the raw measurements from the same commit on both native architectures. Check the scalar reference, guarded differential tests and the relevant end-to-end workload. A simulator or throughput model cannot establish a native performance gain.
+3. For the scaffold, run the existing Any host workflow on the worker ref with its lab input. For a kernel, use its registered manual proof. Each proof waits for the preceding one and yields runner priority to ordinary builder work.
+4. The owner reviews before merge. Graduation also requires an end-to-end gain on the benchmark harness on both architectures, a scalar fallback and the owner's explicit decision.
+
+An experiment can finish with a negative result. Its code stays isolated and the default behavior follows the established release.
