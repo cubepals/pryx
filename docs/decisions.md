@@ -1722,3 +1722,9 @@
 - Refresh the port assignments with the verified caller's capability when browser or desktop access opens a port. During the route-token cold window use the same refresh for accepted MCP calls, so existing agents can expose or withdraw a port before the next route list.
 - Verify recovery from a failed VM snapshot with sequential authenticated health probes on the private vsock service port under one deadline. This leaves the TCP forwarder's reserved slots available when the guest thaws.
 - Give fixture uploads, guest handoff and systemd prerequisites separate deadlines in booted acceptance. Install login packages before activating logind and mark each phase so a stall identifies the failed prerequisite within the existing job deadline. [Ubuntu acceptance](https://github.com/cubepals/pryx/actions/runs/44700092017/job/136194795477)
+
+## Experimental lab
+
+- The stock installer and CLI accept a thin hand-off for `--experimental` or `PRYX_EXPERIMENTAL=1`. These are the two permitted changes to default release bytes. A default install fetches zero lab assets. Every experiment ships in a separately signed artifact and activates only when named. Prove the hand-off in the existing native one-command install runs. [Scaffold](https://github.com/cubepals/pryx/tree/ca07fcdd62c83b019dacb229393cb5eee5dd36b1/experimental)
+- Keep the maintained sparse writer as the comparison for future sleep work. Across 1,155 verified writes, the x86-64 gain was 2.43%, below the registered 10% two-architecture threshold. [Native writer comparison](https://github.com/cubepals/pryx/actions/runs/44926929108)
+- Retain the current process-tier seccomp filter. The candidate matched all ten filters on the differential corpus and improved median allowed/denied syscall time by 3.82% on x86-64 and 5.80% on Arm64. Both fell below the registered threshold. [Native decision-tree comparison](https://github.com/cubepals/pryx/actions/runs/44928552580)
