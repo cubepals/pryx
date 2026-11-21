@@ -52,7 +52,11 @@ def parse_samples(lines, stamps):
     rows = []
     for index, counts in enumerate(totals):
         wall = stamps[index + 1] - stamps[index]
-        rows.append({"phase": LABELS[index + 1], "wall_ns": wall,
+        unknown = sum(weight for name, weight in counts.items() if "[unknown]" in name
+                      or re.fullmatch(r"(?:0x)?[a-fA-F0-9]+", name))
+        attributable = sum(counts.values()) - unknown
+        rows.append({"rankable": bool(counts) and attributable >= 0.9 * sum(counts.values()),
+                     "unresolved_sample_ns": unknown, "phase": LABELS[index + 1], "wall_ns": wall,
                      "sampled_user_ns": sum(counts.values()),
                      "symbols": [{"name": name, "sampled_ns": weight,
                                   "fraction_of_wall": weight / wall}

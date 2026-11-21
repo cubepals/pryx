@@ -5,6 +5,8 @@ set -euo pipefail
 out="$RUNNER_TEMP/storage-profile"
 cargo test --release --locked --test storage_bench --no-run --message-format=json > "$RUNNER_TEMP/storage-build.jsonl"
 binary=$(jq -sr '[.[] | select(.reason == "compiler-artifact" and .target.name == "storage_bench" and .executable != null) | .executable] | unique | if length==1 then .[0] else error("missing storage benchmark") end' "$RUNNER_TEMP/storage-build.jsonl")
+readelf --sections --wide "$binary" > "$RUNNER_TEMP/storage-sections.txt"
+grep -q "\.symtab " "$RUNNER_TEMP/storage-sections.txt"
 perf=$(command -v perf)
 if ! "$perf" version; then
   for candidate in /usr/lib/linux-tools/*/perf /usr/lib/linux-tools-*/perf; do
