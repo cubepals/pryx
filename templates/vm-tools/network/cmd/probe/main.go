@@ -6,7 +6,8 @@
 // Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque
 // acceptance bytes; policy.go checks inherited packet-transport denials as a workload;
 // production.go attacks the immutable production guest policy;
-// retained_dns.go keeps one DNS socket through a sleep and the restores of its forks.
+// retained_dns.go keeps one DNS socket through a sleep and the restores of its forks;
+// comparison_dns.go bounds the positive lookup in each network timing sample.
 package main
 
 import (
@@ -185,10 +186,11 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	dnsStarted := time.Now()
-	addresses, err := net.DefaultResolver.LookupHost(ctx, "example.com")
-	if err != nil || len(addresses) == 0 {
-		return nil, fmt.Errorf("Real outbound DNS failed: %v", err)
+	addresses, attempts, err := lookupComparisonHost(ctx, requestTimeout, net.DefaultResolver.LookupHost)
+	if err != nil {
+		return nil, fmt.Errorf("Real outbound DNS failed: %w", err)
 	}
+	report["dnsAttempts"] = attempts
 	report["dnsMs"], report["dnsAddresses"] = float64(time.Since(dnsStarted).Nanoseconds())/1e6, addresses
 	return report, nil
 }

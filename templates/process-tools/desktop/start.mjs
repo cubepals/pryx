@@ -142,10 +142,15 @@ const server = http.createServer(async (request, response) => {
   const { upgrade: _plain, ...headers } = request.headers
   // Each request has its own connection: websockify may close a kept one as the next is written.
   const upstream = http.request({ socketPath: web, path: request.url, method: request.method, headers, agent: false }, result => {
+    // A short body fails on the response stream after headers have already been forwarded.
+    result.once('error', () => response.destroy())
     response.writeHead(result.statusCode, result.headers)
     result.pipe(response)
   })
   upstream.on('error', () => response.destroy())
+  response.once('close', () => {
+    if (!response.writableFinished) upstream.destroy()
+  })
   request.pipe(upstream)
 })
 server.on('upgrade', (request, socket, head) => {
