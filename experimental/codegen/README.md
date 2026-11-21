@@ -10,17 +10,19 @@ The static cohort includes A1's x86-64 winning Fill/AVX-512 scanner when availab
 
 The x86 worker also times fixed short copies from 1 through 512 bytes and at 4 KiB. It compares direct libc memcpy, REP MOVSB when available, and each available vector plan on 64-byte-aligned buffers and distinct offsets (+1 source, +3 destination). Methods rotate in reverse order over 15 rounds after one warmup. Each timed batch performs 65,536 copies, with a repeated L1-sized working set. Output bytes and untouched sentinels are checked after every batch. At lengths smaller than a vector group its Rust tail handles the copy; the CSV records the native prefix length. These same-CPU comparisons describe the observed methods with ERMS/FSRM fixed. They do not estimate the effect of switching a CPU feature on or off.
 
+The split cohort reuses each generated kernel across repeated writes of the same pinned 256 MiB resident-image fixture. It independently times fresh plan selection and creation of a new handle through sealing in an already warmed process. Process startup and final handle destruction/unmapping fall outside that isolated generation timer. The collector checks the emitted bytes against the cached kernel. Each candidate and the fastest static complete writer get one unreported warmup and 15 matched trials with alternating order. Each writer finishes data sync before the timer stops, then verifies length and readback. The report estimates break-even in whole sleeps only when at least 12 of 15 paired savings are strictly positive. It includes the sample-median interval and a sensitivity range for the generation-to-saving ratio. These supplemental measurements describe repeated use on the measured host; the original inclusive end-to-end writer remains the graduation test.
+
 ## Parts (`codegen/`)
 
 | Paths | Role |
 | --- | --- |
 | `Cargo.toml`, `Cargo.lock`, `.gitignore`, `README.md` | Feature-off workspace, pins, build output exclusions and commands |
-| `src/main.rs`, `src/lib.rs`, `src/sleep.rs` | Self-check, shared writer entry, timed sparse writer |
+| `src/main.rs`, `src/lib.rs`, `src/sleep.rs`, `src/split.rs` | Self-check and complete writers with inclusive and separated startup costs |
 | `machine/Cargo.toml`, `machine/CMakeLists.txt`, `machine/build.rs` | Standalone assembly crate and pinned, native build |
 | `machine/src/lib.rs`, `machine/src/bulk.rs`, `machine/src/generator.cpp` | Checked CPU dispatch and fixed generated routines |
 | `machine/src/x86_64.S`, `machine/src/aarch64.S` | Matched precompiled routines |
 | `tests/guards.rs` | Fuzzed two-sided guard-page tests over every available native plan |
 | `examples/short_copy.rs`, `short_copy_summary.py` | Fixed x86 short-copy characterization and paired summary |
 | `comparison/Cargo.toml`, `comparison/Cargo.lock`, `comparison/src/main.rs` | Paired benchmark against each A1 backend |
-| `report.py`, `summary.py`, `compare_images.py` | Disassemble/model static loops, summarize native writer samples and check emitted bytes against static variants |
+| `report.py`, `summary.py`, `split_summary.py`, `compare_images.py` | Disassemble/model static loops, summarize native writer samples and check emitted bytes against static variants |
 | `reports/x86_64-llvm-mca.txt`, `reports/x86_64-osaca.txt`, `reports/aarch64-llvm-mca.txt`, `reports/aarch64-osaca.txt` | Static-loop predictions for Skylake Server and Neoverse N1; OSACA records each missing cost |

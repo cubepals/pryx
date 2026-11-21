@@ -6,4 +6,8 @@
 #[cfg(feature = "experimental")]
 mod sleep;
 #[cfg(feature = "experimental")]
+mod split;
+#[cfg(feature = "experimental")]
 pub use sleep::{Baseline, PAGE, Result, generated_stage, sample, scan_writer, sparse};
+#[cfg(feature = "experimental")]
+pub use split::sample_split;

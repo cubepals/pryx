@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Run the page-specialization self-check or paired CI-only sparse-file experiment.
-//! Parts (`src/`): `main.rs` command entry point, `sleep.rs` native paired samples.
+//! Parts (`src/`): `main.rs` CLI, `lib.rs` collector exports, `sleep.rs` inclusive writer trials,
+//! and `split.rs` fresh generation costs and cached writer trials.
 
 use pryx_page_generator::{CopyKernel, CopyPlan, Kernel, Plan, copy_scalar, scalar};
 

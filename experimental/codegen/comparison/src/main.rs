@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Compare steady-state resident-image writers against pinned A1 implementations.
 
-use pryx_lab_codegen::{Baseline, PAGE, Result, generated_stage, sample, scan_writer, sparse};
+use pryx_lab_codegen::{Baseline, PAGE, Result, generated_stage, sample, sample_split, scan_writer, sparse};
 use pryx_page_kernels::{Backend, Store, clear, copy, first_diff, runs, same_value, zero};
 use std::{
     fs::File,
@@ -16,7 +16,8 @@ fn baseline(name: String, write: impl Fn(&mut File, &[u8]) -> Result<()> + 'stat
 }
 
 fn main() -> Result<()> {
-    let dir = std::env::args().nth(1).ok_or("expected output directory")?;
+    let mut args = std::env::args().skip(1);
+    let dir = args.next().ok_or("expected output directory")?;
     let mut methods = vec![baseline("a1-Dense-library".into(), |dst, bytes| Ok(dst.write_all(bytes)?))];
     for b in Backend::available() {
         let name = b.name();
@@ -85,5 +86,11 @@ fn main() -> Result<()> {
         generated: true,
         write: Box::new(|dst, bytes| generated_stage(dst, bytes, |page| zero(Backend::LIBRARY, page))),
     });
-    sample(&dir, &methods)
+    match (args.next().as_deref(), args.next(), args.next()) {
+        (None, None, None) => sample(&dir, &methods),
+        (Some("--split"), Some(winner), None) => {
+            sample_split(&dir, &methods, &winner, |page| zero(Backend::LIBRARY, page))
+        }
+        _ => Err("expected DIRECTORY [--split STATIC_WRITER]".into()),
+    }
 }

@@ -51,6 +51,15 @@ pub fn scan_writer(dst: &mut File, image: &[u8], skip: impl Fn(&[u8]) -> bool) -
 
 pub fn generated_stage(dst: &mut File, image: &[u8], skip: impl Fn(&[u8]) -> bool) -> Result<()> {
     let kernel = CopyKernel::generate(PAGE).ok_or("generated copy unavailable")?;
+    cached_stage(&kernel, dst, image, skip)
+}
+
+pub(super) fn cached_stage(
+    kernel: &CopyKernel,
+    dst: &mut File,
+    image: &[u8],
+    skip: impl Fn(&[u8]) -> bool,
+) -> Result<()> {
     let mut staging = vec![0; PAGE];
     Ok(sparse(dst, image, skip, |file, page| {
         kernel.copy(&mut staging, page);
@@ -58,7 +67,7 @@ pub fn generated_stage(dst: &mut File, image: &[u8], skip: impl Fn(&[u8]) -> boo
     })?)
 }
 
-fn verify(file: &mut File, image: &[u8]) -> io::Result<()> {
+pub(super) fn verify(file: &mut File, image: &[u8]) -> io::Result<()> {
     if file.metadata()?.len() != image.len() as u64 {
         return Err(io::Error::other("wrong image length"));
     }
@@ -73,7 +82,7 @@ fn verify(file: &mut File, image: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn first_cpu() -> Result<u32> {
+pub(super) fn first_cpu() -> Result<u32> {
     let status = fs::read_to_string("/proc/self/status")?;
     let allowed = status.lines().find_map(|line| line.strip_prefix("Cpus_allowed_list:")).ok_or("missing CPU list")?;
     let cpu = allowed.trim().split([',', '-']).next().ok_or("empty CPU list")?.parse::<u32>()?;
@@ -84,7 +93,7 @@ fn first_cpu() -> Result<u32> {
     Ok(cpu)
 }
 
-fn fixture() -> Vec<u8> {
+pub(super) fn fixture() -> Vec<u8> {
     let mut bytes = vec![0; 256 * MIB];
     let mut state = 1u32;
     for chunk in bytes.as_chunks_mut::<PAGE>().0.iter_mut().step_by(10) {
@@ -98,14 +107,16 @@ fn fixture() -> Vec<u8> {
     bytes
 }
 
-pub fn sample(dir: &str, baselines: &[Baseline]) -> Result<()> {
+pub(super) fn native_ci() -> Result<()> {
     if std::env::var("GITHUB_REPOSITORY").as_deref() != Ok("cubepals/pryx")
         || std::env::var("GITHUB_ACTIONS").as_deref() != Ok("true")
     {
         return Err("collect timings in the repository native CI".into());
     }
-    let cpu = first_cpu()?;
-    let image = fixture();
+    Ok(())
+}
+
+pub(super) fn builtin_writers() -> Result<Vec<Baseline>> {
     let mut builtins = vec![Baseline {
         name: "scalar-zero".into(),
         generated: false,
@@ -128,6 +139,30 @@ pub fn sample(dir: &str, baselines: &[Baseline]) -> Result<()> {
             scan_writer(dst, bytes, |page| kernel.scan(page))
         }),
     });
+    Ok(builtins)
+}
+
+pub(super) fn write_and_verify(
+    dir: &str,
+    image: &[u8],
+    write: impl FnOnce(&mut File, &[u8]) -> Result<()>,
+) -> Result<(u128, u64)> {
+    let mut file = tempfile::tempfile_in(dir)?;
+    let start = Instant::now();
+    write(&mut file, image)?;
+    file.set_len(image.len() as u64)?;
+    file.sync_data()?;
+    let elapsed = start.elapsed().as_nanos();
+    let allocated = file.metadata()?.blocks() * 512;
+    verify(&mut file, image)?;
+    Ok((elapsed, allocated))
+}
+
+pub fn sample(dir: &str, baselines: &[Baseline]) -> Result<()> {
+    native_ci()?;
+    let cpu = first_cpu()?;
+    let image = fixture();
+    let builtins = builtin_writers()?;
     let mut methods = builtins.iter().chain(baselines).collect::<Vec<_>>();
     println!("pair,order,implementation,generated,cpu,logical_bytes,allocated_bytes,elapsed_ns");
     for round in 0..=15 {
@@ -135,14 +170,7 @@ pub fn sample(dir: &str, baselines: &[Baseline]) -> Result<()> {
             methods.reverse();
         }
         for (order, method) in methods.iter().enumerate() {
-            let mut file = tempfile::tempfile_in(dir)?;
-            let start = Instant::now();
-            (method.write)(&mut file, &image)?;
-            file.set_len(image.len() as u64)?;
-            file.sync_data()?;
-            let elapsed = start.elapsed().as_nanos();
-            let allocated = file.metadata()?.blocks() * 512;
-            verify(&mut file, &image)?;
+            let (elapsed, allocated) = write_and_verify(dir, &image, &method.write)?;
             if round > 0 {
                 println!(
                     "{},{order},{},{},{cpu},{},{allocated},{elapsed}",
