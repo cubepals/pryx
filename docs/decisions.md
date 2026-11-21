@@ -1725,3 +1725,5 @@
 - Report local process limits from the ready daemon's heartbeat guarantees in the owner-only supervisor record. An older record has unknown limits because the invoking shell probes a different cgroup.
 
 - Native SSH lease teardown shuts down its TCP reservation before closing the descriptor. A fork can keep a second reference until exec. Holding a duplicate through lease drop reproduces the immediate rebind failure even on a dedicated loopback address. [Failed rebind](https://github.com/cubepals/pryx/actions/runs/44893864875/job/136815344569)
+
+- CI recognizes worker prefixes case-insensitively in job selection, push filters and cancellation because GitHub Actions compares concurrency groups and expression strings without regard to case. Only branches beginning with `k` and a digit or with `codex/` share worker behavior, including branches with nested names.

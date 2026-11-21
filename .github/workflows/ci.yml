@@ -16,7 +16,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   # A worker branch needs only its newest push or proof: a newer one cancels the run in progress.
   # Elsewhere a run is never cancelled; a newer one waits, and only the newest waiting run is kept.
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
+  cancel-in-progress: >-
+    ${{ startsWith(github.ref, 'refs/heads/k0') || startsWith(github.ref, 'refs/heads/k1') ||
+    startsWith(github.ref, 'refs/heads/k2') || startsWith(github.ref, 'refs/heads/k3') ||
+    startsWith(github.ref, 'refs/heads/k4') || startsWith(github.ref, 'refs/heads/k5') ||
+    startsWith(github.ref, 'refs/heads/k6') || startsWith(github.ref, 'refs/heads/k7') ||
+    startsWith(github.ref, 'refs/heads/k8') || startsWith(github.ref, 'refs/heads/k9') ||
+    startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read
@@ -66,6 +72,7 @@ jobs:
           HEAD: ${{ github.head_ref }}
           SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
+          shopt -s nocasematch
           scope=full
           case "$EVENT:$BRANCH" in push:k[0-9]*|push:codex/*) scope=quick ;; esac
           if [ "$EVENT" = pull_request ] && [ "$SAME_REPOSITORY" = true ]; then
@@ -197,6 +204,8 @@ jobs:
           install -d -m 700 "$RUNNER_TEMP/pryx-actionlint"
           tar -xzf "$archive" -C "$RUNNER_TEMP/pryx-actionlint" actionlint LICENSE.txt
           "$RUNNER_TEMP/pryx-actionlint/actionlint" -color
+      - name: Worker branch scope
+        run: bun test scripts/worker-scope.test.ts
       # Every file says whose it is and under what license, by its own SPDX lines or REUSE.toml.
       - name: Licenses
         run: pipx run reuse==6.2.0 lint
