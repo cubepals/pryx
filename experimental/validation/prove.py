@@ -14,6 +14,8 @@ from pathlib import Path
 import angr
 import claripy
 
+from lifted_memory import check_block
+
 BASE = 0x300000
 STACK = 0x7FEF0000
 STOP = 0x70001110
@@ -78,7 +80,12 @@ def check(project, entry, length, alignment):
         manager.move(from_stash="active", to_stash="returned", filter_func=lambda s: s.addr == STOP)
         if not manager.active:
             break
-        manager.step()
+        if project.arch.name == "AARCH64":
+            for active in manager.active:
+                check_block(project, active.addr)
+            manager.step(opt_level=0)
+        else:
+            manager.step()
     paths = manager.stashes.get("returned", [])
     if manager.errored:
         raise RuntimeError(manager.errored[0].error)
@@ -112,6 +119,8 @@ def main():
     paths = [check(project, symbol.rebased_addr, length, args.alignment) for length in range(65)]
     print(json.dumps({"architecture": project.arch.name, "angr": angr.__version__, "lengths": len(paths),
                       "pointer_mod_16": args.alignment, "return_paths": sum(paths), "stock_vex": args.stock_vex,
+                      "checker_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                      "arm_memory_audit_sha256": hashlib.sha256(Path(__file__).with_name("lifted_memory.py").read_bytes()).hexdigest(),
                       "elf_sha256": hashlib.sha256(args.elf.read_bytes()).hexdigest()}))
 
 

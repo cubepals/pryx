@@ -372,7 +372,7 @@ jobs:
           rustup toolchain install
           sudo apt-get update -qq
           sudo apt-get install -y -qq llvm-19 valgrind libc6-dbg python3-venv
-          python3 -m venv "$RUNNER_TEMP/validation-tools"
+          /usr/bin/python3 -m venv "$RUNNER_TEMP/validation-tools"
           . "$RUNNER_TEMP/validation-tools/bin/activate"
           pip install -r experimental/validation/requirements.txt osaca==0.7.1
           proof="$GITHUB_WORKSPACE/scaffold/experimental/proof"
@@ -380,6 +380,17 @@ jobs:
           cd experimental/validation
           lscpu -J > "$out/cpu.json"
           uname -a > "$out/kernel.txt"
+          findmnt -T "$out" > "$out/filesystem.txt"
+          cat /sys/kernel/mm/transparent_hugepage/enabled > "$out/huge-pages.txt"
+          cpu=$(python -c 'import os; print(min(os.sched_getaffinity(0)))')
+          governor="/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor"
+          if test -r "$governor"; then cat "$governor"; else echo unexposed; fi > "$out/governor.txt"
+          {
+            git rev-parse HEAD
+            git -C "$GITHUB_WORKSPACE/scaffold" rev-parse HEAD
+            git -C "$GITHUB_WORKSPACE/page-kernels" rev-parse HEAD
+            sha256sum prove.py lifted_memory.py check_controls.py
+          } > "$out/source.txt"
           llvm-mca-19 --version > "$out/llvm-version.txt"
           rustc -vV > "$out/rust.txt"
           cc -Wall -Wextra -Werror -O2 cpu_features.c -o "$out/cpu-features"
@@ -393,7 +404,10 @@ jobs:
           src="$proof/machine/src/$(uname -m).S"
           cc -Wall -Wextra -Werror -O2 hot_loop.c "$src" -o "$out/hot"
           sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" "$out/hot" > "$out/samples.csv" 2>"$out/pmu.txt"
+          sha256sum "$out/hot" "$out/scan.elf" > "$out/binary-digests.txt"
           python model.py "$src" "$out/samples.csv" "$out/llvm.txt" | tee "$out/model-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          cc -O2 -ffreestanding -fno-stack-protector -c controls.c -o "$out/negative-controls.o"
+          python check_controls.py "$out/negative-controls.o" | tee "$out/negative-controls.json"
           for offset in 0 1; do
             options=()
             if [ "$(uname -m)" = x86_64 ]; then options+=(--stock-vex); fi
