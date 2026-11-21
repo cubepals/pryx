@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Run the disposable Ubuntu fixture's actual source rewrite on both APT source formats.
- * Archive signatures, suites, components and explicit signing keys must survive unchanged. */
+/** Exercise the Ubuntu fixture's source rewrite and package preparation with disposable APT sources.
+ * The fake package manager records mirror selection without downloading packages. */
 import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -47,4 +47,83 @@ test('Ubuntu fixture preserves signed legacy and Deb822 archive sources', () => 
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+const sessionPackages = ['dbus-user-session', 'libpam-systemd', 'polkitd']
+const basePackages = ['curl', 'ca-certificates', 'python3', 'passwd', 'tar']
+const mirrors = ['https://first.invalid/ubuntu', 'https://second.invalid/ubuntu'] as const
+
+function prepareUbuntu(booted: boolean, sessionMirror: string) {
+  const script = readFileSync(new URL('../../deploy/container-acceptance.sh', import.meta.url), 'utf8')
+  const setupStart = script.indexOf('\nif command -v apt-get >/dev/null; then')
+  if (setupStart < 0) throw new Error('Cannot isolate fixture functions from host setup')
+  const functions = script.slice(0, setupStart)
+  const root = mkdtempSync(join(tmpdir(), 'pryx-ubuntu-install-'))
+  try {
+    mkdirSync(join(root, 'etc/apt'), { recursive: true })
+    const sources = join(root, 'etc/apt/sources.list')
+    writeFileSync(sources, 'deb http://archive.ubuntu.com/ubuntu noble main\n')
+    const requests = join(root, 'requests')
+    writeFileSync(requests, '')
+    writeFileSync(
+      join(root, 'apt-get'),
+      `#!/bin/sh
+set -eu
+mirror=$(awk '$1 == "deb" { print $2 }' "$SOURCES")
+echo "$mirror $*" >> "$REQUESTS"
+for arg do
+  if [ "$arg" = dbus-user-session ] && [ "$mirror" != "$SESSION_MIRROR" ]; then
+    exit 100
+  fi
+done
+`,
+      { mode: 0o755 },
+    )
+    const run = Bun.spawnSync(
+      ['/bin/sh', '-eu', '-c', `${functions}\ninstall_ubuntu_prerequisites "$1"`, 'apt', root],
+      {
+        env: {
+          ...process.env,
+          PATH: `${root}:${process.env.PATH}`,
+          PRYX_PREPARE_ONLY: booted ? '1' : '0',
+          PRYX_TEST_UBUNTU_MIRRORS: mirrors.join(' '),
+          SOURCES: sources,
+          REQUESTS: requests,
+          SESSION_MIRROR: sessionMirror,
+        },
+      },
+    )
+    const calls = readFileSync(requests, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => line.split(' '))
+    const packagesAt = (mirror: string) =>
+      calls.filter((call) => call[0] === mirror && call.includes('install')).flat()
+    return { exitCode: run.exitCode, packagesAt }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('booted Ubuntu tries the next mirror when a session package download fails', () => {
+  const { exitCode, packagesAt } = prepareUbuntu(true, mirrors[1])
+  expect(exitCode).toBe(0)
+  for (const mirror of mirrors) {
+    expect(packagesAt(mirror)).toEqual(expect.arrayContaining([...basePackages, ...sessionPackages]))
+  }
+})
+
+test('booted Ubuntu fails when every mirror lacks a session package', () => {
+  const { exitCode, packagesAt } = prepareUbuntu(true, '')
+  expect(exitCode).not.toBe(0)
+  for (const mirror of mirrors) expect(packagesAt(mirror)).toContain('dbus-user-session')
+})
+
+test('ordinary Ubuntu containers require only their base packages', () => {
+  const { exitCode, packagesAt } = prepareUbuntu(false, '')
+  expect(exitCode).toBe(0)
+  const packages = packagesAt(mirrors[0])
+  expect(packages).toEqual(expect.arrayContaining(basePackages))
+  for (const pkg of sessionPackages) expect(packages).not.toContain(pkg)
+  expect(packagesAt(mirrors[1])).toEqual([])
 })

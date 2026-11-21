@@ -36,6 +36,7 @@ sudo incus config get pryx volatile.base_image | tee -a "$GITHUB_STEP_SUMMARY"
 sudo incus exec pryx -- mkdir /artifacts
 sudo tar -C host-artifacts -cf - . | sudo incus exec pryx -- tar -xf - -C /artifacts
 sudo incus file push deploy/local-acceptance.sh pryx/local-acceptance.sh
+sudo incus file push deploy/process_oom.py pryx/process_oom.py
 sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
@@ -47,10 +48,9 @@ sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | j
     while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
     PRYX_PREPARE_ONLY=1 sh /container-acceptance.sh
     [ "$(id -u pryxtest)" = 1001 ]
-    case "$(. /etc/os-release; echo "$ID")" in
-      debian|ubuntu) apt-get install -y -o Acquire::ForceIPv4=true -o Acquire::Retries=3 dbus-user-session libpam-systemd polkitd ;;
-      fedora) dnf install -y systemd-pam dbus-broker polkit ;;
-    esac
+    if [ "$(. /etc/os-release; echo "$ID")" = fedora ]; then
+      dnf install -y systemd-pam dbus-broker polkit
+    fi
     python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts >/tmp/artifact-server.log 2>&1 &
     curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
     systemd-run --quiet --wait --collect --pipe --unit=pryx-acceptance \
