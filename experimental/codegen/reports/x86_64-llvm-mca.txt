@@ -42,8 +42,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.00   1.00   0.50   0.50    -     1.01   0.99    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   0.50   0.50    -     1.01   0.99    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -97,8 +97,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.29   1.29   1.00   1.00    -     1.30   1.12    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.29   1.29   1.00   1.00    -     1.30   1.12    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -158,8 +158,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.79   1.80   2.00   2.00    -     1.80   1.61    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.79   1.80   2.00   2.00    -     1.80   1.61    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -216,8 +216,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.00   1.00   0.50   0.50    -     1.00   1.00    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   0.50   0.50    -     1.00   1.00    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -268,8 +268,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.29   1.29   1.00   1.00    -     1.30   1.12    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.29   1.29   1.00   1.00    -     1.30   1.12    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -323,8 +323,8 @@ Resources:
 
 
 Resource pressure per iteration:
-[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    
- -      -     1.79   1.80   2.00   2.00    -     1.80   1.61    -     
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.79   1.80   2.00   2.00    -     1.80   1.61    -
 
 Resource pressure by instruction:
 [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
@@ -335,3 +335,164 @@ Resource pressure by instruction:
  -      -     0.25   0.07    -      -      -      -     0.68    -     addq	$128, %rdi
  -      -     0.25   0.25    -      -      -     0.07   0.43    -     decq	%rsi
  -      -     0.50    -      -      -      -      -     0.50    -     jne	.Lloop
+
+pryx_static_64_1 (64 bytes per iteration)
+Iterations:        100
+Instructions:      400
+Total Cycles:      110
+Total uOps:        500
+
+Dispatch Width:    6
+uOps Per Cycle:    4.55
+IPC:               3.64
+Block RThroughput: 0.8
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vpord	(%rdi), %zmm0, %zmm0
+ 1      1     0.25                        addq	$64, %rdi
+ 1      1     0.25                        decq	%rsi
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   0.50   0.50    -     1.00   1.00    -
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.50   0.50    -     1.00    -      -     vpord	(%rdi), %zmm0, %zmm0
+ -      -      -      -      -      -      -      -     1.00    -     addq	$64, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rsi
+ -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
+
+pryx_static_64_2 (128 bytes per iteration)
+Iterations:        100
+Instructions:      500
+Total Cycles:      210
+Total uOps:        700
+
+Dispatch Width:    6
+uOps Per Cycle:    3.33
+IPC:               2.38
+Block RThroughput: 1.2
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vpord	(%rdi), %zmm0, %zmm0
+ 2      8     0.50    *                   vpord	64(%rdi), %zmm0, %zmm0
+ 1      1     0.25                        addq	$128, %rdi
+ 1      1     0.25                        decq	%rsi
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.40   1.04   1.00   1.00    -     1.41   1.15    -
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.57    -      -     1.00    -     0.43    -      -     vpord	(%rdi), %zmm0, %zmm0
+ -      -     0.31    -     1.00    -      -     0.69    -      -     vpord	64(%rdi), %zmm0, %zmm0
+ -      -      -     0.82    -      -      -     0.17   0.01    -     addq	$128, %rdi
+ -      -     0.24   0.22    -      -      -     0.12   0.42    -     decq	%rsi
+ -      -     0.28    -      -      -      -      -     0.72    -     jne	.Lloop
+
+pryx_static_64_4 (256 bytes per iteration)
+Iterations:        100
+Instructions:      700
+Total Cycles:      410
+Total uOps:        1100
+
+Dispatch Width:    6
+uOps Per Cycle:    2.68
+IPC:               1.71
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vpord	(%rdi), %zmm0, %zmm0
+ 2      8     0.50    *                   vpord	64(%rdi), %zmm0, %zmm0
+ 2      8     0.50    *                   vpord	128(%rdi), %zmm0, %zmm0
+ 2      8     0.50    *                   vpord	192(%rdi), %zmm0, %zmm0
+ 1      1     0.25                        addq	$256, %rdi
+ 1      1     0.25                        decq	%rsi
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     2.09   1.36   2.00   2.00    -     2.09   1.46    -
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.04    -      -     1.00    -     0.96    -      -     vpord	(%rdi), %zmm0, %zmm0
+ -      -     0.91    -     1.00    -      -     0.09    -      -     vpord	64(%rdi), %zmm0, %zmm0
+ -      -     0.05    -      -     1.00    -     0.95    -      -     vpord	128(%rdi), %zmm0, %zmm0
+ -      -     0.91    -     1.00    -      -     0.09    -      -     vpord	192(%rdi), %zmm0, %zmm0
+ -      -      -     0.99    -      -      -      -     0.01    -     addq	$256, %rdi
+ -      -     0.09   0.37    -      -      -      -     0.54    -     decq	%rsi
+ -      -     0.09    -      -      -      -      -     0.91    -     jne	.Lloop

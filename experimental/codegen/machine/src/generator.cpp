@@ -35,18 +35,21 @@ static void emit(CodeHolder& code, unsigned width, unsigned count) {
     using namespace x86;
     Assembler a(&code);
     Label loop = a.new_label();
-    if (width == 32) a.vpxor(ymm0, ymm0, ymm0);
+    if (width == 64) a.vpxord(zmm0, zmm0, zmm0);
+    else if (width == 32) a.vpxor(ymm0, ymm0, ymm0);
     else a.pxor(xmm0, xmm0);
     a.bind(loop);
     for (unsigned i = 0; i < count; ++i) {
         auto memory = ptr(rdi, int(i * width));
-        if (width == 32) a.vpor(ymm0, ymm0, memory);
+        if (width == 64) a.vpord(zmm0, zmm0, memory);
+        else if (width == 32) a.vpor(ymm0, ymm0, memory);
         else { a.movdqu(xmm1, memory); a.por(xmm0, xmm1); }
     }
     a.add(rdi, width * count);
     a.dec(rsi);
     a.jnz(loop);
-    if (width == 32) { a.vptest(ymm0, ymm0); a.setz(al); a.vzeroupper(); }
+    if (width == 64) { a.vptestmb(k1, zmm0, zmm0); a.kortestq(k1, k1); a.setz(al); a.vzeroupper(); }
+    else if (width == 32) { a.vptest(ymm0, ymm0); a.setz(al); a.vzeroupper(); }
     else {
         a.pxor(xmm1, xmm1); a.pcmpeqb(xmm0, xmm1); a.pmovmskb(eax, xmm0);
         a.cmp(eax, 65535); a.setz(al);
@@ -76,7 +79,7 @@ extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
 #if defined(__aarch64__)
     if (width != 16) return nullptr;
 #else
-    if (width != 16 && width != 32) return nullptr;
+    if (width != 16 && width != 32 && width != 64) return nullptr;
 #endif
     void* storage = std::malloc(sizeof(Kernel));
     if (!storage) return nullptr;

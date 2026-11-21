@@ -25,18 +25,20 @@ impl Plan {
 
     pub fn static_choices() -> Vec<Self> {
         #[cfg(all(not(miri), target_arch = "x86_64"))]
-        let widths: &[usize] = if std::is_x86_feature_detected!("avx2") {
-            &[16, 32]
-        } else if std::is_x86_feature_detected!("sse2") {
-            &[16]
-        } else {
-            &[]
-        };
+        let widths = [
+            (16, std::is_x86_feature_detected!("sse2")),
+            (32, std::is_x86_feature_detected!("avx2")),
+            (64, std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("avx512bw")),
+        ];
         #[cfg(all(not(miri), target_arch = "aarch64"))]
-        let widths: &[usize] = if std::arch::is_aarch64_feature_detected!("neon") { &[16] } else { &[] };
+        let widths = [(16, std::arch::is_aarch64_feature_detected!("neon"))];
         #[cfg(any(miri, not(any(target_arch = "aarch64", target_arch = "x86_64"))))]
-        let widths: &[usize] = &[];
-        widths.iter().flat_map(|&width| [1, 2, 4].map(|unroll| Self { width, unroll })).collect()
+        let widths: [(usize, bool); 0] = [];
+        widths
+            .into_iter()
+            .filter(|(_, available)| *available)
+            .flat_map(|(width, _)| [1, 2, 4].map(|unroll| Self { width, unroll }))
+            .collect()
     }
 
     pub fn detected() -> Option<Self> {
@@ -76,6 +78,12 @@ unsafe extern "C" {
     fn pryx_static_32_2(data: *const u8, groups: usize) -> u32;
     #[cfg(target_arch = "x86_64")]
     fn pryx_static_32_4(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_64_1(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_64_2(data: *const u8, groups: usize) -> u32;
+    #[cfg(target_arch = "x86_64")]
+    fn pryx_static_64_4(data: *const u8, groups: usize) -> u32;
 }
 
 impl Kernel {
@@ -105,6 +113,12 @@ impl Kernel {
                 (32, 2) => pryx_static_32_2,
                 #[cfg(target_arch = "x86_64")]
                 (32, 4) => pryx_static_32_4,
+                #[cfg(target_arch = "x86_64")]
+                (64, 1) => pryx_static_64_1,
+                #[cfg(target_arch = "x86_64")]
+                (64, 2) => pryx_static_64_2,
+                #[cfg(target_arch = "x86_64")]
+                (64, 4) => pryx_static_64_4,
                 _ => return None,
             };
             Some(Self { plan, entry, owner: std::ptr::null_mut() })

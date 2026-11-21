@@ -13,7 +13,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                     
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -23,7 +23,7 @@ Combined Analysis Report
    5 | 0.17        | 0.16 |             |             |      | 0.17 | 0.50 |      ||      |  1.0 |   decq %rsi
    6 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       0.75          0.74   0.50   0.50   0.50   0.50          0.75   0.75              5    1.0  
+       0.75          0.74   0.50   0.50   0.50   0.50          0.75   0.75              5    1.0
 
 
 
@@ -48,7 +48,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                     
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -60,7 +60,7 @@ Combined Analysis Report
    7 | 0.08        | 0.09 |             |             |      | 0.08 | 0.75 |      ||      |      |   decq %rsi
    8 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       1.00          1.01   1.00   1.00   1.00   1.00          1.00   1.00              6    2.0  
+       1.00          1.01   1.00   1.00   1.00   1.00          1.00   1.00              6    2.0
 
 
 
@@ -85,7 +85,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                      
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -101,7 +101,7 @@ Combined Analysis Report
   11 | 0.00        | 0.00 |             |             |      | 0.00 | 1.00 |      ||      |      |   decq %rsi
   12 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       1.50          1.49   2.00   2.00   2.00   2.00          1.50   1.50              8    4.0  
+       1.50          1.49   2.00   2.00   2.00   2.00          1.50   1.50              8    4.0
 
 
 
@@ -126,7 +126,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                     
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -135,7 +135,7 @@ Combined Analysis Report
    4 | 0.17        | 0.16 |             |             |      | 0.17 | 0.50 |      ||      |  1.0 |   decq %rsi
    5 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       0.75          0.74   0.50   0.50   0.50   0.50          0.75   0.75            5.0    1.0  
+       0.75          0.74   0.50   0.50   0.50   0.50          0.75   0.75            5.0    1.0
 
 
 
@@ -160,7 +160,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                     
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -170,7 +170,7 @@ Combined Analysis Report
    5 | 0.08        | 0.09 |             |             |      | 0.08 | 0.75 |      ||      |      |   decq %rsi
    6 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       1.00          1.01   1.00   1.00   1.00   1.00          1.00   1.00           10.0    2.0  
+       1.00          1.01   1.00   1.00   1.00   1.00          1.00   1.00           10.0    2.0
 
 
 
@@ -195,7 +195,7 @@ Architecture:       SKX
 
 Combined Analysis Report
 ------------------------
-                                     Port pressure in cycles                                     
+                                     Port pressure in cycles
      |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
 --------------------------------------------------------------------------------------------------
    1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
@@ -207,7 +207,7 @@ Combined Analysis Report
    7 | 0.00        | 0.00 |             |             |      | 0.00 | 1.00 |      ||      |      |   decq %rsi
    8 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
 
-       1.50          1.49   2.00   2.00   2.00   2.00          1.50   1.50           12.0    4.0  
+       1.50          1.49   2.00   2.00   2.00   2.00          1.50   1.50           12.0    4.0
 
 
 
@@ -216,5 +216,111 @@ Loop-Carried Dependencies Analysis Report
 -----------------------------------------
    2 |  4.0 | vpor	(%rdi), %ymm0, %ymm0           | [2, 3, 4, 5]
    6 |  1.0 | addq	$0x80, %rdi                    | [6]
+   7 |  1.0 | decq	%rsi                           | [7]
+
+
+pryx_static_64_1 (64 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  5.0 |      |   vpord (%rdi), %zmm0, %zmm0
+   3 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rdi
+   4 | 0.00        | 0.50 |             |             |      | 0.00 | 0.50 |      ||      |  1.0 |   decq %rsi
+   5 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   0.50   0.50   0.50   0.50          0.75   0.75            5.0    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   2 |  1.0 | vpord	(%rdi), %zmm0, %zmm0          | [2]
+   3 |  1.0 | addq	$0x40, %rdi                    | [3]
+   4 |  1.0 | decq	%rsi                           | [4]
+
+
+pryx_static_64_2 (128 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  1.0 |  1.0 |   vpord (%rdi), %zmm0, %zmm0
+   3 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  5.0 |  1.0 |   vpord 0x40(%rdi), %zmm0, %zmm0
+   4 | 0.00        | 0.50 |             |             |      | 0.00 | 0.50 |      ||      |      |   addq $0x80, %rdi
+   5 | 0.00        | 0.50 |             |             |      | 0.00 | 0.50 |      ||      |      |   decq %rsi
+   6 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       1.00          1.00   1.00   1.00   1.00   1.00          1.00   1.00           10.0    2.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   2 |  2.0 | vpord	(%rdi), %zmm0, %zmm0          | [2, 3]
+   4 |  1.0 | addq	$0x80, %rdi                    | [4]
+   5 |  1.0 | decq	%rsi                           | [5]
+
+
+pryx_static_64_4 (256 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  1.0 |  1.0 |   vpord (%rdi), %zmm0, %zmm0
+   3 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  1.0 |  1.0 |   vpord 0x40(%rdi), %zmm0, %zmm0
+   4 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  1.0 |  1.0 |   vpord 0x80(%rdi), %zmm0, %zmm0
+   5 | 0.50        |      | 0.50   0.50 | 0.50   0.50 |      | 0.50 |      |      ||  5.0 |  1.0 |   vpord 0xc0(%rdi), %zmm0, %zmm0
+   6 | 0.00        | 0.50 |             |             |      | 0.00 | 0.50 |      ||      |      |   addq $0x100, %rdi            # imm = 0x100
+   7 | 0.00        | 0.50 |             |             |      | 0.00 | 0.50 |      ||      |      |   decq %rsi
+   8 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       2.00          1.00   2.00   2.00   2.00   2.00          2.00   1.00           12.0    4.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   2 |  4.0 | vpord	(%rdi), %zmm0, %zmm0          | [2, 3, 4, 5]
+   6 |  1.0 | addq	$0x100, %rdi            # imm = 0x100| [6]
    7 |  1.0 | decq	%rsi                           | [7]
 

@@ -13,7 +13,7 @@ Architecture:       N1
 
 Combined Analysis Report
 ------------------------
-                              Port pressure in cycles                              
+                              Port pressure in cycles
      |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
 ------------------------------------------------------------------------------------
    1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:
@@ -52,7 +52,7 @@ Architecture:       N1
 
 Combined Analysis Report
 ------------------------
-                              Port pressure in cycles                              
+                              Port pressure in cycles
      |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
 ------------------------------------------------------------------------------------
    1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:
@@ -93,7 +93,7 @@ Architecture:       N1
 
 Combined Analysis Report
 ------------------------
-                              Port pressure in cycles                               
+                              Port pressure in cycles
      |  0   |  1   |  2   |  3   |  4   - 4DV  |  5   |  6   |  7   ||  CP  | LCD  |
 ------------------------------------------------------------------------------------
    1 |      |      |      |      |             |      |      |      ||      |      |   .Lloop:

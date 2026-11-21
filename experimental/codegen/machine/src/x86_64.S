@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
+# Static page scans for each detected vector width and unroll factor. Rust checks the tail.
 .text
 .macro scan name width count
 .global \name
 .hidden \name
 .type \name,@function
 \name:
-.if \width == 32
+.if \width == 64
+    vpxord %zmm0,%zmm0,%zmm0
+.elseif \width == 32
     vpxor %ymm0,%ymm0,%ymm0
 .else
     pxor %xmm0,%xmm0
@@ -13,7 +16,9 @@
 1:
 .set offset,0
 .rept \count
-.if \width == 32
+.if \width == 64
+    vpord offset(%rdi),%zmm0,%zmm0
+.elseif \width == 32
     vpor offset(%rdi),%ymm0,%ymm0
 .else
     movdqu offset(%rdi),%xmm1
@@ -24,7 +29,12 @@
     add $(\width*\count),%rdi
     dec %rsi
     jne 1b
-.if \width == 32
+.if \width == 64
+    vptestmb %zmm0,%zmm0,%k1
+    kortestq %k1,%k1
+    sete %al
+    vzeroupper
+.elseif \width == 32
     vptest %ymm0,%ymm0
     sete %al
     vzeroupper
@@ -45,4 +55,7 @@ scan pryx_static_16_4,16,4
 scan pryx_static_32_1,32,1
 scan pryx_static_32_2,32,2
 scan pryx_static_32_4,32,4
+scan pryx_static_64_1,64,1
+scan pryx_static_64_2,64,2
+scan pryx_static_64_4,64,4
 .section .note.GNU-stack,"",@progbits

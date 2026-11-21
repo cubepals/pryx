@@ -17,7 +17,7 @@ def report(tools, arch, cpu, model, out):
         obj = Path(scratch) / "scans.o"
         run([tools / "llvm-mc", f"-triple={arch}", "-filetype=obj", source, "-o", obj])
         results = {name: [] for name in ("llvm-mca", "osaca")}
-        for width in ([16, 32] if arch == "x86_64" else [16]):
+        for width in ([16, 32, 64] if arch == "x86_64" else [16]):
             for count in (1, 2, 4):
                 symbol = f"pryx_static_{width}_{count}"
                 text = run([tools / "llvm-objdump", "-d", "--no-show-raw-insn", "--no-leading-addr",
@@ -40,7 +40,8 @@ def report(tools, arch, cpu, model, out):
                 results["osaca"].append(section + re.sub(r"^Timestamp:.*\n", "", prediction, flags=re.M))
         for name, sections in results.items():
             version = run([tools / name, "--version"] if name == "llvm-mca" else ["osaca", "-V"]).splitlines()[0]
-            (out / f"{arch}-{name}.txt").write_text(version + "\n" + "".join(sections))
+            report_text = version + "\n" + "".join(sections)
+            (out / f"{arch}-{name}.txt").write_text("\n".join(line.rstrip() for line in report_text.splitlines()) + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
