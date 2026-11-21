@@ -11,10 +11,10 @@ From this directory, with the E0 crate at `$PROOF` and the repository toolchain 
 ```sh
 python3 -m venv "$CHECK_TOOLS"
 "$CHECK_TOOLS/bin/pip" install -r requirements.txt
-./build.sh "$PROOF" "$(rustc -vV | awk '/^host:/{print $2}')" "$TMPDIR/scan.elf"
+sh ./build.sh "$PROOF" "$(rustc -vV | awk '/^host:/{print $2}')" "$TMPDIR/scan.elf"
 "$CHECK_TOOLS/bin/python" prove.py "$TMPDIR/scan.elf" --alignment 1
 python3 memcheck.py "$PROOF/Cargo.toml" experimental
-./codegen.sh "$PROOF/Cargo.toml" experimental "$TMPDIR/scan-codegen"
+sh ./codegen.sh "$PROOF/Cargo.toml" experimental "$TMPDIR/scan-codegen"
 ```
 
 For an Arm functional cross-check on x86, install the AArch64 musl standard library and run `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64 cargo test --manifest-path "$PROOF/Cargo.toml" --target aarch64-unknown-linux-musl --features experimental --locked`. Valgrind exposes its own CPU model; the native test asserts assembly actually executed when detection reports support. The E0 kernel uses SSE2 or NEON. An AVX-512 executable needs a native check where Memcheck cannot decode those instructions.
