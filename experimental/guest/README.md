@@ -44,7 +44,7 @@ The per-guest kernel clock and the host clock have different origins. The
 small fixture has no authenticated service, so it cannot supply an agent-ready
 time. Host serial delivery includes console transit.
 
-The dispatch also attempts a matched kernel build within fifteen minutes total.
+The dispatch also attempts a matched kernel build within fifteen minutes total. The same build can be retried after a successful A3 candidate and its evidence upload by explicitly adding `lab_kernel_retry=true` to `lab_agent_candidate=true`. Only that combination reserves 75 minutes for the job. Candidate evidence still has its original 55-minute window. The kernel allowance includes package installation, the same stamped guest, extraction and both kernel compilations. Both configurations use the original source and differ only in `PRINTK_TIME`.
 The original runtime artifacts and mandatory boot samples upload first. The
 55-minute input job reserves two minutes for final upload and two minutes for
 paired boots. If there is too little time for the full build budget, its status
@@ -104,6 +104,9 @@ dispatch runs this test after the accepted A3 baseline.
 
 Parts (`guest/`):
 
+- `stage.py` reconstructs the pinned stock source and applies `host-fixture.patch` and, only for the service trial, `guest-fixture.patch` in a private directory.
+- `candidate/` holds the demand-activated guest service trial and its independent correctness proofs.
+
 - `README.md` describes the dispatch inputs and measurement units.
 - `stamp.S` timestamps the first user instructions on each architecture.
 - `init.S` and `init.c` are the freestanding assembly and C guest programs.
@@ -113,6 +116,7 @@ Parts (`guest/`):
 - `cohort.py` reverses the full case order on alternating rounds, writes raw rows and computes p50 and p95.
 - `native.py` checks both native ELF programs and records the host prerequisites.
 - `kvm_api.c` reads the host KVM API revision from the ordinary-user device.
+- `kernel_toolchain.sh` prepares the host ELF and kernel build prerequisites inside the existing build deadline.
 - `kernel_pair.py` prepares the verified, controlled kernel-config pair.
 - `kernel_proof.sh` bounds that optional build and releases the source and object tree.
 - `agent_baseline.rs` collects authenticated service readiness and guest RSS.

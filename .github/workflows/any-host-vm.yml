@@ -12,12 +12,20 @@ on:
         description: Compare experimental PID 1 implementations on KVM
         type: boolean
         default: false
+      lab_kernel_retry:
+        description: Attempt the bounded kernel comparison after the named agent comparison
+        type: boolean
+        default: false
       lab_guest_arm:
         description: Check only native ARM guest executables and KVM access
         type: boolean
         default: false
       lab_memory_replay:
         description: Replay a real slept guest image with the pinned experimental writers
+        type: boolean
+        default: false
+      lab_agent_candidate:
+        description: Compare the staged service activation candidate after its separate stock baseline
         type: boolean
         default: false
       lab_agent_baseline:
@@ -68,7 +76,7 @@ jobs:
     # branch of this repository: a dispatch on that branch proves its commits. Forks, other
     # branches, any-host's push, dispatches and the schedule run it as before.
     if: >-
-      (github.event_name != 'workflow_dispatch' || !inputs.lab_guest_arm || inputs.lab_guest || inputs.lab_agent_baseline || inputs.lab_memory_replay) &&
+      (github.event_name != 'workflow_dispatch' || !inputs.lab_guest_arm || inputs.lab_guest || inputs.lab_agent_baseline || inputs.lab_memory_replay || inputs.lab_agent_candidate) &&
       (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
@@ -79,13 +87,20 @@ jobs:
         startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
         startsWith(github.head_ref, 'codex/')))
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.lab_guest || inputs.lab_agent_baseline) && 55 || 30 }}
+    timeout-minutes: >-
+      ${{ github.event_name == 'workflow_dispatch' && inputs.lab_agent_candidate && inputs.lab_kernel_retry && 75 ||
+      github.event_name == 'workflow_dispatch' && (inputs.lab_guest || inputs.lab_agent_baseline || inputs.lab_agent_candidate) && 55 || 30 }}
     steps:
       - name: Record the optional kernel comparison's job deadline
-        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        if: github.event_name == 'workflow_dispatch' && (inputs.lab_guest || (inputs.lab_agent_candidate && inputs.lab_kernel_retry))
+        env:
+          RETRY: ${{ inputs.lab_agent_candidate && inputs.lab_kernel_retry }}
         run: |
           start=$(cut -d. -f1 /proc/uptime)
-          echo "PRYX_LAB_KERNEL_END=$((start + 53 * 60))" >> "$GITHUB_ENV"
+          minutes=53
+          if [[ $RETRY == true ]]; then minutes=73; fi
+          echo "PRYX_LAB_KERNEL_END=$((start + minutes * 60))" >> "$GITHUB_ENV"
+          echo "PRYX_LAB_AGENT_END=$((start + 53 * 60))" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -356,7 +371,8 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           python3 experimental/guest/facts.py "$RUNNER_TEMP" target/x86_64-unknown-linux-musl/debug/pryx-agent "$RUNNER_TEMP/agent-baseline-host.json"
-          python3 templates/vm-tools/agent_acceptance.py --lab-baseline \
+          python3 experimental/guest/stage.py "$RUNNER_TEMP/lab-agent-observer"
+          python3 "$RUNNER_TEMP/lab-agent-observer/templates/vm-tools/agent_acceptance.py" --lab-baseline \
             --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
             --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
             --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
@@ -371,6 +387,7 @@ jobs:
           if-no-files-found: error
           path: |
             ${{ runner.temp }}/agent-baseline-host.json
+            ${{ runner.temp }}/lab-agent-observer/lab-source.json
             ${{ runner.temp }}/agent-baseline/table.md
             ${{ runner.temp }}/agent-baseline/samples.json
             ${{ runner.temp }}/agent-baseline/sample-*/baseline-0.json
@@ -473,16 +490,62 @@ jobs:
             ${{ runner.temp }}/vm-network-prerequisites/**/*.log
           if-no-files-found: error
 
+      - name: Compare staged candidate PID 1 and first-request activation at authenticated readiness
+        id: lab-agent-trial
+        if: >-
+          !cancelled() && github.event_name == 'workflow_dispatch' && inputs.lab_agent_candidate &&
+          steps.vm-bootstrap.outcome == 'success' && steps.vm-bundle.outcome == 'success'
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          if [[ -n ${PRYX_LAB_AGENT_END:-} ]]; then
+            remaining=$((PRYX_LAB_AGENT_END - $(cut -d. -f1 /proc/uptime)))
+            (( remaining > 0 )) || exit 124
+            timeout --kill-after=5s "${remaining}s" bash experimental/guest/candidate/prove.sh
+          else
+            bash experimental/guest/candidate/prove.sh
+          fi
+      - name: Retain redacted guest candidate results
+        id: lab-agent-evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_agent_candidate
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: experimental-guest-activation
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/lab-agent-candidate/host.json
+            ${{ runner.temp }}/lab-agent-candidate/source.json
+            ${{ runner.temp }}/lab-agent-candidate/config/config-proof.json
+            ${{ runner.temp }}/lab-agent-candidate/boots/candidate-samples.json
+            ${{ runner.temp }}/lab-agent-candidate/boots/00-first-*/first.json
+            ${{ runner.temp }}/lab-agent-candidate/bundle/descriptor.json
+            ${{ runner.temp }}/lab-agent-candidate/lifecycle-passed.txt
+            ${{ runner.temp }}/lab-agent-candidate/comparison.json
+
       - name: Attempt the bounded experimental kernel comparison
-        if: github.event_name == 'workflow_dispatch' && inputs.lab_guest && steps.lab-pid1.outcome == 'success' && steps.lab-boot-evidence.outcome == 'success'
+        id: lab-kernel-pair
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          ((inputs.lab_guest && !inputs.lab_agent_candidate && steps.lab-pid1.outcome == 'success' && steps.lab-boot-evidence.outcome == 'success') ||
+          (inputs.lab_agent_candidate && inputs.lab_kernel_retry && steps.lab-agent-trial.outcome == 'success' && steps.lab-agent-evidence.outcome == 'success'))
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
         run: bash experimental/guest/kernel_proof.sh
       - name: Retain experimental kernel comparison and build status
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.lab_guest
+        if: always() && github.event_name == 'workflow_dispatch' && steps.lab-kernel-pair.outcome != 'skipped'
         uses: ./.github/actions/upload-evidence
         with:
           name: experimental-guest-kernel-pair
+          if-no-files-found: error
           path: |
             ${{ runner.temp }}/lab-kernels/build-status.txt
+            ${{ runner.temp }}/lab-kernels/build-phase.txt
+            ${{ runner.temp }}/lab-kernels/build-packages.txt
             ${{ runner.temp }}/lab-kernels/build.log
             ${{ runner.temp }}/lab-kernels/*.config
             ${{ runner.temp }}/lab-kernel-pair/samples.json
@@ -496,7 +559,9 @@ jobs:
     name: VM memory sleep and forks with memory
     needs: inputs
     # Skipped with the first job (a milestone branch's pull request), whose runtime it needs.
-    if: ${{ !cancelled() && needs.inputs.result != 'skipped' }}
+    if: >-
+      !cancelled() && needs.inputs.result != 'skipped' &&
+      (github.event_name != 'workflow_dispatch' || !inputs.lab_agent_candidate || inputs.lab_memory_replay)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -578,7 +643,10 @@ jobs:
           export PRYX_LAB_FORK_LOOKUP="$RUNNER_TEMP/lab-snapshot-writer/fork-lookup"
           mkdir -m 700 "$PRYX_LAB_REPLAY_REPORT"
           bash experimental/guest/replay/build.sh "$GITHUB_WORKSPACE/lab-pinned-pages" "$RUNNER_TEMP/lab-snapshot-writer"
-          cargo test --locked --features lab-memory-replay --lib runtime::vm::instance::lab_memory_replay::captured_sleep_image -- --ignored --exact
+          python3 experimental/guest/stage.py "$RUNNER_TEMP/lab-memory-observer"
+          cp "$RUNNER_TEMP/lab-memory-observer/lab-source.json" "$PRYX_LAB_REPLAY_REPORT/source.json"
+          cargo test --manifest-path "$RUNNER_TEMP/lab-memory-observer/Cargo.toml" --locked --features lab-memory-replay --lib \
+            runtime::vm::instance::lab_memory_replay::captured_sleep_image -- --ignored --exact
           test -s "$PRYX_LAB_REPLAY_REPORT/capture.json"
           test -s "$PRYX_LAB_REPLAY_REPORT/writer.csv"
           test -s "$PRYX_LAB_REPLAY_REPORT/fork-lookup.csv"
@@ -590,6 +658,7 @@ jobs:
         with:
           name: experimental-real-snapshot-writers
           path: |
+            ${{ runner.temp }}/lab-snapshot-report/source.json
             ${{ runner.temp }}/lab-snapshot-report/capture.json
             ${{ runner.temp }}/lab-snapshot-report/writer.csv
             ${{ runner.temp }}/lab-snapshot-report/fork-lookup.csv

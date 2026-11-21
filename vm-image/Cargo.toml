@@ -11,9 +11,6 @@ description = "The separately bundled pryx VM image preparation helper"
 # client's tracing features into the always-running daemon's dependency graph.
 [workspace]
 
-[features]
-lab-guest-baseline = ["pryxd/lab-framed-health"]
-
 [dependencies]
 pryxd = { path = "..", default-features = false }
 oci-client = { version = "=0.18.0", default-features = false, features = ["rustls-tls-no-provider"] }

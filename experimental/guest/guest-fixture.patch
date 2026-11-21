@@ -1,0 +1,115 @@
+diff --git a/agent/Cargo.toml b/agent/Cargo.toml
+index 74c5c40b6fe469a1b694b24337ae0318a3a14236..e94511e0ddb28d3264ed2e6645243e642612872b 100644
+--- a/agent/Cargo.toml
++++ b/agent/Cargo.toml
+@@ -1,0 +2 @@
++default-run = "pryx-agent"
+@@ -61,0 +63,4 @@ mcp = ["server"]
++lab-guest-split = ["server"]
++lab-vsock-activation = ["server", "rustix/event"]
++lab-guest-supervisor-gate = ["lab-vsock-activation", "lab-guest-split"]
++lab-first-request-proof = ["lab-guest-supervisor-gate"]
+@@ -84,0 +90,11 @@ use_self = "warn"
++
++[[example]]
++name = "lab_guest_supervisor"
++path = "../experimental/guest/candidate/supervisor.rs"
++crate-type = ["staticlib"]
++required-features = ["lab-guest-split"]
++
++[[bin]]
++name = "lab-guest-service"
++path = "../experimental/guest/candidate/service.rs"
++required-features = ["lab-vsock-activation"]
+diff --git a/agent/src/bootstrap.rs b/agent/src/bootstrap.rs
+index 29829367850f3d7943d26ccf3867fa7007f7f21f..edf1ad8d7d2af55e73473afa00406ace08b77a17 100644
+--- a/agent/src/bootstrap.rs
++++ b/agent/src/bootstrap.rs
+@@ -166,0 +167,12 @@ impl Bootstrap {
++    #[cfg(feature = "lab-vsock-activation")]
++    pub(crate) fn lab_management_cid(&self) -> Option<u32> {
++        (self.vm_vsock
++            && !self.vm_files_only
++            && self.port == crate::contract::AGENT_PORT
++            && self.vm_port_base == crate::vm_boot::SERVICE_PORT_BASE
++            && self.host_bindings.is_none())
++        .then_some(self.vm_cid)
++        .flatten()
++        .filter(|cid| crate::vm_boot::guest_cid(*cid))
++    }
++
+diff --git a/agent/src/lib.rs b/agent/src/lib.rs
+index 8d0551dcdb530e52fe9dbc8f71932e941ee468e8..7417a1536e08bab77964404e74fd8f8ff7e7101b 100644
+--- a/agent/src/lib.rs
++++ b/agent/src/lib.rs
+@@ -74,0 +75,3 @@ pub mod guest;
++#[cfg(feature = "lab-vsock-activation")]
++#[path = "../../experimental/guest/candidate/activation.rs"]
++pub mod lab_vsock_activation;
+diff --git a/agent/src/main.rs b/agent/src/main.rs
+index 29f60e8dc8692ae1c46b9a45921f59b77b379905..6a73afc8012e9e2ec11af4d4bf4f15d100bbdc41 100644
+--- a/agent/src/main.rs
++++ b/agent/src/main.rs
+@@ -38,0 +39,2 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
++    #[cfg(feature = "lab-vsock-activation")]
++    pryx_agent::lab_vsock_activation::adopt(&mut arguments)?;
+@@ -210,0 +213,6 @@ async fn shell(command: Option<String>) -> Result<u8, Box<dyn std::error::Error>
++
++#[cfg(feature = "lab-vsock-activation")]
++#[allow(dead_code, reason = "also built as the stock agent with the optional VSOCK receiver")]
++pub(crate) fn run_lab_service() -> Result<(), Box<dyn std::error::Error>> {
++    main()
++}
+diff --git a/agent/src/vm_ingress.rs b/agent/src/vm_ingress.rs
+index 2082452a3fc0e5bbc52a81da444b5ea4445fabb2..109530a9d17dbbe4f0cf1bc7c251dbc8222a672e 100644
+--- a/agent/src/vm_ingress.rs
++++ b/agent/src/vm_ingress.rs
+@@ -7,0 +8,2 @@ pub(crate) mod stream;
++#[cfg(feature = "lab-vsock-activation")]
++use crate::lab_vsock_activation::Listener as VsockListener;
+@@ -10 +12,3 @@ use tokio::{net::TcpStream, task::JoinSet};
+-use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};
++#[cfg(not(feature = "lab-vsock-activation"))]
++use tokio_vsock::VsockListener;
++use tokio_vsock::{VMADDR_CID_HOST, VsockAddr};
+@@ -35,0 +40,2 @@ impl Ingress {
++        #[cfg(feature = "lab-vsock-activation")]
++        crate::lab_vsock_activation::assert_consumed()?;
+diff --git a/agent/src/vm_init.rs b/agent/src/vm_init.rs
+index e0b495b578ebbee672ea36bad1b9c77083afc1af..7e0a2127001c291cc49c1dea68f472ab55ada904 100644
+--- a/agent/src/vm_init.rs
++++ b/agent/src/vm_init.rs
+@@ -308,0 +309,6 @@ pub fn agent(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
++    #[cfg(feature = "lab-guest-supervisor-gate")]
++    if let Some(handoff) = crate::lab_vsock_activation::wait_for_demand(&arguments[2..])? {
++        let mut command = std::process::Command::new(Path::new(vm_boot::BOOTSTRAP_ROOT).join("lab-service"));
++        handoff.pass(&mut command)?;
++        return Err(command.args(&arguments[2..]).exec().into());
++    }
+@@ -462 +468,2 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
+-    let mut child = tokio::process::Command::new(Path::new(vm_boot::BOOTSTRAP_ROOT).join("init"))
++    let launcher = if cfg!(feature = "lab-guest-supervisor-gate") { "lab-init" } else { "init" };
++    let mut child = tokio::process::Command::new(Path::new(vm_boot::BOOTSTRAP_ROOT).join(launcher))
+diff --git a/templates/vm-tools/bootstrap.py b/templates/vm-tools/bootstrap.py
+index 7cb0c096c699174b461a2663e793098c055b61a9..2b24230a2544df24674bfa385912dc2e6f6b684d 100644
+--- a/templates/vm-tools/bootstrap.py
++++ b/templates/vm-tools/bootstrap.py
+@@ -34,0 +35,3 @@ def main():
++    parser.add_argument('--lab-supervisor', type=Path)
++    parser.add_argument('--lab-control', type=Path)
++    parser.add_argument('--lab-receiver', type=Path)
+@@ -37,0 +41,8 @@ def main():
++    lab_programs = [('lab-init', args.lab_supervisor, 'labSupervisorSha256'),
++                    ('lab-control', args.lab_control, 'labControlSha256'),
++                    ('lab-service', args.lab_receiver, 'labReceiverSha256')]
++    if any(program is not None for _, program, _ in lab_programs):
++        if any(program is None for _, program, _ in lab_programs):
++            parser.error('The isolated experimental image requires all three fixed guest roles')
++        for _, program, _ in lab_programs:
++            static(program)
+@@ -62,0 +74 @@ def main():
++        programs.extend((name, program) for name, program, _ in lab_programs if program is not None)
+@@ -88,0 +101,3 @@ def main():
++    for _, program, digest_key in lab_programs:
++        if program is not None:
++            report[digest_key] = hashlib.sha256(program.read_bytes()).hexdigest()

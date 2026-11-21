@@ -380,8 +380,6 @@ impl Drop for Launching<'_> {
     }
 }
 
-pub(super) const HEALTH_RETRY: Duration = Duration::from_millis(10);
-
 pub(super) async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline: Instant) -> Result<(), RuntimeError> {
     // Only authenticated health reads retry. No exec, bootstrap, file write or shutdown does.
     loop {
@@ -397,7 +395,7 @@ pub(super) async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline:
         if Instant::now() >= deadline {
             return Err(RuntimeError::Timeout("VM agent did not become ready".into()));
         }
-        tokio::time::sleep(HEALTH_RETRY).await;
+        tokio::time::sleep(Duration::from_millis(10)).await;
     }
     Ok(())
 }

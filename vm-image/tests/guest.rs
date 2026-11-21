@@ -2,10 +2,6 @@
 //! Boot the actual agent with real OCI layers and KVM, using the maintained monitor SDK.
 //! This input-backed acceptance proves guest init and durable shutdown, not production
 //! monitor confinement, network policy or the still-unadvertised VM runtime.
-#[cfg(feature = "lab-guest-baseline")]
-#[path = "../../experimental/guest/agent_baseline.rs"]
-mod agent_baseline;
-
 use axum::http::{Method, StatusCode};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use pryx_agent::{
@@ -71,26 +67,10 @@ struct Guest {
     channel: PathBuf,
     client: PathBuf,
     token: String,
-    #[cfg(feature = "lab-guest-baseline")]
-    framed: Option<(reqwest::Client, std::net::SocketAddr)>,
 }
 
 impl Guest {
     async fn call(&self, method: Method, path: &str, body: Value, binary: Option<&[u8]>) -> (StatusCode, Vec<u8>) {
-        #[cfg(feature = "lab-guest-baseline")]
-        if let Some((client, address)) = &self.framed {
-            let bytes = binary.map_or_else(|| serde_json::to_vec(&body).unwrap(), |data| data.to_vec());
-            let response = client
-                .request(method, format!("http://{address}{path}"))
-                .bearer_auth(&self.token)
-                .header("content-type", "application/json")
-                .header(IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string())
-                .body(bytes)
-                .send()
-                .await
-                .unwrap();
-            return (response.status(), response.bytes().await.unwrap().to_vec());
-        }
         let mut message = json!({"socket": self.channel, "port": vm_boot::service_port(AGENT_PORT),
             "method": method.as_str(), "path": path, "token": self.token, "body": body});
         message["headers"] = json!({(IDEMPOTENCY_HEADER): [format!("once-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())]});
@@ -338,13 +318,6 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
     proxy.stop().await.unwrap();
 }
 
-#[derive(Clone, Copy)]
-enum BootPurpose {
-    Stock,
-    #[cfg(feature = "lab-guest-baseline")]
-    AgentBaseline,
-}
-
 async fn boot(
     tools: &FilesystemTools,
     image: &PreparedImage,
@@ -352,7 +325,6 @@ async fn boot(
     writes: &Path,
     round: usize,
     networked: bool,
-    purpose: BootPurpose,
 ) -> Value {
     let configurator = input("PRYX_VM_CONFIGURATOR");
     let metadata: Value = serde_json::from_slice(&output(Command::new(&configurator).arg("--metadata")).await).unwrap();
@@ -482,21 +454,6 @@ async fn boot(
         write: vec![writes.into()],
         role: Role::Ordinary,
     };
-    #[cfg(feature = "lab-guest-baseline")]
-    let lab = match purpose {
-        BootPurpose::Stock => None,
-        BootPurpose::AgentBaseline => {
-            let framed_plan =
-                pryxd::runtime::vm::instance::lab_framed_health::Plan::new(sandbox, 1, secret_env, &encoded);
-            let http = reqwest::Client::builder()
-                .no_proxy()
-                .redirect(reqwest::redirect::Policy::none())
-                .timeout(Duration::from_secs(35))
-                .build()
-                .unwrap();
-            Some((framed_plan, http, std::time::Instant::now()))
-        }
-    };
     let mut monitor = pryxd::runtime::vm::machine::Machine::launch(
         &input("PRYX_VM_HOST_LAUNCHER"),
         &plan,
@@ -508,48 +465,8 @@ async fn boot(
     )
     .await
     .unwrap();
-    #[cfg(feature = "lab-guest-baseline")]
-    let launch_return = lab.as_ref().map(|(_, _, launched)| launched.elapsed());
-    let guest = Guest {
-        channel,
-        client: input("PRYX_VM_AGENT_CLIENT"),
-        token: token.clone(),
-        #[cfg(feature = "lab-guest-baseline")]
-        framed: None,
-    };
-    match purpose {
-        BootPurpose::Stock => guest.ready().await,
-        #[cfg(feature = "lab-guest-baseline")]
-        BootPurpose::AgentBaseline => {
-            let (framed_plan, http, launched) = lab.unwrap();
-            let launch_return = launch_return.unwrap();
-            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-            let forward = framed_plan.forward(&guest.client, &guest.channel, deadline).await.unwrap();
-            let forwarded = launched.elapsed();
-            monitor.delivered(deadline).await.unwrap();
-            let delivered = launched.elapsed();
-            forward.ready(&mut monitor, deadline).await.unwrap();
-            let ready = launched.elapsed();
-            // Production ready also returns when a deliberately short-lived workload exits.
-            // Only a live, bootstrapped monitor can contribute this service observation.
-            monitor.bootstrapped(deadline).await.unwrap();
-            let framed_guest = Guest {
-                channel: guest.channel.clone(),
-                client: guest.client.clone(),
-                token: guest.token.clone(),
-                framed: Some((http, forward.address())),
-            };
-            agent_baseline::observe(
-                &framed_guest,
-                launched,
-                [launch_return, forwarded, delivered, ready],
-                directory,
-                round,
-            )
-            .await;
-            forward.stop().await.unwrap();
-        }
-    }
+    let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
+    guest.ready().await;
     let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
     assert_eq!(
         rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
@@ -641,9 +558,9 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
         assert!(tools.run(create, &work, None, 64 * 1024).await.unwrap().status.success());
         let mut rounds = Vec::new();
         for round in 0..2 {
-            rounds.push(boot(&tools, &image, &directory, &writes, round, false, BootPurpose::Stock).await);
+            rounds.push(boot(&tools, &image, &directory, &writes, round, false).await);
         }
-        rounds.push(boot(&tools, &image, &directory, &writes, 2, true, BootPurpose::Stock).await);
+        rounds.push(boot(&tools, &image, &directory, &writes, 2, true).await);
         report.push(json!({"image": input["reference"], "manifestDigest": image.digest, "boots": rounds}));
     }
     fs::write(

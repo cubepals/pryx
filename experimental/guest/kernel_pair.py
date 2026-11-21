@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 
 VM_TOOLS = Path(__file__).resolve().parents[2] / 'templates/vm-tools'
 sys.path.insert(0, str(VM_TOOLS))
@@ -33,6 +34,8 @@ def main():
     selection = json.loads((VM_TOOLS / 'kernel-selection.json').read_text())
     inspection = json.loads((stage / 'vm-archive-inspection.json').read_text())
     config = selected(selection, inspection, stage / 'vm-selected-files', 'configuration')
+    if hashlib.sha256(config.encode()).hexdigest() != selection['configuration']['sha256']:
+        raise ValueError('Published configuration bytes failed their SHA-256 check')
     archive = stage / 'vm-corresponding-sources/sources' / Path(linux['url']).name
     with archive.open('rb') as archive_file:
         if hashlib.file_digest(archive_file, 'sha256').hexdigest() != linux['sha256']:
@@ -56,6 +59,7 @@ def main():
     for label in ['control', 'no-print-time']:
         if label == 'no-print-time':
             subprocess.run([*config_cmd, '--disable', 'PRINTK_TIME'], check=True)
+        (dest / 'build-phase.txt').write_text(f'{label}: configure\n')
         subprocess.run([*make, 'olddefconfig'], env=env, check=True)
         actual = (build / '.config').read_text().splitlines()
         want = 'CONFIG_PRINTK_TIME=y' if label == 'control' else '# CONFIG_PRINTK_TIME is not set'
@@ -70,8 +74,13 @@ def main():
         if missing:
             raise ValueError(f'Rebuilt kernel lacks required capabilities: {missing}')
         shutil.copyfile(build / '.config', dest / f'{label}.config')
+        (dest / 'build-phase.txt').write_text(f'{label}: compiling vmlinux\n')
+        started = time.monotonic()
+        print(f'{label} vmlinux started at host monotonic {started:.3f} s', flush=True)
         subprocess.run([*make, 'vmlinux'], env=env, check=True)
+        print(f'{label} vmlinux completed in {time.monotonic() - started:.3f} s', flush=True)
         shutil.copyfile(build / 'vmlinux', dest / f'{label}.elf')
+    (dest / 'build-phase.txt').write_text('both matched kernels built\n')
 
 
 if __name__ == '__main__':

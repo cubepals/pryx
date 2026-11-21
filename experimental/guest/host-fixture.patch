@@ -1,0 +1,199 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index fcd77a7982d759be30524f2d54a57a7950d33998..613661683093f6bcd6684bc59220e070dad54cfc 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -102,0 +103,4 @@ fake = []
++# Enables only the opt-in test module for the lab's real snapshot writer comparison.
++lab-memory-replay = []
++# Test fixture for the stock framed VM agent readiness path.
++lab-framed-health = []
+diff --git a/src/runtime/vm/instance.rs b/src/runtime/vm/instance.rs
+index fa7d8f9f3d5b649f9ff668cb38bd204af722b3a2..18cadc7ab12506f61b2a9ad7e6bae3968f67c77d 100644
+--- a/src/runtime/vm/instance.rs
++++ b/src/runtime/vm/instance.rs
+@@ -35,0 +36,6 @@ mod journal;
++#[cfg(feature = "lab-framed-health")]
++#[path = "../../../experimental/guest/framed_health.rs"]
++pub mod lab_framed_health;
++#[cfg(all(test, feature = "lab-memory-replay"))]
++#[path = "../../../experimental/guest/snapshot_replay.rs"]
++mod lab_memory_replay;
+diff --git a/src/runtime/vm/instance/launch.rs b/src/runtime/vm/instance/launch.rs
+index 0d35bd4c3e293dd87f834a1907cecab78df7bd45..2e07df34dd0d35329d4f9a1135aa7c77a7d661ac 100644
+--- a/src/runtime/vm/instance/launch.rs
++++ b/src/runtime/vm/instance/launch.rs
+@@ -382,0 +383,2 @@ impl Drop for Launching<'_> {
++pub(super) const HEALTH_RETRY: Duration = Duration::from_millis(10);
++
+@@ -398 +400 @@ pub(super) async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline:
+-        tokio::time::sleep(Duration::from_millis(10)).await;
++        tokio::time::sleep(HEALTH_RETRY).await;
+diff --git a/templates/vm-tools/agent_acceptance.py b/templates/vm-tools/agent_acceptance.py
+index d9add316edf1893c74ecfbd39200f33b9bcead03..6dba37332eab406751b8a0b354aa03aebb471d44 100644
+--- a/templates/vm-tools/agent_acceptance.py
++++ b/templates/vm-tools/agent_acceptance.py
+@@ -29,0 +30,3 @@ def main():
++    modes = parser.add_mutually_exclusive_group()
++    modes.add_argument('--lab-baseline', action='store_true')
++    modes.add_argument('--lab-candidate', action='store_true')
+@@ -52,2 +55,11 @@ def main():
+-    subprocess.run(['cargo', 'test', '--locked', '--manifest-path', str(ROOT.parent.parent / 'vm-image/Cargo.toml'),
+-                    '--test', 'guest', '--', '--ignored', '--nocapture'], env=environment, check=True, timeout=360)
++    test = ['cargo', 'test', '--locked', '--manifest-path', str(ROOT.parent.parent / 'vm-image/Cargo.toml'),
++            '--test', 'guest']
++    if args.lab_candidate:
++        test.extend(['--features', 'lab-guest-candidate', '--', '--ignored', '--exact',
++                     'candidate_trial::authenticated_candidate', '--nocapture'])
++    elif args.lab_baseline:
++        test.extend(['--features', 'lab-guest-baseline', '--', '--ignored', '--exact',
++                     'agent_baseline::measure_stock_agent', '--nocapture'])
++    else:
++        test.extend(['--', '--ignored', '--nocapture'])
++    subprocess.run(test, env=environment, check=True, timeout=900 if args.lab_baseline or args.lab_candidate else 360)
+diff --git a/vm-image/Cargo.toml b/vm-image/Cargo.toml
+index e4d632e95afa72744c4b6b5cecb200022450a77a..e9180b5209fc5515c6999be2a0ae577f3a9d8dd7 100644
+--- a/vm-image/Cargo.toml
++++ b/vm-image/Cargo.toml
+@@ -13,0 +14,4 @@ description = "The separately bundled pryx VM image preparation helper"
++[features]
++lab-guest-baseline = ["pryxd/lab-framed-health"]
++lab-guest-candidate = ["lab-guest-baseline"]
++
+diff --git a/vm-image/tests/guest.rs b/vm-image/tests/guest.rs
+index e7ece5400bf883e30dbfa9ace4e0b040dbfc9cb3..a2a48f7c7881e35f7f95229721206253106e3d28 100644
+--- a/vm-image/tests/guest.rs
++++ b/vm-image/tests/guest.rs
+@@ -4,0 +5,7 @@
++#[cfg(feature = "lab-guest-baseline")]
++#[path = "../../experimental/guest/agent_baseline.rs"]
++mod agent_baseline;
++#[cfg(feature = "lab-guest-candidate")]
++#[path = "../../experimental/guest/candidate/trial.rs"]
++mod candidate_trial;
++
+@@ -69,0 +77,2 @@ struct Guest {
++    #[cfg(feature = "lab-guest-baseline")]
++    framed: Option<(reqwest::Client, std::net::SocketAddr)>,
+@@ -73,0 +83,14 @@ impl Guest {
++        #[cfg(feature = "lab-guest-baseline")]
++        if let Some((client, address)) = &self.framed {
++            let bytes = binary.map_or_else(|| serde_json::to_vec(&body).unwrap(), |data| data.to_vec());
++            let response = client
++                .request(method, format!("http://{address}{path}"))
++                .bearer_auth(&self.token)
++                .header("content-type", "application/json")
++                .header(IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string())
++                .body(bytes)
++                .send()
++                .await
++                .unwrap();
++            return (response.status(), response.bytes().await.unwrap().to_vec());
++        }
+@@ -320,0 +344,28 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
++#[derive(Clone, Copy)]
++enum BootPurpose {
++    Stock,
++    #[cfg(feature = "lab-guest-baseline")]
++    AgentBaseline,
++    #[cfg(feature = "lab-guest-candidate")]
++    Candidate(candidate_trial::Case),
++}
++
++impl BootPurpose {
++    #[cfg(feature = "lab-guest-baseline")]
++    fn timed(self) -> bool {
++        #[cfg(feature = "lab-guest-candidate")]
++        if let Self::Candidate(case) = self {
++            return !case.functional();
++        }
++        true
++    }
++
++    fn inputs(self) -> (PathBuf, PathBuf) {
++        #[cfg(feature = "lab-guest-candidate")]
++        if let Self::Candidate(case) = self {
++            return case.inputs();
++        }
++        (input("PRYX_VM_CONFIGURATOR"), input("PRYX_VM_BOOTSTRAP"))
++    }
++}
++
+@@ -327,0 +379 @@ async fn boot(
++    purpose: BootPurpose,
+@@ -329 +381 @@ async fn boot(
+-    let configurator = input("PRYX_VM_CONFIGURATOR");
++    let (configurator, bootstrap) = purpose.inputs();
+@@ -331 +382,0 @@ async fn boot(
+-    let bootstrap = input("PRYX_VM_BOOTSTRAP");
+@@ -456,0 +508,11 @@ async fn boot(
++    #[cfg(feature = "lab-guest-baseline")]
++    let lab = (!matches!(purpose, BootPurpose::Stock)).then(|| {
++        let framed_plan = pryxd::runtime::vm::instance::lab_framed_health::Plan::new(sandbox, 1, secret_env, &encoded);
++        let http = reqwest::Client::builder()
++            .no_proxy()
++            .redirect(reqwest::redirect::Policy::none())
++            .timeout(Duration::from_secs(35))
++            .build()
++            .unwrap();
++        (framed_plan, http, std::time::Instant::now())
++    });
+@@ -468,2 +530,51 @@ async fn boot(
+-    let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
+-    guest.ready().await;
++    #[cfg(feature = "lab-guest-baseline")]
++    let launch_return = lab.as_ref().map(|(_, _, launched)| launched.elapsed());
++    let guest = Guest {
++        channel,
++        client: input("PRYX_VM_AGENT_CLIENT"),
++        token: token.clone(),
++        #[cfg(feature = "lab-guest-baseline")]
++        framed: None,
++    };
++    match purpose {
++        BootPurpose::Stock => guest.ready().await,
++        #[cfg(feature = "lab-guest-baseline")]
++        _ => {
++            let (framed_plan, http, launched) = lab.unwrap();
++            let launch_return = launch_return.unwrap();
++            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
++            let forward = framed_plan.forward(&guest.client, &guest.channel, deadline).await.unwrap();
++            let forwarded = launched.elapsed();
++            monitor.delivered(deadline).await.unwrap();
++            let delivered = launched.elapsed();
++            #[cfg(feature = "lab-guest-candidate")]
++            if let BootPurpose::Candidate(case) = purpose
++                && case.functional()
++            {
++                case.prove_first(&guest, &key.public_key(), sandbox, directory).await;
++            }
++            forward.ready(&mut monitor, deadline).await.unwrap();
++            let ready = launched.elapsed();
++            // Production ready also returns when a deliberately short-lived workload exits.
++            // Only a live, bootstrapped monitor can contribute this service observation.
++            monitor.bootstrapped(deadline).await.unwrap();
++            let framed_guest = Guest {
++                channel: guest.channel.clone(),
++                client: guest.client.clone(),
++                token: guest.token.clone(),
++                framed: Some((http, forward.address())),
++            };
++            if purpose.timed() {
++                agent_baseline::observe(
++                    &framed_guest,
++                    launched,
++                    [launch_return, forwarded, delivered, ready],
++                    directory,
++                    round,
++                    purpose,
++                )
++                .await;
++            }
++            forward.stop().await.unwrap();
++        }
++    }
+@@ -561 +672 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
+-            rounds.push(boot(&tools, &image, &directory, &writes, round, false).await);
++            rounds.push(boot(&tools, &image, &directory, &writes, round, false, BootPurpose::Stock).await);
+@@ -563 +674 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
+-        rounds.push(boot(&tools, &image, &directory, &writes, 2, true).await);
++        rounds.push(boot(&tools, &image, &directory, &writes, 2, true, BootPurpose::Stock).await);

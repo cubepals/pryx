@@ -100,10 +100,6 @@ kvm-bindings = "=0.14.0"
 # The fake container runtime (src/runtime/fake.rs), for tests only: the tests in tests/ turn it on
 # through the dev-dependency below, and a release build never has it.
 fake = []
-# Enables only the opt-in test module for the lab's real snapshot writer comparison.
-lab-memory-replay = []
-# Test fixture for the stock framed VM agent readiness path.
-lab-framed-health = []
 
 [dev-dependencies]
 pryx-agent = { workspace = true, features = ["schema"] }

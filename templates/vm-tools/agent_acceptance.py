@@ -27,7 +27,6 @@ def main():
     parser.add_argument('--bootstrap', type=Path, required=True)
     parser.add_argument('--filesystem-component', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
-    parser.add_argument('--lab-baseline', action='store_true')
     args = parser.parse_args()
     selection = json.loads((ROOT / 'kernel-selection.json').read_text())
     inspection = json.loads(args.inspection.read_text())
@@ -50,14 +49,8 @@ def main():
             (args.filesystem_component / 'filesystem-manifest.json').read_bytes()).hexdigest(),
         'PRYX_VM_GUEST_WORK': str(args.work.resolve()),
     })
-    test = ['cargo', 'test', '--locked', '--manifest-path', str(ROOT.parent.parent / 'vm-image/Cargo.toml'),
-            '--test', 'guest']
-    if args.lab_baseline:
-        test.extend(['--features', 'lab-guest-baseline', '--', '--ignored', '--exact',
-                     'agent_baseline::measure_stock_agent', '--nocapture'])
-    else:
-        test.extend(['--', '--ignored', '--nocapture'])
-    subprocess.run(test, env=environment, check=True, timeout=900 if args.lab_baseline else 360)
+    subprocess.run(['cargo', 'test', '--locked', '--manifest-path', str(ROOT.parent.parent / 'vm-image/Cargo.toml'),
+                    '--test', 'guest', '--', '--ignored', '--nocapture'], env=environment, check=True, timeout=360)
 
 
 if __name__ == '__main__':
