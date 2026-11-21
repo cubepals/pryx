@@ -43,13 +43,27 @@ static int workload(enum mode method, int channel, pid_t parent) {
         return UNAVAILABLE;
     }
     long (*call)(void) = method == DISPATCH ? dispatch_getpid : fixed_getpid;
+#ifdef PRYX_LINK_INSTRUMENTED
+    /* The single-mode executable would otherwise specialize this to a direct
+     * call. Keep the stock loop's indirect call, at the same fixed link target. */
+    __asm__("" : "+r"(call));
+#endif
     for (int i = 0; i < WARM_CALLS; ++i)
         if (call() != self) return 1;
+#ifdef PRYX_LINK_INSTRUMENTED
+    unsigned int warm = linked_count();
+    if (warm != WARM_CALLS) return 1;
+#endif
     uint64_t begin = now();
     for (int i = 0; i < TIMED_CALLS; ++i)
         if (call() != self) return 1;
     uint64_t elapsed = now() - begin;
     if (dprintf(STDOUT_FILENO, "%" PRIu64 " %d\n", elapsed, TIMED_CALLS) < 0) return 1;
+#ifdef PRYX_LINK_INSTRUMENTED
+    unsigned int observed = linked_count();
+    if (observed - warm != TIMED_CALLS) return 1;
+    if (dprintf(STDOUT_FILENO, "%u %u\n", observed, warm) < 0) return 1;
+#endif
     if (method == DISPATCH) {
         if (dispatch_count() != WARM_CALLS + TIMED_CALLS) return 1;
         if (dprintf(STDOUT_FILENO, "%d %d\n", dispatch_count(), WARM_CALLS) < 0) return 1;
@@ -60,11 +74,16 @@ static int workload(enum mode method, int channel, pid_t parent) {
 int main(int argc, char **argv) {
     enum mode method;
     if (argc != 2) return 2;
+#ifdef PRYX_LINK_INSTRUMENTED
+    if (strcmp(argv[1], "link-time")) return 2;
+    method = RAW;
+#else
     if (!strcmp(argv[1], "raw")) method = RAW;
     else if (!strcmp(argv[1], "trace")) method = TRACE;
     else if (!strcmp(argv[1], "notify")) method = NOTIFY;
     else if (!strcmp(argv[1], "dispatch")) method = DISPATCH;
     else return 2;
+#endif
     if (getuid() == 0) return 2;
     /* Positive control: a nonexistent sentinel or outer denial cannot count as Landlock proof. */
     int sentinel = open("read-control", O_RDONLY);
@@ -95,8 +114,12 @@ int main(int argc, char **argv) {
         if (WEXITSTATUS(status)) return WEXITSTATUS(status);
     }
     close(sockets[0]);
+#ifdef PRYX_LINK_INSTRUMENTED
+    return 0;  /* The child reported its private counts after elapsed time was captured. */
+#else
     if (method == DISPATCH) return 0;
     if (method != RAW && observed != WARM_CALLS + TIMED_CALLS) return 1;
     printf("%d %d\n", observed, method == RAW ? 0 : WARM_CALLS);
     return 0;
+#endif
 }

@@ -12,6 +12,9 @@
 
 int pryx_observe_floor(unsigned int supervisor);
 long fixed_getpid(void);
+#ifdef PRYX_LINK_INSTRUMENTED
+unsigned int linked_count(void);
+#endif
 int dispatch_install(void);
 long dispatch_getpid(void);
 int dispatch_count(void);

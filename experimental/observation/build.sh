@@ -20,7 +20,13 @@ env CARGO_PROFILE_DEV_PANIC=abort "CC_$ccvar=musl-gcc" "CARGO_TARGET_${flag}_LIN
         --example observation_floor --target "$target"
 src=experimental/observation
 unwind="$(rustc --print target-libdir --target "$target")/self-contained/libunwind.a"
-musl-gcc -std=c11 -static -Wl,--gc-sections -O2 -Wall -Wextra -Werror -I"$destination/uapi" \
-    "$src/workload.c" "$src/dispatch.c" "$src/trace.c" "$src/notification.c" "$src/getpid.S" \
-    "${CARGO_TARGET_DIR:-target}/$target/debug/examples/libobservation_floor.a" "$unwind" -lpthread -ldl -lm \
-    -o "$destination/observe"
+build_fixture() {
+    name=$1
+    shift
+    musl-gcc -std=c11 -static -Wl,--gc-sections -O2 -Wall -Wextra -Werror -I"$destination/uapi" "$@" \
+        "$src/workload.c" "$src/dispatch.c" "$src/trace.c" "$src/notification.c" "$src/getpid.S" \
+        "${CARGO_TARGET_DIR:-target}/$target/debug/examples/libobservation_floor.a" "$unwind" -lpthread -ldl -lm \
+        -o "$destination/$name"
+}
+build_fixture observe
+build_fixture observe-link -DPRYX_LINK_INSTRUMENTED -Wl,--wrap=fixed_getpid "$src/link-count.S"

@@ -19,7 +19,11 @@ def sample(binary, directory, mode):
     if result.returncode:
         raise RuntimeError(f"{mode} fixture failed ({result.returncode}): {result.stderr}")
     duration, timed, observed, warm = map(int, result.stdout.split())
-    if timed <= 0 or duration <= 0 or (mode != "raw" and observed - warm != timed):
+    if timed <= 0 or duration <= 0:
+        raise ValueError("incomplete syscall batch")
+    if mode == "raw" and (observed != 0 or warm != 0):
+        raise ValueError("raw control reported an observer")
+    if mode != "raw" and (warm <= 0 or observed - warm != timed):
         raise ValueError("incomplete syscall observation")
     return {"duration_ns": duration, "timed_calls": timed, "observed_including_warmup": observed,
             "observed_warmup": warm, "ns_per_call": duration / timed}
@@ -31,17 +35,19 @@ def main():
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
+    linked = binary.with_name(binary.name + "-link").resolve(strict=True)
     cpu = min(os.sched_getaffinity(0))
     os.sched_setaffinity(0, {cpu})
     result = {"commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
               "cpu": cpu, "machine": platform.machine(), "kernel": platform.release(),
-              "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "pairs": [], "summary": {}}
+              "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+              "link_time_binary_sha256": hashlib.sha256(linked.read_bytes()).hexdigest(), "pairs": [], "summary": {}}
     with tempfile.TemporaryDirectory() as tmp:
         directory = Path(tmp)
         (directory / "allowed").mkdir(mode=0o700)
         (directory / "read-control").write_text("ordinary-readable sentinel")
         unavailable = set()
-        methods = ["trace", "notify", "dispatch"]
+        methods = ["trace", "notify", "dispatch", "link-time"]
         for iteration in range(15):
             offset = iteration % len(methods)
             for mode in methods[offset:] + methods[:offset]:
@@ -49,12 +55,14 @@ def main():
                     continue
                 pair = {"pair": iteration + 1, "method": mode}
                 for variant in (["raw", mode] if iteration % 2 == 0 else [mode, "raw"]):
-                    pair[variant] = sample(binary, directory, variant)
+                    pair[variant] = sample(linked if variant == "link-time" else binary, directory, variant)
                     if "unavailable" in pair[variant]:
                         unavailable.add(mode)
                         result["summary"][mode] = {"verdict": "unavailable", "why": pair[variant]["unavailable"]}
                         break
                 if mode not in unavailable:
+                    if pair[mode]["timed_calls"] != pair["raw"]["timed_calls"]:
+                        raise ValueError("pair has different syscall batch sizes")
                     pair["delta_ns"] = pair[mode]["ns_per_call"] - pair["raw"]["ns_per_call"]
                 result["pairs"].append(pair)
                 args.output.write_text(json.dumps(result, indent=2) + "\n")
