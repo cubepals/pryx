@@ -6,4 +6,4 @@
 #[cfg(feature = "experimental")]
 mod sleep;
 #[cfg(feature = "experimental")]
-pub use sleep::{Baseline, sample};
+pub use sleep::{Baseline, PAGE, Result, generated_stage, sample, scan_writer, sparse};

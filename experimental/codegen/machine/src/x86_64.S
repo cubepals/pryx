@@ -58,4 +58,52 @@ scan pryx_static_32_4,32,4
 scan pryx_static_64_1,64,1
 scan pryx_static_64_2,64,2
 scan pryx_static_64_4,64,4
+.global pryx_static_copy_1_1
+.hidden pryx_static_copy_1_1
+.type pryx_static_copy_1_1,@function
+pryx_static_copy_1_1:
+    mov %rdx,%rcx
+    rep movsb
+    ret
+.size pryx_static_copy_1_1,.-pryx_static_copy_1_1
+
+.macro copy width count
+.global pryx_static_copy_\width\()_\count
+.hidden pryx_static_copy_\width\()_\count
+.type pryx_static_copy_\width\()_\count,@function
+pryx_static_copy_\width\()_\count:
+1:
+.set offset,0
+.rept \count
+.if \width == 64
+    vmovdqu64 offset(%rsi),%zmm0
+    vmovdqu64 %zmm0,offset(%rdi)
+.elseif \width == 32
+    vmovdqu offset(%rsi),%ymm0
+    vmovdqu %ymm0,offset(%rdi)
+.else
+    movdqu offset(%rsi),%xmm0
+    movdqu %xmm0,offset(%rdi)
+.endif
+.set offset,offset+\width
+.endr
+    add $(\width*\count),%rsi
+    add $(\width*\count),%rdi
+    dec %rdx
+    jne 1b
+.if \width >= 32
+    vzeroupper
+.endif
+    ret
+.size pryx_static_copy_\width\()_\count,.-pryx_static_copy_\width\()_\count
+.endm
+copy 16,1
+copy 16,2
+copy 16,4
+copy 32,1
+copy 32,2
+copy 32,4
+copy 64,1
+copy 64,2
+copy 64,4
 .section .note.GNU-stack,"",@progbits

@@ -43,3 +43,41 @@ fn sparse_fuzz_at_inaccessible_neighbors() {
         assert_eq!(libc::munmap(mapping, 3 * size), 0);
     }
 }
+
+#[test]
+fn copy_at_two_sided_guard_pages() {
+    use pryx_page_generator::{CopyKernel, CopyPlan};
+
+    // Alternating inaccessible pages isolate both buffers, including from each other.
+    unsafe {
+        let size = usize::try_from(libc::sysconf(libc::_SC_PAGESIZE)).unwrap();
+        let mem =
+            libc::mmap(std::ptr::null_mut(), size * 5, libc::PROT_NONE, libc::MAP_PRIVATE | libc::MAP_ANONYMOUS, -1, 0);
+        assert_ne!(mem, libc::MAP_FAILED);
+        let source = mem.cast::<u8>().add(size);
+        let destination = source.add(2 * size);
+        for ptr in [source, destination] {
+            assert_eq!(libc::mprotect(ptr.cast(), size, libc::PROT_READ | libc::PROT_WRITE), 0);
+        }
+        for i in 0..size {
+            source.add(i).write(((i * 241 + i / 19 + 2) % 251) as u8);
+        }
+        assert_eq!(libc::mprotect(source.cast(), size, libc::PROT_READ), 0);
+        let src = std::slice::from_raw_parts(source, size);
+        let dst = std::slice::from_raw_parts_mut(destination, size);
+        for plan in CopyPlan::choices() {
+            let kernel = CopyKernel::for_plan(plan).expect("native copy generation required for this test");
+            for len in (0..=512).chain((514..size).step_by(37)).chain([size - 1, size]) {
+                for from in [0, size - len] {
+                    for to in [0, size - len] {
+                        dst.fill(0xfa);
+                        kernel.copy(&mut dst[to..to + len], &src[from..from + len]);
+                        assert_eq!(&dst[to..to + len], &src[from..from + len]);
+                        assert!(dst[..to].iter().chain(&dst[to + len..]).all(|&b| b == 0xfa));
+                    }
+                }
+            }
+        }
+        assert_eq!(libc::munmap(mem, size * 5), 0);
+    }
+}

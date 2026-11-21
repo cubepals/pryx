@@ -26,4 +26,27 @@
 scan pryx_static_16_1,1
 scan pryx_static_16_2,2
 scan pryx_static_16_4,4
+
+.macro copy count
+.global pryx_static_copy_16_\count
+.hidden pryx_static_copy_16_\count
+.type pryx_static_copy_16_\count,%function
+pryx_static_copy_16_\count:
+1:
+.set offset,0
+.rept \count
+    ldr q0,[x1,#offset]
+    str q0,[x0,#offset]
+.set offset,offset+16
+.endr
+    add x1,x1,#(16*\count)
+    add x0,x0,#(16*\count)
+    subs x2,x2,#1
+    b.ne 1b
+    ret
+.size pryx_static_copy_16_\count,.-pryx_static_copy_16_\count
+.endm
+copy 1
+copy 2
+copy 4
 .section .note.GNU-stack,"",%progbits

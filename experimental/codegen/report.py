@@ -19,25 +19,31 @@ def report(tools, arch, cpu, model, out):
         results = {name: [] for name in ("llvm-mca", "osaca")}
         for width in ([16, 32, 64] if arch == "x86_64" else [16]):
             for count in (1, 2, 4):
-                symbol = f"pryx_static_{width}_{count}"
-                text = run([tools / "llvm-objdump", "-d", "--no-show-raw-insn", "--no-leading-addr",
-                            f"--disassemble-symbols={symbol}", obj])
-                lines = text.split(f"<{symbol}>:", 1)[1].strip().splitlines()
-                body = []
-                for line in lines[1:]:
-                    op = line.strip().split(None, 1)[0]
-                    if op in ("jne", "b.ne"):
-                        body.append(f"{op} .Lloop")
-                        break
-                    body.append(line.strip())
-                else:
-                    raise ValueError(f"no back edge in {symbol}")
-                section = f"\n{symbol} ({width * count} bytes per iteration)\n"
-                asm = "\n".join([".Lloop:", *body, ""])
-                results["llvm-mca"].append(section + run([tools / "llvm-mca", f"-mtriple={arch}",
-                                                           f"-mcpu={cpu}", "-iterations=100"], input=asm))
-                prediction = run(["osaca", "--arch", model, "--consider-flag-deps", "/dev/stdin"], input=asm)
-                results["osaca"].append(section + re.sub(r"^Timestamp:.*\n", "", prediction, flags=re.M))
+                for operation in ("", "copy_"):
+                    symbol = f"pryx_static_{operation}{width}_{count}"
+                    text = run([tools / "llvm-objdump", "-d", "--no-show-raw-insn", "--no-leading-addr",
+                                f"--disassemble-symbols={symbol}", obj])
+                    lines = text.split(f"<{symbol}>:", 1)[1].strip().splitlines()
+                    body = []
+                    for line in lines[1 if not operation else 0:]:
+                        op = line.strip().split(None, 1)[0]
+                        if op in ("jne", "b.ne"):
+                            body.append(f"{op} .Lloop")
+                            break
+                        body.append(line.strip())
+                    else:
+                        raise ValueError(f"no back edge in {symbol}")
+                    section = f"\n{symbol} ({width * count} bytes per iteration)\n"
+                    asm = "\n".join([".Lloop:", *body, ""])
+                    results["llvm-mca"].append(section + run([tools / "llvm-mca", f"-mtriple={arch}",
+                                                               f"-mcpu={cpu}", "-iterations=100"], input=asm))
+                    prediction = run(["osaca", "--arch", model, "--consider-flag-deps", "/dev/stdin"], input=asm)
+                    results["osaca"].append(section + re.sub(r"^Timestamp:.*\n", "", prediction, flags=re.M))
+        if arch == "x86_64":
+            note = ("\npryx_static_copy_1_1 uses REP MOVSB with RCX bytes per invocation. "
+                    "These static loop models do not model data-dependent fast-string throughput.\n")
+            for sections in results.values():
+                sections.append(note)
         for name, sections in results.items():
             version = run([tools / name, "--version"] if name == "llvm-mca" else ["osaca", "-V"]).splitlines()[0]
             report_text = version + "\n" + "".join(sections)

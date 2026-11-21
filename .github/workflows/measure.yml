@@ -342,7 +342,7 @@ jobs:
   codegen-lab:
     if: github.event_name == 'workflow_dispatch' && inputs.codegen_lab
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 35
+    timeout-minutes: 55
     strategy:
       max-parallel: 1
       fail-fast: false
@@ -372,6 +372,30 @@ jobs:
           mkdir "$RUNNER_TEMP/codegen"
           lscpu -J > "$RUNNER_TEMP/codegen/cpu.json"
           cat /proc/cpuinfo > "$RUNNER_TEMP/codegen/cpuinfo.txt"
+          lscpu --caches > "$RUNNER_TEMP/codegen/caches.txt"
+          cat /proc/meminfo > "$RUNNER_TEMP/codegen/meminfo.txt"
+          for config in enabled defrag; do
+            if [ -r "/sys/kernel/mm/transparent_hugepage/$config" ]; then
+              cat "/sys/kernel/mm/transparent_hugepage/$config" > "$RUNNER_TEMP/codegen/thp-$config.txt"
+            else
+              echo unavailable > "$RUNNER_TEMP/codegen/thp-$config.txt"
+            fi
+          done
+          cat /proc/self/status > "$RUNNER_TEMP/codegen/worker-status.txt"
+          for setting in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+            if [ -r "$setting" ]; then
+              echo "$setting $(cat "$setting")"
+            fi
+          done > "$RUNNER_TEMP/codegen/governors.txt"
+          if [ ! -s "$RUNNER_TEMP/codegen/governors.txt" ]; then
+            echo unavailable > "$RUNNER_TEMP/codegen/governors.txt"
+          fi
+          git rev-parse HEAD > "$RUNNER_TEMP/codegen/commit"
+          git -C comparator rev-parse HEAD > "$RUNNER_TEMP/codegen/comparator-commit"
+          git -C assembler rev-parse HEAD > "$RUNNER_TEMP/codegen/asmjit-commit"
+          cmake --version > "$RUNNER_TEMP/codegen/cmake.txt"
+          c++ --version > "$RUNNER_TEMP/codegen/compiler.txt"
+          taskset --version > "$RUNNER_TEMP/codegen/taskset.txt"
           uname -a > "$RUNNER_TEMP/codegen/kernel.txt"
           rustc -vV > "$RUNNER_TEMP/codegen/rust.txt"
           findmnt -T "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/filesystem.txt"
@@ -380,12 +404,16 @@ jobs:
           cp rust-toolchain.toml "$RUNNER_TEMP/paired/"
           ln -s "$GITHUB_WORKSPACE/comparator/experimental/pages" "$RUNNER_TEMP/paired/pages"
           cd "$RUNNER_TEMP/paired/codegen"
-          cargo test --locked --features experimental
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/paired/target"
+          cargo test --locked --release --features experimental
           cargo run --locked --release --features experimental -- self-check
-          cargo run --locked --release --features experimental -- encodings "$RUNNER_TEMP/codegen/encodings"
+          cargo run --locked --release --features experimental -- encodings "$RUNNER_TEMP/codegen/encodings" 2> "$RUNNER_TEMP/codegen/dispatch.txt"
           (cd "$RUNNER_TEMP/codegen/encodings" && sha256sum ./*.bin > SHA256SUMS)
           python3 compare_images.py "$RUNNER_TEMP/codegen/encodings" > "$RUNNER_TEMP/codegen/static-identity.csv"
-          cargo run --locked --release --manifest-path comparison/Cargo.toml -- "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/pairs.csv"
+          cargo build --locked --release --manifest-path comparison/Cargo.toml
+          cp "$CARGO_TARGET_DIR/release/pryx-codegen" "$CARGO_TARGET_DIR/release/pryx-lab-compare-scans" "$RUNNER_TEMP/codegen/"
+          (cd "$RUNNER_TEMP/codegen" && sha256sum pryx-codegen pryx-lab-compare-scans > binary-sha256.txt)
+          "$RUNNER_TEMP/codegen/pryx-lab-compare-scans" "$RUNNER_TEMP" > "$RUNNER_TEMP/codegen/pairs.csv"
           python3 summary.py "$RUNNER_TEMP/codegen/pairs.csv" | tee "$RUNNER_TEMP/codegen/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()

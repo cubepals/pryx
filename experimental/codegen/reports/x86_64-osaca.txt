@@ -35,6 +35,42 @@ Loop-Carried Dependencies Analysis Report
    5 |  1.0 | decq	%rsi                           | [5]
 
 
+pryx_static_copy_16_1 (16 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   movdqu (%rsi), %xmm0
+   3 |             |      | 0.17        | 0.16        | 1.00 |      |      | 0.66 ||  0.0 |      |   movdqu %xmm0, (%rdi)
+   4 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x10, %rsi
+   5 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x10, %rdi
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+   7 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   0.67   0.50   0.66   0.50   1.00   0.75   0.75   0.66       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   4 |  1.0 | addq	$0x10, %rsi                    | [4]
+   5 |  1.0 | addq	$0x10, %rdi                    | [5]
+   6 |  1.0 | decq	%rdx                           | [6]
+
+
 pryx_static_16_2 (32 bytes per iteration)
 Open Source Architecture Code Analyzer (OSACA) - 0.7.1
 Analyzed file:      /dev/stdin
@@ -70,6 +106,44 @@ Loop-Carried Dependencies Analysis Report
    3 |  2.0 | por	%xmm1, %xmm0                    | [3, 5]
    6 |  1.0 | addq	$0x20, %rdi                    | [6]
    7 |  1.0 | decq	%rsi                           | [7]
+
+
+pryx_static_copy_16_2 (32 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   movdqu (%rsi), %xmm0
+   3 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||  0.0 |      |   movdqu %xmm0, (%rdi)
+   4 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   movdqu 0x10(%rsi), %xmm0
+   5 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   movdqu %xmm0, 0x10(%rdi)
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x20, %rsi
+   7 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x20, %rdi
+   8 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+   9 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   1.33   1.00   1.33   1.00   2.00   0.75   0.75   1.33       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   6 |  1.0 | addq	$0x20, %rsi                    | [6]
+   7 |  1.0 | addq	$0x20, %rdi                    | [7]
+   8 |  1.0 | decq	%rdx                           | [8]
 
 
 pryx_static_16_4 (64 bytes per iteration)
@@ -113,6 +187,48 @@ Loop-Carried Dependencies Analysis Report
    3 |  4.0 | por	%xmm1, %xmm0                    | [3, 5, 7, 9]
 
 
+pryx_static_copy_16_4 (64 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   movdqu (%rsi), %xmm0
+   3 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||  0.0 |      |   movdqu %xmm0, (%rdi)
+   4 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   movdqu 0x10(%rsi), %xmm0
+   5 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||      |      |   movdqu %xmm0, 0x10(%rdi)
+   6 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   movdqu 0x20(%rsi), %xmm0
+   7 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   movdqu %xmm0, 0x20(%rdi)
+   8 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   movdqu 0x30(%rsi), %xmm0
+   9 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   movdqu %xmm0, 0x30(%rdi)
+  10 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rsi
+  11 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rdi
+  12 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+  13 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   2.67   2.00   2.67   2.00   4.00   0.75   0.75   2.67       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+  10 |  1.0 | addq	$0x40, %rsi                    | [10]
+  11 |  1.0 | addq	$0x40, %rdi                    | [11]
+  12 |  1.0 | decq	%rdx                           | [12]
+
+
 pryx_static_32_1 (32 bytes per iteration)
 Open Source Architecture Code Analyzer (OSACA) - 0.7.1
 Analyzed file:      /dev/stdin
@@ -145,6 +261,42 @@ Loop-Carried Dependencies Analysis Report
    2 |  1.0 | vpor	(%rdi), %ymm0, %ymm0           | [2]
    3 |  1.0 | addq	$0x20, %rdi                    | [3]
    4 |  1.0 | decq	%rsi                           | [4]
+
+
+pryx_static_copy_32_1 (32 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   vmovdqu (%rsi), %ymm0
+   3 |             |      | 0.17        | 0.16        | 1.00 |      |      | 0.66 ||  0.0 |      |   vmovdqu %ymm0, (%rdi)
+   4 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x20, %rsi
+   5 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x20, %rdi
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+   7 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   0.67   0.50   0.66   0.50   1.00   0.75   0.75   0.66       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   4 |  1.0 | addq	$0x20, %rsi                    | [4]
+   5 |  1.0 | addq	$0x20, %rdi                    | [5]
+   6 |  1.0 | decq	%rdx                           | [6]
 
 
 pryx_static_32_2 (64 bytes per iteration)
@@ -180,6 +332,44 @@ Loop-Carried Dependencies Analysis Report
    2 |  2.0 | vpor	(%rdi), %ymm0, %ymm0           | [2, 3]
    4 |  1.0 | addq	$0x40, %rdi                    | [4]
    5 |  1.0 | decq	%rsi                           | [5]
+
+
+pryx_static_copy_32_2 (64 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   vmovdqu (%rsi), %ymm0
+   3 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||  0.0 |      |   vmovdqu %ymm0, (%rdi)
+   4 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   vmovdqu 0x20(%rsi), %ymm0
+   5 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   vmovdqu %ymm0, 0x20(%rdi)
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rsi
+   7 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rdi
+   8 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+   9 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   1.33   1.00   1.33   1.00   2.00   0.75   0.75   1.33       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   6 |  1.0 | addq	$0x40, %rsi                    | [6]
+   7 |  1.0 | addq	$0x40, %rdi                    | [7]
+   8 |  1.0 | decq	%rdx                           | [8]
 
 
 pryx_static_32_4 (128 bytes per iteration)
@@ -219,6 +409,48 @@ Loop-Carried Dependencies Analysis Report
    7 |  1.0 | decq	%rsi                           | [7]
 
 
+pryx_static_copy_32_4 (128 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||  4.0 |      |   vmovdqu (%rsi), %ymm0
+   3 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||  0.0 |      |   vmovdqu %ymm0, (%rdi)
+   4 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   vmovdqu 0x20(%rsi), %ymm0
+   5 |             |      | 0.33        | 0.33        | 1.00 |      |      | 0.33 ||      |      |   vmovdqu %ymm0, 0x20(%rdi)
+   6 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   vmovdqu 0x40(%rsi), %ymm0
+   7 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   vmovdqu %ymm0, 0x40(%rdi)
+   8 |             |      | 0.50   0.50 | 0.50   0.50 |      |      |      |      ||      |      |   vmovdqu 0x60(%rsi), %ymm0
+   9 |             |      | 0.00        | 0.00        | 1.00 |      |      | 1.00 ||      |      |   vmovdqu %ymm0, 0x60(%rdi)
+  10 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x80, %rsi
+  11 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x80, %rdi
+  12 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |  1.0 |   decq %rdx
+  13 |             |      |             |             |      |      |      |      ||      |      | * jne .Lloop
+
+       0.75          0.75   2.67   2.00   2.67   2.00   4.00   0.75   0.75   2.67       4    1.0
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+  10 |  1.0 | addq	$0x80, %rsi                    | [10]
+  11 |  1.0 | addq	$0x80, %rdi                    | [11]
+  12 |  1.0 | decq	%rdx                           | [12]
+
+
 pryx_static_64_1 (64 bytes per iteration)
 Open Source Architecture Code Analyzer (OSACA) - 0.7.1
 Analyzed file:      /dev/stdin
@@ -251,6 +483,46 @@ Loop-Carried Dependencies Analysis Report
    2 |  1.0 | vpord	(%rdi), %zmm0, %zmm0          | [2]
    3 |  1.0 | addq	$0x40, %rdi                    | [3]
    4 |  1.0 | decq	%rsi                           | [4]
+
+
+pryx_static_copy_64_1 (64 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 (%rsi), %zmm0
+   3 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, (%rdi)
+   4 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rsi
+   5 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x40, %rdi
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||  1.0 |  1.0 |   decq %rdx
+   7 |             |      |             |             |      |      |      |      ||  0.0 |      | * jne .Lloop
+
+------------------ WARNING: The performance data for 2 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   4 |  1.0 | addq	$0x40, %rsi                    | [4]
+   5 |  1.0 | addq	$0x40, %rdi                    | [5]
+   6 |  1.0 | decq	%rdx                           | [6]
 
 
 pryx_static_64_2 (128 bytes per iteration)
@@ -286,6 +558,48 @@ Loop-Carried Dependencies Analysis Report
    2 |  2.0 | vpord	(%rdi), %zmm0, %zmm0          | [2, 3]
    4 |  1.0 | addq	$0x80, %rdi                    | [4]
    5 |  1.0 | decq	%rsi                           | [5]
+
+
+pryx_static_copy_64_2 (128 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 (%rsi), %zmm0
+   3 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, (%rdi)
+   4 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 0x40(%rsi), %zmm0
+   5 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, 0x40(%rdi)
+   6 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x80, %rsi
+   7 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x80, %rdi
+   8 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||  1.0 |  1.0 |   decq %rdx
+   9 |             |      |             |             |      |      |      |      ||  0.0 |      | * jne .Lloop
+
+------------------ WARNING: The performance data for 4 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+   6 |  1.0 | addq	$0x80, %rsi                    | [6]
+   7 |  1.0 | addq	$0x80, %rdi                    | [7]
+   8 |  1.0 | decq	%rdx                           | [8]
 
 
 pryx_static_64_4 (256 bytes per iteration)
@@ -324,3 +638,51 @@ Loop-Carried Dependencies Analysis Report
    6 |  1.0 | addq	$0x100, %rdi            # imm = 0x100| [6]
    7 |  1.0 | decq	%rsi                           | [7]
 
+
+pryx_static_copy_64_4 (256 bytes per iteration)
+Open Source Architecture Code Analyzer (OSACA) - 0.7.1
+Analyzed file:      /dev/stdin
+Architecture:       SKX
+
+
+ P - Throughput of LOAD operation can be hidden behind a past or future STORE instruction
+ * - Instruction micro-ops not bound to a port
+ X - No throughput/latency information for this instruction in data file
+
+
+Combined Analysis Report
+------------------------
+                                     Port pressure in cycles
+     |  0   - 0DV  |  1   |  2   -  2D  |  3   -  3D  |  4   |  5   |  6   |  7   ||  CP  | LCD  |
+--------------------------------------------------------------------------------------------------
+   1 |             |      |             |             |      |      |      |      ||      |      |   .Lloop:
+   2 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 (%rsi), %zmm0
+   3 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, (%rdi)
+   4 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 0x40(%rsi), %zmm0
+   5 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, 0x40(%rdi)
+   6 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 0x80(%rsi), %zmm0
+   7 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, 0x80(%rdi)
+   8 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 0xc0(%rsi), %zmm0
+   9 |             |      |             |             |      |      |      |      ||      |      | X vmovdqu64 %zmm0, 0xc0(%rdi)
+  10 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x100, %rsi            # imm = 0x100
+  11 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||      |      |   addq $0x100, %rdi            # imm = 0x100
+  12 | 0.25        | 0.25 |             |             |      | 0.25 | 0.25 |      ||  1.0 |  1.0 |   decq %rdx
+  13 |             |      |             |             |      |      |      |      ||  0.0 |      | * jne .Lloop
+
+------------------ WARNING: The performance data for 8 instructions is missing.------------------
+                     No final analysis is given. If you want to ignore this
+                     warning and run the analysis anyway, start osaca with
+                                       --ignore-unknown flag.
+-------------------------------------------------------------------------------------------------
+
+
+
+
+Loop-Carried Dependencies Analysis Report
+-----------------------------------------
+  10 |  1.0 | addq	$0x100, %rsi            # imm = 0x100| [10]
+  11 |  1.0 | addq	$0x100, %rdi            # imm = 0x100| [11]
+  12 |  1.0 | decq	%rdx                           | [12]
+
+
+pryx_static_copy_1_1 uses REP MOVSB with RCX bytes per invocation. These static loop models do not model data-dependent fast-string throughput.

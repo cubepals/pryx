@@ -4,7 +4,7 @@
 //! Run the page-specialization self-check or paired CI-only sparse-file experiment.
 //! Parts (`src/`): `main.rs` command entry point, `sleep.rs` native paired samples.
 
-use pryx_page_generator::{Kernel, Plan, scalar};
+use pryx_page_generator::{CopyKernel, CopyPlan, Kernel, Plan, copy_scalar, scalar};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -35,6 +35,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+            let from = [3, 7, 0, 5, 9, 11];
+            let mut to = [0; 6];
+            copy_scalar(&mut to, &from);
+            assert_eq!(to, from);
+            for plan in CopyPlan::choices() {
+                let copy = CopyKernel::for_plan(plan).ok_or("host refused generated copy")?;
+                let src: Vec<_> = (0..521).map(|i| (i % 251) as u8).collect();
+                let mut dst = vec![0; src.len() + 5];
+                for len in 0..=512 {
+                    copy.copy(&mut dst[3..3 + len], &src[5..5 + len]);
+                    assert_eq!(dst[3..3 + len], src[5..5 + len]);
+                }
+            }
             Ok(())
         }
         [mode, dir] if mode == "encodings" => {
@@ -43,6 +56,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let kernel = Kernel::generate(plan).ok_or("generation refused")?;
                 let path = std::path::Path::new(dir).join(plan.slug()).with_extension("bin");
                 std::fs::write(path, kernel.encoding().ok_or("missing finalized bytes")?)?;
+            }
+            for plan in CopyPlan::choices() {
+                let kernel = CopyKernel::for_plan(plan).ok_or("copy generation refused")?;
+                let path = std::path::Path::new(dir).join(plan.slug()).with_extension("bin");
+                std::fs::write(path, kernel.encoding().ok_or("missing finalized copy bytes")?)?;
+            }
+            eprintln!("L1 data cache (line bytes, capacity bytes): {:?}", pryx_page_generator::l1_data_cache());
+            for bytes in [16, 64, 128, 4096, 16384, 65536, 2097152] {
+                eprintln!("copy dispatch for {bytes} bytes: {:?}", CopyPlan::detected(bytes));
             }
             Ok(())
         }

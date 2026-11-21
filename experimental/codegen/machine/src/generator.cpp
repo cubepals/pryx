@@ -31,7 +31,7 @@ struct Kernel {
 };
 
 #if defined(__x86_64__)
-static void emit(CodeHolder& code, unsigned width, unsigned count) {
+static void emit_scan(CodeHolder& code, unsigned width, unsigned count) {
     using namespace x86;
     Assembler a(&code);
     Label loop = a.new_label();
@@ -58,7 +58,7 @@ static void emit(CodeHolder& code, unsigned width, unsigned count) {
     a.ret();
 }
 #elif defined(__aarch64__)
-static void emit(CodeHolder& code, unsigned, unsigned count) {
+static void emit_scan(CodeHolder& code, unsigned, unsigned count) {
     using namespace a64;
     Assembler a(&code);
     Label loop = a.new_label();
@@ -74,12 +74,48 @@ static void emit(CodeHolder& code, unsigned, unsigned count) {
 }
 #endif
 
-extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
+#if defined(__x86_64__)
+static void emit_copy(CodeHolder& code, unsigned width, unsigned count) {
+    using namespace x86;
+    Assembler a(&code);
+    if (width == 1) {
+        a.mov(rcx, rdx);
+        a.rep().movsb();
+    } else {
+        Label loop = a.new_label();
+        a.bind(loop);
+        for (unsigned i = 0; i < count; ++i) {
+            const auto src = ptr(rsi, int(i * width));
+            const auto dst = ptr(rdi, int(i * width));
+            if (width == 64) { a.vmovdqu64(zmm0, src); a.vmovdqu64(dst, zmm0); }
+            else if (width == 32) { a.vmovdqu(ymm0, src); a.vmovdqu(dst, ymm0); }
+            else { a.movdqu(xmm0, src); a.movdqu(dst, xmm0); }
+        }
+        a.add(rsi, width * count); a.add(rdi, width * count); a.dec(rdx); a.jnz(loop);
+        if (width >= 32) a.vzeroupper();
+    }
+    a.ret();
+}
+#elif defined(__aarch64__)
+static void emit_copy(CodeHolder& code, unsigned, unsigned count) {
+    using namespace a64;
+    Assembler a(&code);
+    Label loop = a.new_label();
+    a.bind(loop);
+    for (unsigned i = 0; i < count; ++i) {
+        a.ldr(q0, ptr(x1, int(16 * i))); a.str(q0, ptr(x0, int(16 * i)));
+    }
+    a.add(x1, x1, 16 * count); a.add(x0, x0, 16 * count);
+    a.subs(x2, x2, 1); a.b_ne(loop); a.ret(x30);
+}
+#endif
+
+static Kernel* generate(unsigned width, unsigned count, bool copy) noexcept {
     if (count != 1 && count != 2 && count != 4) return nullptr;
 #if defined(__aarch64__)
     if (width != 16) return nullptr;
 #else
-    if (width != 16 && width != 32 && width != 64) return nullptr;
+    if (width != 16 && width != 32 && width != 64 && !(copy && width == 1 && count == 1)) return nullptr;
 #endif
     void* storage = std::malloc(sizeof(Kernel));
     if (!storage) return nullptr;
@@ -88,7 +124,8 @@ extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
     CodeHolder code;
     if (code.init(Environment::host()) == Error::kOk) {
         code.set_error_handler(&handler);
-        emit(code, width, count);
+        if (copy) emit_copy(code, width, count);
+        else emit_scan(code, width, count);
         const size_t page = VirtMem::info().page_size;
         if (!handler.failed && code.flatten() == Error::kOk &&
             code.resolve_cross_section_fixups() == Error::kOk && code.code_size() <= page) {
@@ -109,6 +146,14 @@ extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
     return nullptr;
 }
 
+extern "C" Kernel* pryx_generate_scan(unsigned width, unsigned count) noexcept {
+    return generate(width, count, false);
+}
+extern "C" Kernel* pryx_generate_copy(unsigned width, unsigned count) noexcept {
+    return generate(width, count, true);
+}
+using Copy = void (*)(uint8_t*, const uint8_t*, size_t);
+extern "C" Copy pryx_copy_entry(const Kernel* kernel) { return reinterpret_cast<Copy>(kernel->image); }
 extern "C" Scan pryx_scan_entry(const Kernel* kernel) { return reinterpret_cast<Scan>(kernel->image); }
 extern "C" const uint8_t* pryx_scan_bytes(const Kernel* kernel, size_t* size) {
     *size = kernel->code_size;

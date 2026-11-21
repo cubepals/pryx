@@ -53,6 +53,61 @@ Resource pressure by instruction:
  -      -      -     0.02    -      -      -     0.02   0.96    -     decq	%rsi
  -      -     0.99    -      -      -      -      -     0.01    -     jne	.Lloop
 
+pryx_static_copy_16_1 (16 bytes per iteration)
+Iterations:        100
+Instructions:      600
+Total Cycles:      129
+Total uOps:        700
+
+Dispatch Width:    6
+uOps Per Cycle:    5.43
+IPC:               4.65
+Block RThroughput: 1.2
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      6     0.50    *                   movdqu	(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, (%rdi)
+ 1      1     0.25                        addq	$16, %rsi
+ 1      1     0.25                        addq	$16, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   0.66   0.68   1.00   1.00   1.00   0.66
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.65   0.35    -      -      -      -     movdqu	(%rsi), %xmm0
+ -      -      -      -     0.01   0.33   1.00    -      -     0.66   movdqu	%xmm0, (%rdi)
+ -      -     0.20    -      -      -      -      -     0.80    -     addq	$16, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$16, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     0.80    -      -      -      -      -     0.20    -     jne	.Lloop
+
 pryx_static_16_2 (32 bytes per iteration)
 Iterations:        100
 Instructions:      700
@@ -109,6 +164,65 @@ Resource pressure by instruction:
  -      -     0.10   0.36    -      -      -     0.17   0.37    -     addq	$32, %rdi
  -      -     0.24   0.27    -      -      -     0.24   0.25    -     decq	%rsi
  -      -     0.50    -      -      -      -      -     0.50    -     jne	.Lloop
+
+pryx_static_copy_16_2 (32 bytes per iteration)
+Iterations:        100
+Instructions:      800
+Total Cycles:      209
+Total uOps:        1000
+
+Dispatch Width:    6
+uOps Per Cycle:    4.78
+IPC:               3.83
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      6     0.50    *                   movdqu	(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, (%rdi)
+ 1      6     0.50    *                   movdqu	16(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, 16(%rdi)
+ 1      1     0.25                        addq	$32, %rsi
+ 1      1     0.25                        addq	$32, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   1.34   1.34   2.00   1.00   1.00   1.32
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.48   0.52    -      -      -      -     movdqu	(%rsi), %xmm0
+ -      -      -      -     0.17   0.17   1.00    -      -     0.66   movdqu	%xmm0, (%rdi)
+ -      -      -      -     0.52   0.48    -      -      -      -     movdqu	16(%rsi), %xmm0
+ -      -      -      -     0.17   0.17   1.00    -      -     0.66   movdqu	%xmm0, 16(%rdi)
+ -      -      -      -      -      -      -      -     1.00    -     addq	$32, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$32, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
 
 pryx_static_16_4 (64 bytes per iteration)
 Iterations:        100
@@ -175,6 +289,73 @@ Resource pressure by instruction:
  -      -     0.22   0.26    -      -      -     0.24   0.28    -     decq	%rsi
  -      -     0.16    -      -      -      -      -     0.84    -     jne	.Lloop
 
+pryx_static_copy_16_4 (64 bytes per iteration)
+Iterations:        100
+Instructions:      1200
+Total Cycles:      409
+Total uOps:        1600
+
+Dispatch Width:    6
+uOps Per Cycle:    3.91
+IPC:               2.93
+Block RThroughput: 4.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      6     0.50    *                   movdqu	(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, (%rdi)
+ 1      6     0.50    *                   movdqu	16(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, 16(%rdi)
+ 1      6     0.50    *                   movdqu	32(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, 32(%rdi)
+ 1      6     0.50    *                   movdqu	48(%rsi), %xmm0
+ 2      1     1.00           *            movdqu	%xmm0, 48(%rdi)
+ 1      1     0.25                        addq	$64, %rsi
+ 1      1     0.25                        addq	$64, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   2.67   2.68   4.00   1.00   1.00   2.65
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.88   0.12    -      -      -      -     movdqu	(%rsi), %xmm0
+ -      -      -      -     0.04   0.08   1.00    -      -     0.88   movdqu	%xmm0, (%rdi)
+ -      -      -      -     0.41   0.59    -      -      -      -     movdqu	16(%rsi), %xmm0
+ -      -      -      -     0.04   0.31   1.00    -      -     0.65   movdqu	%xmm0, 16(%rdi)
+ -      -      -      -     0.59   0.41    -      -      -      -     movdqu	32(%rsi), %xmm0
+ -      -      -      -     0.05   0.29   1.00    -      -     0.66   movdqu	%xmm0, 32(%rdi)
+ -      -      -      -     0.62   0.38    -      -      -      -     movdqu	48(%rsi), %xmm0
+ -      -      -      -     0.04   0.50   1.00    -      -     0.46   movdqu	%xmm0, 48(%rdi)
+ -      -      -      -      -      -      -      -     1.00    -     addq	$64, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$64, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
+
 pryx_static_32_1 (32 bytes per iteration)
 Iterations:        100
 Instructions:      400
@@ -225,6 +406,61 @@ Resource pressure by instruction:
  -      -      -      -      -      -      -      -     1.00    -     addq	$32, %rdi
  -      -      -     1.00    -      -      -      -      -      -     decq	%rsi
  -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
+
+pryx_static_copy_32_1 (32 bytes per iteration)
+Iterations:        100
+Instructions:      600
+Total Cycles:      130
+Total uOps:        700
+
+Dispatch Width:    6
+uOps Per Cycle:    5.38
+IPC:               4.62
+Block RThroughput: 1.2
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      7     0.50    *                   vmovdqu	(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, (%rdi)
+ 1      1     0.25                        addq	$32, %rsi
+ 1      1     0.25                        addq	$32, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   0.67   0.67   1.00   1.00   1.00   0.66
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.34   0.66    -      -      -      -     vmovdqu	(%rsi), %ymm0
+ -      -      -      -     0.33   0.01   1.00    -      -     0.66   vmovdqu	%ymm0, (%rdi)
+ -      -     0.20    -      -      -      -      -     0.80    -     addq	$32, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$32, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     0.80    -      -      -      -      -     0.20    -     jne	.Lloop
 
 pryx_static_32_2 (64 bytes per iteration)
 Iterations:        100
@@ -278,6 +514,65 @@ Resource pressure by instruction:
  -      -     0.07   0.45    -      -      -     0.17   0.31    -     addq	$64, %rdi
  -      -     0.27   0.24    -      -      -     0.19   0.30    -     decq	%rsi
  -      -     0.49    -      -      -      -      -     0.51    -     jne	.Lloop
+
+pryx_static_copy_32_2 (64 bytes per iteration)
+Iterations:        100
+Instructions:      800
+Total Cycles:      210
+Total uOps:        1000
+
+Dispatch Width:    6
+uOps Per Cycle:    4.76
+IPC:               3.81
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      7     0.50    *                   vmovdqu	(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, (%rdi)
+ 1      7     0.50    *                   vmovdqu	32(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, 32(%rdi)
+ 1      1     0.25                        addq	$64, %rsi
+ 1      1     0.25                        addq	$64, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   1.34   1.34   2.00   1.00   1.00   1.32
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.24   0.76    -      -      -      -     vmovdqu	(%rsi), %ymm0
+ -      -      -      -     0.29   0.05   1.00    -      -     0.66   vmovdqu	%ymm0, (%rdi)
+ -      -      -      -     0.52   0.48    -      -      -      -     vmovdqu	32(%rsi), %ymm0
+ -      -      -      -     0.29   0.05   1.00    -      -     0.66   vmovdqu	%ymm0, 32(%rdi)
+ -      -      -      -      -      -      -      -     1.00    -     addq	$64, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$64, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
 
 pryx_static_32_4 (128 bytes per iteration)
 Iterations:        100
@@ -336,6 +631,73 @@ Resource pressure by instruction:
  -      -     0.25   0.25    -      -      -     0.07   0.43    -     decq	%rsi
  -      -     0.50    -      -      -      -      -     0.50    -     jne	.Lloop
 
+pryx_static_copy_32_4 (128 bytes per iteration)
+Iterations:        100
+Instructions:      1200
+Total Cycles:      410
+Total uOps:        1600
+
+Dispatch Width:    6
+uOps Per Cycle:    3.90
+IPC:               2.93
+Block RThroughput: 4.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 1      7     0.50    *                   vmovdqu	(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, (%rdi)
+ 1      7     0.50    *                   vmovdqu	32(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, 32(%rdi)
+ 1      7     0.50    *                   vmovdqu	64(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, 64(%rdi)
+ 1      7     0.50    *                   vmovdqu	96(%rsi), %ymm0
+ 2      1     1.00           *            vmovdqu	%ymm0, 96(%rdi)
+ 1      1     0.25                        addq	$128, %rsi
+ 1      1     0.25                        addq	$128, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.00   1.00   2.67   2.69   4.00   1.00   1.00   2.64
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.88   0.12    -      -      -      -     vmovdqu	(%rsi), %ymm0
+ -      -      -      -     0.04   0.10   1.00    -      -     0.86   vmovdqu	%ymm0, (%rdi)
+ -      -      -      -     0.41   0.59    -      -      -      -     vmovdqu	32(%rsi), %ymm0
+ -      -      -      -     0.05   0.29   1.00    -      -     0.66   vmovdqu	%ymm0, 32(%rdi)
+ -      -      -      -     0.59   0.41    -      -      -      -     vmovdqu	64(%rsi), %ymm0
+ -      -      -      -     0.04   0.29   1.00    -      -     0.67   vmovdqu	%ymm0, 64(%rdi)
+ -      -      -      -     0.62   0.38    -      -      -      -     vmovdqu	96(%rsi), %ymm0
+ -      -      -      -     0.04   0.51   1.00    -      -     0.45   vmovdqu	%ymm0, 96(%rdi)
+ -      -      -      -      -      -      -      -     1.00    -     addq	$128, %rsi
+ -      -      -      -      -      -      -     1.00    -      -     addq	$128, %rdi
+ -      -      -     1.00    -      -      -      -      -      -     decq	%rdx
+ -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
+
 pryx_static_64_1 (64 bytes per iteration)
 Iterations:        100
 Instructions:      400
@@ -386,6 +748,61 @@ Resource pressure by instruction:
  -      -      -      -      -      -      -      -     1.00    -     addq	$64, %rdi
  -      -      -     1.00    -      -      -      -      -      -     decq	%rsi
  -      -     1.00    -      -      -      -      -      -      -     jne	.Lloop
+
+pryx_static_copy_64_1 (64 bytes per iteration)
+Iterations:        100
+Instructions:      600
+Total Cycles:      144
+Total uOps:        800
+
+Dispatch Width:    6
+uOps Per Cycle:    5.56
+IPC:               4.17
+Block RThroughput: 1.3
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vmovdqu64	(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, (%rdi)
+ 1      1     0.25                        addq	$64, %rsi
+ 1      1     0.25                        addq	$64, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.25   1.25   0.67   0.67   1.00   1.25   1.25   0.66
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -     0.29   0.45   0.34   0.66    -     0.26    -      -     vmovdqu64	(%rsi), %zmm0
+ -      -      -      -     0.33   0.01   1.00    -      -     0.66   vmovdqu64	%zmm0, (%rdi)
+ -      -     0.09   0.25    -      -      -     0.32   0.34    -     addq	$64, %rsi
+ -      -     0.17   0.29    -      -      -     0.34   0.20    -     addq	$64, %rdi
+ -      -     0.21   0.26    -      -      -     0.33   0.20    -     decq	%rdx
+ -      -     0.49    -      -      -      -      -     0.51    -     jne	.Lloop
 
 pryx_static_64_2 (128 bytes per iteration)
 Iterations:        100
@@ -439,6 +856,65 @@ Resource pressure by instruction:
  -      -      -     0.82    -      -      -     0.17   0.01    -     addq	$128, %rdi
  -      -     0.24   0.22    -      -      -     0.12   0.42    -     decq	%rsi
  -      -     0.28    -      -      -      -      -     0.72    -     jne	.Lloop
+
+pryx_static_copy_64_2 (128 bytes per iteration)
+Iterations:        100
+Instructions:      800
+Total Cycles:      211
+Total uOps:        1200
+
+Dispatch Width:    6
+uOps Per Cycle:    5.69
+IPC:               3.79
+Block RThroughput: 2.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vmovdqu64	(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, (%rdi)
+ 2      8     0.50    *                   vmovdqu64	64(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, 64(%rdi)
+ 1      1     0.25                        addq	$128, %rsi
+ 1      1     0.25                        addq	$128, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     1.34   1.65   1.34   1.34   2.00   1.66   1.35   1.32
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -     0.34   0.32   0.68    -     0.66    -      -     vmovdqu64	(%rsi), %zmm0
+ -      -      -      -     0.33   0.33   1.00    -      -     0.34   vmovdqu64	%zmm0, (%rdi)
+ -      -     0.34   0.66   0.68   0.32    -      -      -      -     vmovdqu64	64(%rsi), %zmm0
+ -      -      -      -     0.01   0.01   1.00    -      -     0.98   vmovdqu64	%zmm0, 64(%rdi)
+ -      -     0.03    -      -      -      -     0.34   0.63    -     addq	$128, %rsi
+ -      -     0.32   0.34    -      -      -     0.31   0.03    -     addq	$128, %rdi
+ -      -     0.03   0.31    -      -      -     0.35   0.31    -     decq	%rdx
+ -      -     0.62    -      -      -      -      -     0.38    -     jne	.Lloop
 
 pryx_static_64_4 (256 bytes per iteration)
 Iterations:        100
@@ -496,3 +972,72 @@ Resource pressure by instruction:
  -      -      -     0.99    -      -      -      -     0.01    -     addq	$256, %rdi
  -      -     0.09   0.37    -      -      -      -     0.54    -     decq	%rsi
  -      -     0.09    -      -      -      -      -     0.91    -     jne	.Lloop
+
+pryx_static_copy_64_4 (256 bytes per iteration)
+Iterations:        100
+Instructions:      1200
+Total Cycles:      411
+Total uOps:        2000
+
+Dispatch Width:    6
+uOps Per Cycle:    4.87
+IPC:               2.92
+Block RThroughput: 4.0
+
+
+Instruction Info:
+[1]: #uOps
+[2]: Latency
+[3]: RThroughput
+[4]: MayLoad
+[5]: MayStore
+[6]: HasSideEffects (U)
+
+[1]    [2]    [3]    [4]    [5]    [6]    Instructions:
+ 2      8     0.50    *                   vmovdqu64	(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, (%rdi)
+ 2      8     0.50    *                   vmovdqu64	64(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, 64(%rdi)
+ 2      8     0.50    *                   vmovdqu64	128(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, 128(%rdi)
+ 2      8     0.50    *                   vmovdqu64	192(%rsi), %zmm0
+ 2      1     1.00           *            vmovdqu64	%zmm0, 192(%rdi)
+ 1      1     0.25                        addq	$256, %rsi
+ 1      1     0.25                        addq	$256, %rdi
+ 1      1     0.25                        decq	%rdx
+ 1      1     0.50                        jne	.Lloop
+
+
+Resources:
+[0]   - SKXDivider
+[1]   - SKXFPDivider
+[2]   - SKXPort0
+[3]   - SKXPort1
+[4]   - SKXPort2
+[5]   - SKXPort3
+[6]   - SKXPort4
+[7]   - SKXPort5
+[8]   - SKXPort6
+[9]   - SKXPort7
+
+
+Resource pressure per iteration:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]
+ -      -     2.00   2.00   2.68   2.68   4.00   2.00   2.00   2.64
+
+Resource pressure by instruction:
+[0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    Instructions:
+ -      -      -      -     0.33   0.67    -     1.00    -      -     vmovdqu64	(%rsi), %zmm0
+ -      -      -      -     0.16   0.06   1.00    -      -     0.78   vmovdqu64	%zmm0, (%rdi)
+ -      -      -     1.00   0.41   0.59    -      -      -      -     vmovdqu64	64(%rsi), %zmm0
+ -      -      -      -     0.24   0.03   1.00    -      -     0.73   vmovdqu64	%zmm0, 64(%rdi)
+ -      -     1.00    -     0.54   0.46    -      -      -      -     vmovdqu64	128(%rsi), %zmm0
+ -      -      -      -     0.34   0.23   1.00    -      -     0.43   vmovdqu64	%zmm0, 128(%rdi)
+ -      -      -      -     0.40   0.60    -     1.00    -      -     vmovdqu64	192(%rsi), %zmm0
+ -      -      -      -     0.26   0.04   1.00    -      -     0.70   vmovdqu64	%zmm0, 192(%rdi)
+ -      -      -      -      -      -      -      -     1.00    -     addq	$256, %rsi
+ -      -      -     1.00    -      -      -      -      -      -     addq	$256, %rdi
+ -      -     1.00    -      -      -      -      -      -      -     decq	%rdx
+ -      -      -      -      -      -      -      -     1.00    -     jne	.Lloop
+
+pryx_static_copy_1_1 uses REP MOVSB with RCX bytes per invocation. These static loop models do not model data-dependent fast-string throughput.

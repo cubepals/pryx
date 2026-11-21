@@ -22,9 +22,14 @@ with tempfile.TemporaryDirectory() as tmp:
             symbols[fields[0]] = (int(fields[2], 16), int(fields[3], 16))
     section = text.read_bytes()
     print("plan,byte_identical,static_sha256,generated_sha256")
-    for image in sorted(images.glob("*.bin")):
-        width, unroll = image.stem.split("-")
-        start, size = symbols[f"pryx_static_{width[1:]}_{unroll[1:]}"]
+    candidates = sorted(images.glob("*.bin"))
+    if not candidates:
+        raise ValueError("missing native encodings")
+    for image in candidates:
+        slug = image.stem.removeprefix("copy-")
+        width, unroll = slug.split("-")
+        prefix = "copy_" if slug != image.stem else ""
+        start, size = symbols[f"pryx_static_{prefix}{width[1:]}_{unroll[1:]}"]
         static, generated = section[start:start+size], image.read_bytes()
         print(f"{image.stem},{int(static == generated)},{hashlib.sha256(static).hexdigest()},"
               f"{hashlib.sha256(generated).hexdigest()}")

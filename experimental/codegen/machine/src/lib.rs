@@ -8,6 +8,9 @@
 #[cfg(not(miri))]
 use std::ffi::c_void;
 
+mod bulk;
+pub use bulk::{CopyKernel, CopyPlan, copy_scalar};
+
 pub fn scalar(bytes: &[u8]) -> bool {
     bytes.iter().all(|&byte| byte == 0)
 }
@@ -44,12 +47,41 @@ impl Plan {
     pub fn detected() -> Option<Self> {
         let choices = Self::static_choices();
         let width = choices.last()?.width;
-        let size = std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size")
-            .ok()
-            .and_then(|text| text.trim().parse::<usize>().ok())
-            .unwrap_or(64);
+        let (size, _) = l1_data_cache();
         choices.into_iter().rev().find(|p| p.width == width && p.width * p.unroll <= size.max(width))
     }
+}
+
+pub fn l1_data_cache() -> (usize, Option<usize>) {
+    #[cfg(all(target_os = "linux", not(miri)))]
+    {
+        unsafe extern "C" {
+            fn sched_getcpu() -> std::ffi::c_int;
+        }
+        let cpu = unsafe { sched_getcpu() };
+        let dir = format!("/sys/devices/system/cpu/cpu{cpu}/cache");
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let cache = entry.path();
+                let level = std::fs::read_to_string(cache.join("level")).unwrap_or_default();
+                let kind = std::fs::read_to_string(cache.join("type")).unwrap_or_default();
+                if level.trim() != "1" || !matches!(kind.trim(), "Data" | "Unified") {
+                    continue;
+                }
+                if let Ok(line) = std::fs::read_to_string(cache.join("coherency_line_size"))
+                    && let Ok(size) = line.trim().parse::<usize>()
+                    && size.is_power_of_two()
+                {
+                    // Linux reports this cache capacity in KiB, for example "48K".
+                    let capacity = std::fs::read_to_string(cache.join("size"))
+                        .ok()
+                        .and_then(|text| text.trim().strip_suffix('K')?.parse::<usize>().ok()?.checked_mul(1024));
+                    return (size, capacity);
+                }
+            }
+        }
+    }
+    (64, None)
 }
 
 #[cfg(not(miri))]
