@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k35-archive-short
+          SOURCE_BRANCH: k47-go-archive-diagnostics
           BASE_BRANCH: any-host
-          SOURCE_HEAD: '5ef3655f03e28098d5d6a4d4ae6a364c9a3bdf99'
-          ANY_HOST_HEAD: 'c6410c9477b334773d8f4baa89aad9bbcb844779'
-          MERGED_TREE: '7a302a3d34bbfe53130ad6dd1db99f7680386129'
-          SUBJECT: 'Merge any-host into archive download branch'
+          SOURCE_HEAD: 'f165b8571a45e301fb8340e6e8743f0f1902ab6a'
+          ANY_HOST_HEAD: 'abf5a42ce0dc8b3b3e959b9e85656ed37e889230'
+          MERGED_TREE: '56017be85c277b18877dafabda62d369f4621a35'
+          SUBJECT: 'Merge any-host into Go logging branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
