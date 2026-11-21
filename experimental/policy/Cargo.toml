@@ -1,0 +1,28 @@
+[package]
+name = "pryx-policy-cost"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "FSL-1.1-ALv2"
+publish = false
+
+[workspace]
+
+[features]
+default = []
+experimental = ["dep:libc", "dep:rustix", "dep:seccompiler", "dep:linux-raw-sys"]
+
+[dependencies]
+libc = { version = "=0.2.191", optional = true }
+rustix = { version = "=1.1.6", features = ["process"], optional = true }
+seccompiler = { version = "=0.5.0", optional = true }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+linux-raw-sys = { version = "=0.12.1", default-features = false, features = ["general"], optional = true }
+
+[[bin]]
+name = "pryx-policy-cost"
+path = "latency.rs"
+required-features = ["experimental"]
+test = false
+bench = false

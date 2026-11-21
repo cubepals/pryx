@@ -5,6 +5,11 @@ on:
   # of this file. That branch's push starts a run whose jobs all skip: it takes no runner and only
   # cancels a proof of an older commit. any-host's push runs every job.
   workflow_dispatch:
+    inputs:
+      policy_cost:
+        description: Run only the opt-in process-policy baseline on both native architectures
+        type: boolean
+        default: false
   push:
     branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
@@ -46,6 +51,7 @@ jobs:
     # repository: a dispatch on that branch proves its commits. Forks, other branches, any-host's
     # push and dispatches run it as before.
     if: >-
+      !(github.event_name == 'workflow_dispatch' && inputs.policy_cost) &&
       (github.event_name != 'push' || github.ref == 'refs/heads/any-host') && (
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
@@ -128,3 +134,52 @@ jobs:
         run: |
           path="$RUNNER_TEMP/pryx-engine-$ENGINE/engine.log"
           if [ -f "$path" ]; then tail -100 "$path"; fi
+
+  policy-cost:
+    if: github.event_name == 'workflow_dispatch' && inputs.policy_cost
+    name: Process policy baseline on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the process policy benchmark
+        run: |
+          rustup toolchain install
+          cargo build --locked --release --manifest-path experimental/policy/Cargo.toml --features experimental
+      - name: Measure the existing installed seccomp stack
+        run: |
+          mkdir -p "$RUNNER_TEMP/policy"
+          git rev-parse HEAD > "$RUNNER_TEMP/policy/commit"
+          uname -a > "$RUNNER_TEMP/policy/kernel"
+          lscpu --json > "$RUNNER_TEMP/policy/cpu.json"
+          lscpu --caches > "$RUNNER_TEMP/policy/caches"
+          rustc -vV > "$RUNNER_TEMP/policy/rust"
+          cat /proc/meminfo > "$RUNNER_TEMP/policy/meminfo"
+          findmnt --target "$RUNNER_TEMP" > "$RUNNER_TEMP/policy/filesystem"
+          if test -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor; then
+            cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor > "$RUNNER_TEMP/policy/governor"
+          fi
+          binary=experimental/policy/target/release/pryx-policy-cost
+          "$binary" host cache 1 > "$RUNNER_TEMP/policy/host-cache"
+          "$binary" process cache 1 > "$RUNNER_TEMP/policy/process-cache"
+          python3 experimental/policy/seccomp.py "$binary" > "$RUNNER_TEMP/policy/seccomp.json"
+      - name: Verify and exercise the stock cgroup program object
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-18 linux-tools-common "linux-tools-$(uname -r)"
+          llvm-objdump-18 --version > "$RUNNER_TEMP/policy/llvm"
+          bpftool version > "$RUNNER_TEMP/policy/bpftool"
+          sudo python3 experimental/policy/network.py "$RUNNER_TEMP/policy/network" --verify --skb
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: policy-baseline-${{ matrix.runner }}
+          path: ${{ runner.temp }}/policy/
+          if-no-files-found: error
