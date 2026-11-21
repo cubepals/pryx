@@ -11,8 +11,11 @@ Selecting both `lab_agent_baseline` and `lab_guest` stages the expensive VM
 inputs once. The stock A3 baseline runs and uploads first. E1 then uses separate
 images and fresh monitors on the same host.
 Set `lab_guest=true` to build the two freestanding inits and run fifteen cold
-rounds. Each round rotates the order of six cases across three init executables
-and the current and quiet kernel command lines. Each monitor gets one vCPU,
+rounds. The six cases combine three init executables with the current and quiet
+kernel command lines. Odd rounds use the recorded order and even rounds reverse
+the entire sequence. Each event gives its one-based round and position, case,
+and direction. Host frequency fields are CPU 0 sysfs values at cohort start
+in kHz, with null for unavailable values. Each monitor gets one vCPU,
 256 MiB, its read-only EROFS root, a fresh throwaway writes device and vsock.
 CPU caches and monitor binaries are warm across rounds. The C and assembly
 guest images have only one executable. Their init blocks until the host stops
@@ -107,7 +110,7 @@ Parts (`guest/`):
 - `build.sh` builds the native ELF probes and checks their program headers.
 - `facts.py` checks input digests and records the compiler, filesystem, CPU policies and page settings.
 - `boot.py` owns a fresh monitor, its clocks, bounded serial and private sockets.
-- `cohort.py` rotates the cases, writes raw rows and computes p50 and p95.
+- `cohort.py` reverses the full case order on alternating rounds, writes raw rows and computes p50 and p95.
 - `native.py` checks both native ELF programs and records the host prerequisites.
 - `kvm_api.c` reads the host KVM API revision from the ordinary-user device.
 - `kernel_pair.py` prepares the verified, controlled kernel-config pair.

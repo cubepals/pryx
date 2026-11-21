@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from boot import STAMP
-from cohort import percentiles, summarize
+from cohort import percentiles, schedule, summarize
 
 
 class GuestSamples(unittest.TestCase):
@@ -13,6 +13,27 @@ class GuestSamples(unittest.TestCase):
         self.assertIsNone(STAMP.search(b'prefix' + marker + b'\n'))
         self.assertIsNone(STAMP.search(marker))
         self.assertEqual(int(STAMP.search(b'linux\r\n' + marker + b'\r\n').group(1), 16), 121)
+
+    def test_every_pair_changes_direction_on_every_round(self):
+        for labels in (['agent','asm','c','agent-quiet','asm-quiet','c-quiet'], ['control','no-print-time']):
+            trials = [(name, object()) for name in labels]
+            rows = list(schedule(trials))
+            self.assertEqual(len(rows), 15 * len(labels))
+            last = {}
+            for number in range(1,16):
+                events = [(event, trial) for event, trial in rows if event['round'] == number]
+                expected = labels if number % 2 else labels[::-1]
+                self.assertEqual([event['variant'] for event, _ in events], expected)
+                self.assertEqual([trial[0] for _, trial in events], expected)
+                self.assertEqual([event['position'] for event, _ in events], list(range(1, len(labels) + 1)))
+                self.assertEqual({event['direction'] for event, _ in events}, {'forward' if number % 2 else 'reverse'})
+                order = {name: i for i, name in enumerate(expected)}
+                for i, left in enumerate(labels):
+                    for right in labels[i+1:]:
+                        earlier = order[left] < order[right]
+                        if number > 1:
+                            self.assertNotEqual(earlier, last[left,right])
+                        last[left,right] = earlier
 
     def test_fifteen_samples_use_maximum_for_nearest_rank_p95(self):
         self.assertEqual(percentiles(range(1, 16)), (8, 15))

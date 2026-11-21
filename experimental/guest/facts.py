@@ -36,6 +36,8 @@ def host(work):
         'cache': {index.name: {name: optional(index / name) for name in ('level', 'type', 'size')}
                   for index in sorted((cpu / 'cache').glob('index*'))},
         'frequencyGovernor': optional(cpu / 'cpufreq/scaling_governor'),
+        'cpu0FrequencyKHzAtStart': {name: optional(cpu / 'cpufreq' / name) for name in
+                                     ['scaling_cur_freq', 'scaling_min_freq', 'scaling_max_freq']},
         'transparentHugePages': optional(huge / 'enabled'),
         'hugePageDefrag': optional(huge / 'defrag'),
         'hugePages': [s for s in Path('/proc/meminfo').read_text().splitlines() if s.startswith('Huge')],

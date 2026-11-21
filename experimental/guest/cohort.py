@@ -23,6 +23,18 @@ from filesystem import command
 from kernel import root_image, selected
 
 
+ROUNDS = 15
+
+
+def schedule(trials):
+    for round_number in range(1, ROUNDS + 1):
+        forward = round_number % 2 == 1
+        for position, trial in enumerate(trials if forward else reversed(trials), start=1):
+            event = {'round': round_number, 'position': position, 'variant': trial[0],
+                     'direction': 'forward' if forward else 'reverse'}
+            yield event, trial
+
+
 def percentiles(values):
     ordered = sorted(values)
     return statistics.median(ordered), ordered[math.ceil(0.95 * len(ordered)) - 1]
@@ -98,18 +110,21 @@ def main():
               'realAgent': bootstrap['agentSha256'],
               'kernelHashes': {name: digest(file) for name, _, file, _ in trials},
               'images': {name: digest(path) for name, path in fixture.items()},
+              'ordering': {'rounds': ROUNDS, 'oddRounds': labels, 'evenRounds': labels[::-1],
+                           'forwardRounds': 8, 'reverseRounds': 7, 'positionBase': 1},
+              'clocks': {'pid1BootNs': 'guest CLOCK_BOOTTIME at the first PID 1 clock read',
+                         'hostIntervals': 'host monotonic_ns relative to monitor launch'},
               'samples': [], 'complete': False}
     def save():
         (work / 'samples.json').write_text(json.dumps(report, indent=2) + '\n')
     save()
     try:
-        for i in range(15):
-            for label, kind, image, extra in trials[i % len(trials):] + trials[:i % len(trials)]:
-                observation = sample(monitor, config, image, fixture[kind], work / f'{i:02}-{label}',
-                                     metadata['vmInitMode'], metadata['vmBootPort'],
-                                     extra, kind == 'agent')
-                report['samples'].append({'round': i + 1, 'variant': label, **observation})
-                save()
+        for event, (label, kind, image, extra) in schedule(trials):
+            directory = work / f"{event['round'] - 1:02}-{label}"
+            observation = sample(monitor, config, image, fixture[kind], directory,
+                                 metadata['vmInitMode'], metadata['vmBootPort'], extra, kind == 'agent')
+            report['samples'].append({**event, **observation})
+            save()
         summarize(report['samples'], work, labels, labels[0])
         report['complete'] = True
     finally:
