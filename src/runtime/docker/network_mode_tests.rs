@@ -10,6 +10,7 @@ mod tests {
         protocol::NetworkMode,
     };
     use axum::{Json, Router, body::to_bytes, extract::Request, routing::any};
+    use std::os::unix::fs::MetadataExt;
     use std::sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -43,6 +44,62 @@ mod tests {
         ] {
             assert!(!info.disconnected_ingress(crate::protocol::Isolation::Container.as_str()));
         }
+    }
+
+    #[tokio::test]
+    async fn private_ingress_recovers_after_a_failed_metadata_probe() {
+        let directory = tempfile::tempdir_in(std::env::current_dir().unwrap()).unwrap();
+        let socket = directory.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+        let wire = Arc::new(Wire::default());
+        let app = Router::new().fallback(any(move |request| {
+            answer(request, wire.clone(), serde_json::Value::Null, serde_json::Value::Null)
+        }));
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let response = directory.path().join("metadata.json");
+        let agent = compile_metadata_agent(
+            directory.path(),
+            &format!(
+                r#"#include <stdio.h>
+int main(void) {{
+    FILE *response = fopen({response:?}, "r");
+    if (response == NULL) return 1;
+    int byte;
+    while ((byte = fgetc(response)) != EOF) putchar(byte);
+    return ferror(response) != 0;
+}}
+"#
+            ),
+        );
+        let ids =
+            Ids { uid: rustix::process::geteuid().as_raw().max(1), gid: rustix::process::getegid().as_raw().max(1) };
+        let mut runtime = DockerRuntime::new(&socket).unwrap().with_internal_ingress_agent(&agent);
+        runtime.ownership = ownership::Policy { user: ids, owner: Some(ids) };
+
+        let stamp = || {
+            let file = std::fs::symlink_metadata(&agent).unwrap();
+            (file.dev(), file.ino(), file.size(), file.ctime(), file.ctime_nsec())
+        };
+        let original = stamp();
+        assert!(crate::runtime::protected_agent(&agent, false).is_some());
+        assert!(crate::runtime::agent_metadata::query(&agent).await.is_none());
+        let first = runtime.info().await.unwrap();
+        assert!(first.rootless && first.container_policy_problem.is_none());
+        assert_eq!(first.private_ingress, Some(false), "A failed probe must leave ingress off");
+
+        let capabilities = pryx_agent::bootstrap_capabilities::probe();
+        std::fs::write(&response, serde_json::to_vec(&capabilities).unwrap()).unwrap();
+        assert_eq!(stamp(), original, "Only the metadata response changed");
+        let metadata = crate::runtime::agent_metadata::query(&agent).await.unwrap();
+        assert_eq!(metadata.internal_ingress_version, pryx_agent::exec_ingress::VERSION);
+        assert_eq!(
+            runtime.info().await.unwrap().private_ingress,
+            Some(true),
+            "The same protected executable now answers the ingress probe"
+        );
+        std::fs::remove_file(response).unwrap();
+        assert_eq!(runtime.info().await.unwrap().private_ingress, Some(true), "Confirmed support is cached");
+        server.abort();
     }
 
     #[tokio::test]
@@ -215,10 +272,16 @@ mod tests {
 
     // Trusted metadata only. Actual agent TCP/UDP behavior belongs to the real-engine case.
     fn metadata_agent(directory: &Path, output: &str) -> std::path::PathBuf {
+        compile_metadata_agent(
+            directory,
+            &format!("#include <stdio.h>\nint main(void) {{ puts({output:?}); return 0; }}\n"),
+        )
+    }
+
+    fn compile_metadata_agent(directory: &Path, code: &str) -> std::path::PathBuf {
         let source = directory.join("metadata.c");
         let agent = directory.join("agent");
-        std::fs::write(&source, format!("#include <stdio.h>\nint main(void) {{ puts({output:?}); return 0; }}\n"))
-            .unwrap();
+        std::fs::write(&source, code).unwrap();
         assert!(
             std::process::Command::new("cc")
                 .args(["-static", "-O2"])

@@ -54,10 +54,16 @@ impl Support {
         if let Some(on) = cached {
             return on;
         }
-        let available = super::exec_agent::static_binary(&self.binary)
-            && crate::runtime::agent_metadata::query(&self.binary)
-                .await
-                .is_some_and(|caps| caps.internal_ingress_version >= pryx_agent::exec_ingress::VERSION);
+        // An unreadable executable or unanswered probe leaves this observation off. Cache only
+        // what the executable's bytes or its completed capability response establish.
+        let available = match super::exec_agent::static_binary(&self.binary) {
+            Ok(true) => {
+                let Some(caps) = crate::runtime::agent_metadata::query(&self.binary).await else { return false };
+                caps.internal_ingress_version >= pryx_agent::exec_ingress::VERSION
+            }
+            Ok(false) => false,
+            Err(_) => return false,
+        };
         if Stamp::of(&self.binary) != Some(stamp) {
             return false;
         }
