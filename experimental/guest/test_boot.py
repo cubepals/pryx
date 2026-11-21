@@ -27,5 +27,15 @@ class GuestSamples(unittest.TestCase):
             target = Path(directory)
             summarize(rows, target, ['control', 'fast', 'slow-tail'], 'control')
             table = (target / 'table.md').read_text()
-        self.assertIn('| fast | 90.000 / 90.000 | 110.000 / 110.000 | — | pass |', table)
-        self.assertIn('| slow-tail | 89.000 / 106.000 | 109.000 / 126.000 | — | fail |', table)
+        self.assertIn('| fast | 90.000 / 90.000 | 110.000 / 110.000 | — | — | — | pass |', table)
+        self.assertIn('| slow-tail | 89.000 / 106.000 | 109.000 / 126.000 | — | — | — | fail |', table)
+
+    def test_serial_bootstrap_phase_uses_only_ordered_host_observations(self):
+        rows = [dict(variant='agent', pid1BootNs=90000000, launchToPid1SerialNs=110000000,
+                     launchToBootstrapNs=110000000 + delta, serialToBootstrapNs=delta,
+                     serialAndBootstrapSamePoll=same) for delta, same in
+                [(2000000, False), (3000000, False), (100, True), (-300, False)]]
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            summarize(rows, target, ['agent'], 'agent')
+            self.assertIn(' | 2.500 / 3.000 | 2 | baseline |', (target / 'table.md').read_text())

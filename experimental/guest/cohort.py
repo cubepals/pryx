@@ -37,8 +37,9 @@ def percentiles(values):
 def summarize(rows, directory, labels, reference):
     by_label = {label: [row for row in rows if row['variant'] == label] for label in labels}
     table = ['| Variant | Boot to PID 1 p50/p95 (ms) | Launch to serial p50/p95 (ms) | '
-             'Launch to bootstrap p50/p95 (ms) | Kernel/entry criterion |',
-             '| --- | ---: | ---: | ---: | --- |']
+             'Launch to bootstrap p50/p95 (ms) | Serial to bootstrap p50/p95 (ms) | '
+             'Unordered/same-poll pairs | Kernel/entry criterion |',
+             '| --- | ---: | ---: | ---: | ---: | ---: | --- |']
     floor = percentiles([row['pid1BootNs'] for row in by_label[reference]])
     for name, group in by_label.items():
         kernel = percentiles([row['pid1BootNs'] for row in group])
@@ -46,6 +47,11 @@ def summarize(rows, directory, labels, reference):
         for key in ['pid1BootNs', 'launchToPid1SerialNs', 'launchToBootstrapNs']:
             series = [row[key] for row in group if key in row]
             fields.append(' / '.join(f'{v / 1e6:.3f}' for v in percentiles(series)) if series else '—')
+        phase = [row for row in group if 'serialToBootstrapNs' in row]
+        ordered = [row['serialToBootstrapNs'] for row in phase
+                   if row['serialToBootstrapNs'] >= 0 and not row['serialAndBootstrapSamePoll']]
+        fields.append(' / '.join(f'{v / 1e6:.3f}' for v in percentiles(ordered)) if ordered else '—')
+        fields.append(str(len(phase) - len(ordered)) if phase else '—')
         if name == reference:
             result = 'baseline'
         else:

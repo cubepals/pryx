@@ -45,6 +45,8 @@ def sample(monitor, configurator, kernel, root, directory, boot_mode, port, extr
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT)
         observation = {}
+        polls = {}
+        poll = 0
         output = bytearray()
         try:
             events.register(process.stdout, selectors.EVENT_READ)
@@ -53,6 +55,7 @@ def sample(monitor, configurator, kernel, root, directory, boot_mode, port, extr
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError(f'Missing guest observation in {directory}')
+                poll += 1
                 for event, _ in events.select(remaining):
                     seen = time.monotonic_ns() - started
                     if event.fileobj is listener:
@@ -60,6 +63,7 @@ def sample(monitor, configurator, kernel, root, directory, boot_mode, port, extr
                         connection.close()
                         events.unregister(listener)
                         observation['launchToBootstrapNs'] = seen
+                        polls['bootstrap'] = poll
                     else:
                         chunk = os.read(process.stdout.fileno(), 65536)
                         if not chunk:
@@ -72,6 +76,11 @@ def sample(monitor, configurator, kernel, root, directory, boot_mode, port, extr
                         if match and 'pid1BootNs' not in observation:
                             observation['pid1BootNs'] = int(match.group(1), 16)
                             observation['launchToPid1SerialNs'] = seen
+                            polls['serial'] = poll
+            if real:
+                delta = observation['launchToBootstrapNs'] - observation['launchToPid1SerialNs']
+                observation['serialAndBootstrapSamePoll'] = polls['bootstrap'] == polls['serial']
+                observation['serialToBootstrapNs'] = delta
             return observation
         finally:
             if process.poll() is None:

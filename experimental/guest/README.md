@@ -16,8 +16,9 @@ guest images have only one executable. Their init blocks until the host stops
 the fixture.
 
 The first user instructions take the Linux boot-clock timestamp and write its
-hexadecimal nanoseconds to the serial console. All three ELF files use the same
-entry stamp. The instrumented production agent continues through its original
+hexadecimal nanoseconds to the serial console. The assembly and production ELF files share an
+entry stamp. The freestanding C implementation takes the same clock reading
+after the same PID check with a native syscall. The instrumented production agent continues through its original
 entry and makes its normal private bootstrap connection. For this experiment
 the connection ends before configuration or credentials are sent.
 
@@ -26,6 +27,8 @@ the connection ends before configuration or credentials are sent.
 | Boot to PID 1 | Guest CLOCK_BOOTTIME to the timestamp taken on ELF entry, after a PID check |
 | Launch to serial | Host monotonic time from monitor spawn to reading the PID 1 marker |
 | Launch to bootstrap | Same host clock to accepting the real agent’s first vsock connection |
+| Serial to bootstrap | Elapsed time between the two host deliveries in each real-agent boot, aggregated after subtraction |
+| Unordered/same-poll pairs | Bootstrap arrives before serial, or both become readable in one poll; these rows retain their raw delta and leave the phase percentiles |
 
 Read the historical 816–832 ms in [the VM stage record](../../docs/decisions.md)
 as monitor startup to bootstrap. It includes part of guest userspace startup.
