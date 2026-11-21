@@ -7,6 +7,7 @@ the private download and extraction directories; CLI handles HTTP, credentials a
 extraction. This wrapper neither reads their contents nor changes content authentication.
 """
 import argparse
+from contextlib import contextmanager
 import math
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 # GNU timeout(1)'s documented timeout exit status, retained for callers of the former wrapper.
@@ -50,17 +52,59 @@ def stop(process):
         process.wait()
 
 
+@contextmanager
+def defer_cancellation():
+    """Check cancellation while watching the client, and finish reaping before unwinding."""
+    pending = False
+    deferred = []
+
+    def remember(_signal, _frame):
+        nonlocal pending
+        pending = True
+
+    def check():
+        nonlocal pending
+        if pending:
+            pending = False
+            raise KeyboardInterrupt
+
+    try:
+        if threading.current_thread() is threading.main_thread():
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                if signal.getsignal(sig) is signal.default_int_handler:
+                    deferred.append(sig)
+                    signal.signal(sig, remember)
+        yield check
+    finally:
+        if deferred:
+            # Client cleanup has finished. Block only while restoring both handlers so a
+            # second signal cannot interrupt a partial restore or change the child's mask.
+            mask = signal.pthread_sigmask(signal.SIG_BLOCK, deferred)
+            try:
+                for sig in deferred:
+                    signal.signal(sig, signal.default_int_handler)
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+        check()
+
+
 def read(command, stage, log, idle_seconds):
     started = time.monotonic()
     deadline = started + idle_seconds
     most_bytes = 0
-    with tempfile.TemporaryDirectory(prefix='gh-artifact-read-', dir=stage.parent) as temporary:
+    with (
+        defer_cancellation() as check_cancellation,
+        tempfile.TemporaryDirectory(prefix='gh-artifact-read-', dir=stage.parent) as temporary,
+    ):
         # Go's os.CreateTemp("", ...) uses TMPDIR; the pinned CLI's http.go owns this layout.
         with log.open('w') as output:
-            process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT,
-                                       start_new_session=True, env={**os.environ, 'TMPDIR': temporary})
+            process = None
             try:
+                # The client's diagnostics can include a temporary download URL.
+                process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                           start_new_session=True, env={**os.environ, 'TMPDIR': temporary})
                 while process.poll() is None:
+                    check_cancellation()
                     progress = written_bytes(stage, temporary)
                     now = time.monotonic()
                     if progress > most_bytes:
@@ -76,7 +120,7 @@ def read(command, stage, log, idle_seconds):
                     except subprocess.TimeoutExpired:
                         pass
             finally:
-                if process.poll() is None:
+                if process is not None and process.poll() is None:
                     stop(process)
             if process.returncode:
                 output.write(f'Artifact read exited {process.returncode}; '

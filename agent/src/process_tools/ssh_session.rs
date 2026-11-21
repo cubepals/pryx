@@ -13,11 +13,11 @@ pub struct Ssh {
     launch: Launch,
     child: Mutex<std::process::Child>,
     stopped: AtomicBool,
-    _held: tokio::net::TcpListener,
+    reservation: tokio::net::TcpListener,
 }
 impl Ssh {
-    pub(super) fn new(launch: Launch, child: std::process::Child, held: tokio::net::TcpListener) -> Self {
-        Self { launch, child: Mutex::new(child), stopped: AtomicBool::new(false), _held: held }
+    pub(super) fn new(launch: Launch, child: std::process::Child, reservation: tokio::net::TcpListener) -> Self {
+        Self { launch, child: Mutex::new(child), stopped: AtomicBool::new(false), reservation }
     }
     pub fn running(&self) -> bool {
         !self.stopped.load(Ordering::Acquire)
@@ -44,13 +44,15 @@ impl Ssh {
 impl Drop for Ssh {
     fn drop(&mut self) {
         self.stop();
+        // Release the listening port even if a concurrent fork still holds a copy of the socket.
+        let _ = rustix::net::shutdown(&self.reservation, rustix::net::Shutdown::Both);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::{linux::net::SocketAddrExt, unix::net::SocketAddr};
+    use std::os::{fd::AsFd, linux::net::SocketAddrExt, unix::net::SocketAddr};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
@@ -67,10 +69,12 @@ mod tests {
         octets[1..].copy_from_slice(&uuid::Uuid::new_v4().as_bytes()[..3]);
         let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::from(octets), 0)).await.unwrap();
         let port = held.local_addr().unwrap();
+        // A concurrent fork can hold the same socket until the child's exec closes its descriptor.
+        let inherited = held.as_fd().try_clone_to_owned().unwrap();
         let child = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
         let session = Ssh::new(Launch { directory: root.path().into(), address }, child, held);
         assert!(session.running());
-        assert!(tokio::net::TcpListener::bind(port).await.is_err());
+        assert_eq!(tokio::net::TcpListener::bind(port).await.unwrap_err().kind(), std::io::ErrorKind::AddrInUse);
         let peer = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
             stream.write_all(b"private\0SSH\xff").await.unwrap();
@@ -85,5 +89,6 @@ mod tests {
         assert_eq!(session.connect().await.unwrap_err().kind(), std::io::ErrorKind::NotConnected);
         drop(session);
         tokio::net::TcpListener::bind(port).await.expect("Dropping the SSH lease must immediately release its port");
+        drop(inherited);
     }
 }

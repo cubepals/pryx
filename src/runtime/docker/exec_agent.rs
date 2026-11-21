@@ -69,8 +69,9 @@ fn staged(binary: &Path, data: &Path) -> std::io::Result<PathBuf> {
     Ok(target)
 }
 
-pub(super) fn static_binary(binary: &Path) -> bool {
-    std::fs::read(binary).ok().and_then(|image| static_image(&image).ok()).unwrap_or(false)
+pub(super) fn static_binary(binary: &Path) -> std::io::Result<bool> {
+    let image = std::fs::read(binary)?;
+    Ok(static_image(&image).unwrap_or(false))
 }
 
 fn static_image(image: &[u8]) -> std::io::Result<bool> {

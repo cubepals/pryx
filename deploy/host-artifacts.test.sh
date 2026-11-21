@@ -45,8 +45,15 @@ printf '%s\n' "$1" >> "$PRYX_ARTIFACT_FIXTURE/delays"
 SH
 chmod 700 "$pryx_artifact_fixture/bin/gh" "$pryx_artifact_fixture/bin/sleep"
 export PATH="$pryx_artifact_fixture/bin:$PATH"
-download_host_parts "$pryx_artifact_fixture/bin/gh" 3 "$pryx_manifest_digest" "$pryx_transport_digest" \
-  "$pryx_artifact_fixture/work" "$pryx_artifact_fixture/parts" > "$pryx_artifact_fixture/success.log" 2>&1
+if ! (
+  unset -f download_host_parts
+  cd deploy && source host-artifacts.sh &&
+    download_host_parts "$pryx_artifact_fixture/bin/gh" 3 "$pryx_manifest_digest" "$pryx_transport_digest" \
+      "$pryx_artifact_fixture/work" "$pryx_artifact_fixture/parts"
+) > "$pryx_artifact_fixture/success.log" 2>&1; then
+  echo 'Sourcing the artifact reader by basename must still verify the parts' >&2
+  exit 1
+fi
 test "$(cat "$pryx_artifact_fixture/attempt-0")" = 3
 test "$(cat "$pryx_artifact_fixture/attempt-1")" = 3
 test "$(cat "$pryx_artifact_fixture/attempt-2")" = 2

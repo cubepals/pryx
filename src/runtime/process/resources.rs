@@ -150,20 +150,25 @@ impl ProcessRuntime {
         tracing::info!(on = capability.state == Proved::On, evidence = %capability.evidence, "process limits");
         self.resources_capability = Some(capability);
         self.resources = found.ok().map(|delegated| Arc::new(Resources { delegated }));
-        for name in self.names() {
-            let Ok(mut entry) = self.entry(&name) else { continue };
+        self.check_recorded_limits(super::observe::matching_pid);
+        self
+    }
+
+    fn check_recorded_limits(&self, matching_pid: impl Fn(Option<u32>, Option<u64>) -> Option<u32>) {
+        let mut entries = self.state.entries.lock().unwrap();
+        for (name, entry) in entries.iter_mut() {
             let Some(record) = &entry.limits else { continue };
-            let Some(pid) = super::observe::matching_pid(entry.pid, entry.ticks) else { continue };
+            let Some(pid) = matching_pid(entry.pid, entry.ticks) else { continue };
             if crate::cgroup::members(&record.cgroup).is_ok_and(|members| members.contains(&pid)) {
                 continue;
             }
             tracing::warn!(sandbox = %entry.spec.name, "process sandbox is no longer in its limits' cgroup");
+            // Retire the runtime guarantee before repairing its durable copy.
             entry.limits = None;
-            if let Err(problem) = self.save(entry) {
+            if let Err(problem) = self.persist(entry) {
                 tracing::warn!(sandbox = %name, %problem, "process sandbox's lost limits were not saved");
             }
         }
-        self
     }
 
     /// The process tier's kernel-enforced limits as the host document reports them.
@@ -328,6 +333,57 @@ mod tests {
     #[test]
     fn releasing_a_cgroup_that_is_gone_is_done() {
         release(Path::new("/nonexistent-pryx-cgroup")).unwrap();
+    }
+
+    #[test]
+    fn a_failed_correction_cannot_leave_old_limits_in_memory() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = crate::config::ProcessConfig::default();
+        let runtime = ProcessRuntime::new(root.path(), policy.clone()).unwrap();
+        let spec = super::super::network::fixture_spec(root.path());
+        let cgroup = root.path().join("owned-group-fixture");
+        fs::create_dir(&cgroup).unwrap();
+        let id = "previously-limited";
+        let pid = u32::MAX;
+        let ticks = 123;
+        let procs = cgroup.join("cgroup.procs");
+        fs::write(&procs, format!("{pid}\n")).unwrap();
+        let entry = serde_json::from_value(serde_json::json!({
+            "id": id, "spec": spec, "pid": pid, "ticks": ticks, "code": 0,
+            "limits": Record { cgroup, memory: true, cpu: true, pids: false },
+        }))
+        .unwrap();
+        runtime.save(entry).unwrap();
+        let matching = |saved_pid, saved_ticks| {
+            assert_eq!((saved_pid, saved_ticks), (Some(pid), Some(ticks)));
+            saved_pid
+        };
+        runtime.check_recorded_limits(matching);
+        assert!(runtime.entry(id).unwrap().limits.is_some(), "confirmed membership keeps the recorded limits");
+        fs::write(&procs, "").unwrap();
+
+        // A directory makes the atomic journal replacement fail, even under a privileged test runner.
+        let journal = runtime.state.root.join(format!("{id}.json"));
+        let previous = root.path().join("previous.json");
+        fs::rename(&journal, &previous).unwrap();
+        fs::create_dir(&journal).unwrap();
+
+        runtime.check_recorded_limits(matching);
+        let corrected = runtime.entry(id).unwrap();
+        assert!(corrected.limits.is_none(), "lost limits must not survive a failed journal write");
+        assert_eq!((corrected.pid, corrected.ticks), (Some(pid), Some(ticks)));
+        drop(runtime);
+
+        fs::remove_dir(&journal).unwrap();
+        fs::rename(&previous, &journal).unwrap();
+        let restarted = ProcessRuntime::new(root.path(), policy.clone()).unwrap();
+        assert!(restarted.entry(id).unwrap().limits.is_some(), "the old durable record survived the failed write");
+        restarted.check_recorded_limits(matching);
+        drop(restarted);
+        let reopened = ProcessRuntime::new(root.path(), policy).unwrap();
+        let corrected = reopened.entry(id).unwrap();
+        assert!(corrected.limits.is_none(), "successful correction survives restart");
+        assert_eq!((corrected.pid, corrected.ticks), (Some(pid), Some(ticks)));
     }
 
     #[tokio::test]

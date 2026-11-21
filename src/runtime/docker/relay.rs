@@ -56,9 +56,9 @@ impl Relays {
         &self,
         info: &ContainerInspectResponse,
         id: &str,
-        encoded: &str,
+        bindings: Result<Vec<PortBinding>, serde_json::Error>,
     ) -> Result<Vec<PortBinding>, RuntimeError> {
-        let bindings = declared(info, encoded);
+        let bindings = declared(info, bindings);
         match &bindings {
             Ok(bindings) if !bindings.is_empty() => {}
             _ => self.stop(id).await,
@@ -81,6 +81,11 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
+        let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
+        if bindings.as_ref().is_ok_and(Vec::is_empty) {
+            self.stop(id).await;
+            return Ok(());
+        }
         let metadata = runtime.info.lock().unwrap().clone();
         let metadata = match metadata {
             Some(metadata) => metadata,
@@ -92,7 +97,7 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
-        let bindings = self.verified_bindings(info, id, encoded).await?;
+        let bindings = self.verified_bindings(info, id, bindings).await?;
         if bindings.is_empty() {
             return Ok(());
         }
@@ -169,11 +174,10 @@ impl Relays {
 }
 /// Image defaults are not declarations. Only the immutable host record can authorize a
 /// private lease; historical internet labels are ignored even when their JSON is malformed.
-fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBinding>, RuntimeError> {
-    let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
-    if bindings.as_ref().is_ok_and(Vec::is_empty) {
-        return Ok(Vec::new());
-    }
+fn declared(
+    info: &ContainerInspectResponse,
+    bindings: Result<Vec<PortBinding>, serde_json::Error>,
+) -> Result<Vec<PortBinding>, RuntimeError> {
     let Some(record) = info
         .config
         .as_ref()
@@ -393,6 +397,41 @@ mod tests {
 
     async fn listens(port: u16) -> bool {
         TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.is_ok()
+    }
+
+    #[tokio::test]
+    async fn inspect_retires_empty_relay_without_engine_metadata() {
+        use axum::{Json, Router, http::StatusCode, routing::get};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let metadata_calls = Arc::new(AtomicUsize::new(0));
+        let calls = metadata_calls.clone();
+        let app = Router::new()
+            .route("/containers/owned/json", get(|| async { Json(container("[]", None)) }))
+            .fallback(move || {
+                let calls = calls.clone();
+                async move {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+            });
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runtime = DockerRuntime::new(&path).unwrap();
+        let cancel = CancellationToken::new();
+        runtime.relays.held.lock().await.insert(
+            "owned".into(),
+            Lease { name: "owned".into(), start: None, cancel: cancel.clone(), tasks: TaskTracker::new() },
+        );
+
+        let inspected = runtime.inspect("owned").await;
+        assert_eq!(metadata_calls.load(Ordering::Relaxed), 0, "empty bindings queried metadata: {inspected:?}");
+        assert_eq!(inspected.unwrap().unwrap().id, "owned");
+        assert!(cancel.is_cancelled());
+        assert!(runtime.relays.held.lock().await.is_empty());
+        server.abort();
     }
 
     #[tokio::test]
