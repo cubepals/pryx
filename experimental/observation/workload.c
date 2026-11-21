@@ -18,6 +18,12 @@
 
 enum mode { RAW, TRACE, NOTIFY, DISPATCH };
 
+#ifdef PRYX_PREPARED_SLOT
+/* Both independently linked ELFs accept the same two count expectations.
+ * This value checks the result outside timing; the slot determines its behavior. */
+static int expect_counter;
+#endif
+
 static uint64_t now(void) {
     struct timespec stamp;
     if (clock_gettime(CLOCK_MONOTONIC_RAW, &stamp)) _exit(1);
@@ -52,7 +58,11 @@ static int workload(enum mode method, int channel, pid_t parent) {
         if (call() != self) return 1;
 #ifdef PRYX_LINK_INSTRUMENTED
     unsigned int warm = linked_count();
+#ifdef PRYX_PREPARED_SLOT
+    if (warm != (expect_counter ? WARM_CALLS : 0)) return 1;
+#else
     if (warm != WARM_CALLS) return 1;
+#endif
 #endif
     uint64_t begin = now();
     for (int i = 0; i < TIMED_CALLS; ++i)
@@ -61,7 +71,11 @@ static int workload(enum mode method, int channel, pid_t parent) {
     if (dprintf(STDOUT_FILENO, "%" PRIu64 " %d\n", elapsed, TIMED_CALLS) < 0) return 1;
 #ifdef PRYX_LINK_INSTRUMENTED
     unsigned int observed = linked_count();
+#ifdef PRYX_PREPARED_SLOT
+    if (observed - warm != (expect_counter ? TIMED_CALLS : 0)) return 1;
+#else
     if (observed - warm != TIMED_CALLS) return 1;
+#endif
     if (dprintf(STDOUT_FILENO, "%u %u\n", observed, warm) < 0) return 1;
 #endif
     if (method == DISPATCH) {
@@ -75,7 +89,12 @@ int main(int argc, char **argv) {
     enum mode method;
     if (argc != 2) return 2;
 #ifdef PRYX_LINK_INSTRUMENTED
+#ifdef PRYX_PREPARED_SLOT
+    if (!strcmp(argv[1], "prepared-on")) expect_counter = 1;
+    else if (strcmp(argv[1], "prepared-off")) return 2;
+#else
     if (strcmp(argv[1], "link-time")) return 2;
+#endif
     method = RAW;
 #else
     if (!strcmp(argv[1], "raw")) method = RAW;
