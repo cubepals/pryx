@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k42-relay-probe-refresh
+          SOURCE_BRANCH: k36-relay-empty
           BASE_BRANCH: any-host
-          SOURCE_HEAD: 'ea78aefec4f97f7d6340f9e3ca5940dea4fed192'
-          ANY_HOST_HEAD: 'a329f6a34a2ca71bd1c482956e4e598b7eb790c2'
-          MERGED_TREE: '345491d35c4ddfa76f243857e79e2c8a88be505a'
-          SUBJECT: 'Merge any-host into ingress probe branch'
+          SOURCE_HEAD: 'e7f4083af0c26f368d512afffcfcacd565b45b74'
+          ANY_HOST_HEAD: '571fcfc400dd27592f5c0579674a49daac455130'
+          MERGED_TREE: '75d9ae8e9c8308842a46520c6e7fd0185408b2be'
+          SUBJECT: 'Merge any-host into empty relay branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
