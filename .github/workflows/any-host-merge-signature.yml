@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k35-desktop-short
+          SOURCE_BRANCH: k40-release-save
           BASE_BRANCH: any-host
-          SOURCE_HEAD: '451e5579b359d30dda26392f54d501fb36e0cde0'
-          ANY_HOST_HEAD: '4adcc2eed97605652c1422b5c189f119f9f094ff'
-          MERGED_TREE: '63b77bc8a36589b4211976739d24045bff621503'
-          SUBJECT: 'Merge any-host into desktop response branch'
+          SOURCE_HEAD: '3c12fb21207d41a1ac0aba570acc3010ca63bc18'
+          ANY_HOST_HEAD: '48fec4bc37ba55a2e08b743177b976b5e3a70bfd'
+          MERGED_TREE: '81e07082d74db1ba1fdc71f1a214d315eb9eb561'
+          SUBJECT: 'Merge any-host into release image save branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
