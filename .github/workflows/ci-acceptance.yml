@@ -37,6 +37,7 @@ jobs:
           cargo clean
       - name: Build the release image
         run: |
+          set -o pipefail
           docker build -t pryx-release .
           docker run --rm pryx-release --version
           docker tag pryx-release pryx-static-test

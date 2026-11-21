@@ -48,6 +48,9 @@ def download(url, destination):
     def save(response):
         with destination.open("wb") as output:
             shutil.copyfileobj(response, output)
+            # An HTTPResponse bounded read may return EOF with declared bytes still unread.
+            if remaining := getattr(response, "length", None):
+                raise ConnectionError(f"Archive response ended with {remaining} bytes missing")
     archive_retry.request(url, save, mirrors=addresses(url)[1:])
 
 

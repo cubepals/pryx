@@ -91,7 +91,12 @@ for family, address, listener in (
 ):
     with socket.socket(family, socket.SOCK_STREAM) as client:
         client.settimeout(2)
-        client.connect((address, listener.getsockname()[1]))
+        destination = (address, listener.getsockname()[1])
+        try:
+            client.connect(destination)
+        except OSError:
+            print(f"owned {family.name} listener at {destination}", file=sys.stderr)
+            raise
         with listener.accept()[0] as accepted:
             accepted.settimeout(2)
             client.sendall(b"new-owned")

@@ -6,6 +6,7 @@ clock, so no test sleeps and none reaches the network. The mirror table's own te
 committed mirrors.json and locks.
 """
 import contextlib
+from dataclasses import dataclass
 import hashlib
 from http import HTTPStatus
 import http.server
@@ -24,20 +25,28 @@ import archive_retry
 PAYLOAD = b'pinned upstream archive\x00\xff'
 
 
+@dataclass(frozen=True)
+class ArchiveBody:
+    body: bytes
+    content_length: int
+
+
 class Archive(http.server.BaseHTTPRequestHandler):
-    """Answers each path with its scripted statuses in turn; the last answer repeats."""
+    """Answers each path with its scripted responses in turn; the last answer repeats."""
 
     def do_GET(self):
         self.server.requests.append(self.path)
         answers = self.server.script.get(self.path, [HTTPStatus.NOT_FOUND])
         answer = answers.pop(0) if len(answers) > 1 else answers[0]
-        if isinstance(answer, bytes):
-            self.send_response(HTTPStatus.OK)
-            self.send_header('Content-Length', str(len(answer)))
-            self.end_headers()
-            self.wfile.write(answer)
-        else:
+        if isinstance(answer, HTTPStatus):
             self.send_error(answer)
+            return
+        if isinstance(answer, bytes):
+            answer = ArchiveBody(answer, len(answer))
+        self.send_response(HTTPStatus.OK)
+        self.send_header('Content-Length', str(answer.content_length))
+        self.end_headers()
+        self.wfile.write(answer.body)
 
     def log_message(self, *arguments):
         pass
@@ -110,6 +119,12 @@ class AcquireTests(unittest.TestCase):
         self.server.script['/input.tar'] = [HTTPStatus.TOO_MANY_REQUESTS, PAYLOAD]
         self.assertEqual(self.acquire(self.item('/input.tar')).read_bytes(), PAYLOAD)
         self.assertEqual(len(self.clock.waits), 1)
+
+    def test_a_short_response_is_retried(self):
+        path = '/input.tar'
+        self.server.script[path] = [ArchiveBody(PAYLOAD[:-1], len(PAYLOAD)), PAYLOAD]
+        self.assertEqual(self.acquire(self.item(path)).read_bytes(), PAYLOAD)
+        self.assertEqual(self.server.requests, [path, path])
 
     def test_an_outage_that_outlasts_the_budget_fails(self):
         self.server.script['/input.tar'] = [HTTPStatus.SERVICE_UNAVAILABLE]

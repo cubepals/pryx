@@ -8,7 +8,7 @@ import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import { createPrivateFile, IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { readClientConfig } from './client-config.ts'
 import { localEnvironment } from './up-local-process.ts'
-import type { LocalInstallation } from './up-local-record.ts'
+import { type LocalInstallation, supervisor } from './up-local-record.ts'
 import type { LocalPaths } from './up-paths.ts'
 
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
@@ -45,6 +45,33 @@ export async function localSummary(record: LocalInstallation, action: string) {
     localEnvironment(record),
     existsSync(configured) ? configured : undefined,
   )
+  const tiers =
+    record.runtime === 'auto'
+      ? Object.entries(probe.tiers ?? {})
+          .filter(([tier, value]) => value.state === 'on' && (tier !== 'container' || !containerContext()))
+          .map(([tier]) => tier)
+      : [record.tier]
+  const capabilities = capabilitySummary(probe)
+  const running = supervisor(record)
+  const limits = running?.ready === true ? running.processLimits : undefined
+  const memory = limits?.['memory-limit']
+  const cpu = limits?.['cpu-limit']
+  if (typeof memory !== 'boolean' || typeof cpu !== 'boolean') {
+    capabilities['process-limits'] = {
+      state: 'unknown',
+      evidence: 'The running service has no recorded process limit evidence',
+      action: 'See docs/process-tier.md for process limit support',
+    }
+  } else if (memory && cpu) {
+    capabilities['process-limits'] = { state: 'on' }
+  } else {
+    const missing = [memory ? undefined : 'memory-limit', cpu ? undefined : 'cpu-limit'].filter(Boolean)
+    capabilities['process-limits'] = {
+      state: 'off',
+      evidence: `The running process tier did not announce ${missing.join(' or ')}`,
+      action: 'Check cgroup delegation for the managed service',
+    }
+  }
   const printed = join(record.paths.config, 'key-printed')
   let firstKey = false
   try {
@@ -59,17 +86,10 @@ export async function localSummary(record: LocalInstallation, action: string) {
         version: record.version,
         preset: record.preset,
         apiUrl: record.apiUrl,
-        tiers:
-          record.runtime === 'auto'
-            ? Object.entries(probe.tiers ?? {})
-                .filter(
-                  ([tier, value]) => value.state === 'on' && (tier !== 'container' || !containerContext()),
-                )
-                .map(([tier]) => tier)
-            : [record.tier],
+        tiers,
         require: record.require ?? [],
         ...(record.defaultIsolation ? { defaultIsolation: record.defaultIsolation } : {}),
-        capabilities: capabilitySummary(probe),
+        capabilities,
         credentialPath: record.clientConfig,
         supervision: action,
         ...(firstKey ? { apiKey: saved.key } : {}),
@@ -78,9 +98,7 @@ export async function localSummary(record: LocalInstallation, action: string) {
       2,
     ),
   )
-  if (record.preset === 'user')
-    console.log(
-      "Process sandboxes share your user and have no enforced resource limits; use them for one person's work, not strangers' code.",
-    )
+  if (record.preset === 'user' && tiers.includes('process'))
+    console.log('Process sandboxes share your user. Use them for work you trust.')
   console.log(`${shellQuote(record.paths.cli)} run -- echo hello`)
 }
