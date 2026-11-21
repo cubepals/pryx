@@ -36,6 +36,7 @@ sudo incus config get pryx volatile.base_image | tee -a "$GITHUB_STEP_SUMMARY"
 sudo incus exec pryx -- mkdir /artifacts
 sudo tar -C host-artifacts -cf - . | sudo incus exec pryx -- tar -xf - -C /artifacts
 sudo incus file push deploy/local-acceptance.sh pryx/local-acceptance.sh
+sudo incus file push deploy/process_oom.py pryx/process_oom.py
 sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
