@@ -19,12 +19,12 @@ jobs:
       - name: Create and verify the ordered merge
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_BRANCH: k44-process-limit-report
+          SOURCE_BRANCH: k46-process-journal-proof
           BASE_BRANCH: any-host
-          SOURCE_HEAD: '656e23f9c98be9cd20724e8dbc98d0ca150d3db0'
-          ANY_HOST_HEAD: '1bff27ead52154458e273e89917dd0dc4b27728e'
-          MERGED_TREE: 'd6fc3dd44088a77c105ec7017c9bf3fdf2377312'
-          SUBJECT: 'Merge any-host into installer limits branch'
+          SOURCE_HEAD: 'c820e52095b64dfad8ed991d9b152a1a47c1a997'
+          ANY_HOST_HEAD: 'c72ce1d5574d5cf59071d0d9c686ad018b996927'
+          MERGED_TREE: '85a971fba7383ea3fc28f330f14d889176cfcdce'
+          SUBJECT: 'Merge any-host into process journal branch'
         run: |
           set -euo pipefail
           repo=repos/cubepals/pryx
