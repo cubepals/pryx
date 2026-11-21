@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '41 2 * * *'
   workflow_dispatch:
+    inputs:
+      validation_lab:
+        description: Validate bounded native page scans
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,6 +23,7 @@ env:
 
 jobs:
   e2e:
+    if: inputs.validation_lab != true
     name: Measure control end to end
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -233,6 +239,7 @@ jobs:
             ${{ runner.temp }}/process-speed-after.json
 
   one-box:
+    if: inputs.validation_lab != true
     name: Measure one box
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -331,3 +338,58 @@ jobs:
       - name: Service journals on failure
         if: failure()
         run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+
+  validation-lab:
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_lab
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 2121b1ef2fdaf07d5b649264727de0fc10187df4
+          path: scaffold
+          sparse-checkout: experimental/proof
+          persist-credentials: false
+      - name: Validate native code and report resident throughput
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/validation"
+          mkdir "$out"
+          rustup toolchain install
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq llvm-19 valgrind libc6-dbg python3-venv
+          python3 -m venv "$RUNNER_TEMP/validation-tools"
+          . "$RUNNER_TEMP/validation-tools/bin/activate"
+          pip install -r experimental/validation/requirements.txt osaca==0.7.1
+          proof="$GITHUB_WORKSPACE/scaffold/experimental/proof"
+          cd experimental/validation
+          lscpu -J > "$out/cpu.json"
+          uname -a > "$out/kernel.txt"
+          llvm-mca-19 --version > "$out/llvm-version.txt"
+          rustc -vV > "$out/rust.txt"
+          python memcheck.py "$proof/Cargo.toml" experimental 2>&1 | tee "$out/memcheck.txt"
+          ./codegen.sh "$proof/Cargo.toml" experimental "$out/codegen"
+          ./build.sh "$proof" "$(rustc -vV | awk '/^host:/{print $2}')" "$out/scan.elf"
+          src="$proof/machine/src/$(uname -m).S"
+          cc -Wall -Wextra -Werror -O2 hot_loop.c "$src" -o "$out/hot"
+          sudo env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_ACTIONS="$GITHUB_ACTIONS" "$out/hot" > "$out/samples.csv" 2>"$out/pmu.txt"
+          python model.py "$src" "$out/samples.csv" "$out/llvm.txt" | tee "$out/model-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          for offset in 0 1; do
+            options=()
+            if [ "$(uname -m)" = x86_64 ]; then options+=(--stock-vex); fi
+            python prove.py "$out/scan.elf" --alignment "$offset" "${options[@]}" | tee "$out/proof-$offset.json"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: validation-${{ matrix.runner }}
+          path: ${{ runner.temp }}/validation
+          if-no-files-found: warn

@@ -1,0 +1,3 @@
+angr==9.2.213
+bitstring==4.3.1
+pycparser==3.0
