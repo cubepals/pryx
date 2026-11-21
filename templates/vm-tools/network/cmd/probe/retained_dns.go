@@ -6,9 +6,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -68,9 +70,23 @@ func retainedLookups(socket *net.UDPConn, hostname, ready string) error {
 			return fmt.Errorf("Retained UDP DNS after phase %d: %v", phase, err)
 		}
 		// The actual local endpoint is unchanged in every phase and in every memory copy.
-		if err := os.WriteFile(fmt.Sprintf("%s%d", ready, phase), []byte(socket.LocalAddr().String()), 0o600); err != nil {
+		if err := publishEndpoint(fmt.Sprintf("%s%d", ready, phase), socket.LocalAddr().String()); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// Make the ready name visible only after the endpoint has been written and closed.
+func publishEndpoint(path, endpoint string) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".dns-ready-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	_, writeErr := file.WriteString(endpoint)
+	if err := errors.Join(writeErr, file.Close()); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), path)
 }
