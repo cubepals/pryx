@@ -30,8 +30,8 @@ stays in the foreground and explains how to keep it running after logout. In a
 second terminal, run `~/.local/bin/pryx run -- echo hello`. New POSIX shell sessions
 find `pryx` through an installed PATH block; linked, unsafe or read-only shell
 profiles are left alone. The absolute command works in the current shell.
-User sandboxes share your UID and have no enforced
-resource limits: use them for your work, not strangers' code.
+Process sandboxes share your UID. Use them for work you trust. The setup summary reports whether
+the managed service supports [process memory and CPU limits](process-tier.md#limits).
 
 `pryx upgrade` authenticates the latest release and retains state and credentials.
 With foreground supervision it stays attached to the upgraded service. Deployment

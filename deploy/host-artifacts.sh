@@ -8,7 +8,8 @@ set -euo pipefail
 download_host_parts() {
   local cli=$1 count=$2 manifest=$3 transport=$4 work=$5 destination=$6
   local piece stage delay deadline valid idle
-  local reader="${BASH_SOURCE[0]%/*}/artifact-read.py"
+  local reader
+  reader="$(dirname -- "${BASH_SOURCE[0]}")/artifact-read.py" || return 1
   [[ $count =~ ^[1-4]$ && $manifest =~ ^[a-f0-9]{64}$ && $transport =~ ^[a-f0-9]{64}$ ]] || return 1
   test ! -e "$destination" || return 1
   mkdir "$work/verified"

@@ -16,6 +16,7 @@ import { writeClientConfig } from '../cli/src/client-config.ts'
 import { loadConfig } from '../control/src/config.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
 import { HTTP_FRONT_PORT } from '../control/src/edge-headers.ts'
+import { guarantees } from '../control/src/guarantees.ts'
 import { THRESHOLDS } from '../control/src/health.ts'
 import { type Isolation, nodeIsolations } from '../control/src/isolation.ts'
 import { startControl } from '../control/src/main.ts'
@@ -37,7 +38,7 @@ import {
 } from './image-state.ts'
 import { imageRuntime } from './image-tier.ts'
 import { bundleBinary, localLayout } from './local-layout.ts'
-import { processStart } from './supervisor-process.ts'
+import { type ProcessLimits, processStart } from './supervisor-process.ts'
 
 let startupStage = 'configuration',
   diagnosticRoot: string | undefined
@@ -100,7 +101,7 @@ async function serve() {
     }
   }
   cleanup = stopChildren
-  const recordProcess = (ready: boolean) => {
+  const recordProcess = (ready: boolean, processLimits?: ProcessLimits) => {
     if (layout.local)
       createPrivateFile(
         join(layout.runtime, 'supervisor.json'),
@@ -110,6 +111,7 @@ async function serve() {
           bundle: process.env.PRYX_BUNDLE_DIR,
           state: root,
           ready,
+          processLimits,
         }),
         true,
       )
@@ -223,11 +225,12 @@ control_ips = ["127.0.0.1"]
       stderr: log,
     }),
   )
+  let features: readonly string[] = []
   await until(
     'Local node',
     async () => {
       const nodes = await nodeSummaries(control.db, THRESHOLDS)
-      return nodes.some(
+      const node = nodes.find(
         (node) =>
           node.derivedHealth === 'healthy' &&
           node.session_id !== null &&
@@ -235,13 +238,13 @@ control_ips = ["127.0.0.1"]
           node.api_address === `127.0.0.1:${layout.ports.node}` &&
           !heldBack(node, false, config.heartbeatSeconds),
       )
+      if (!node) return false
+      features = node.features
+      return true
     },
     (2 * MINUTE_MS) / SECOND_MS,
   )
-  const enrolled = await nodeSummaries(control.db, THRESHOLDS)
-  servedTiers = nodeIsolations(
-    enrolled.find((node) => node.api_address === `127.0.0.1:${layout.ports.node}`)?.features ?? [],
-  )
+  servedTiers = nodeIsolations(features)
   if (servedTiers.includes('container')) {
     const isolate = Bun.spawn([layout.pryxd, 'isolate', '--config', nodeConfig], {
       stdout: 'ignore',
@@ -313,7 +316,11 @@ control_ips = ["127.0.0.1"]
   console.log(
     `pryx listening on ${publicPort}; tiers=${servedTiers.join(',')}; ${tier === 'auto' ? 'per-sandbox isolation and guarantees' : boundary}`,
   )
-  recordProcess(true)
+  const observed = servedTiers.includes('process') ? guarantees(features, 'process') : undefined
+  recordProcess(
+    true,
+    observed && { 'memory-limit': observed['memory-limit'], 'cpu-limit': observed['cpu-limit'] },
+  )
   if (layout.local && process.env.PRYX_CLIENT_CONFIG)
     writeClientConfig({ url: origin, key: values.key }, process.env.PRYX_CLIENT_CONFIG)
   if (!layout.local)

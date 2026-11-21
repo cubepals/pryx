@@ -5,6 +5,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     net::{IpAddr, Ipv6Addr, TcpListener, UdpSocket},
     process::{Child, Command, Stdio},
+    time::{Duration, Instant},
 };
 
 /// Retire the cgroup and host addresses even when an assertion fails midway through a fixture.
@@ -24,7 +25,45 @@ impl Fixture {
         let status = command.status().unwrap();
         assert!(status.success(), "ip address add {cidr}: {status}");
         self.addresses.push(cidr);
+        // Linux addrconf may acknowledge a nodad address before its local route is installed.
+        // Wait on the host before releasing the client to make its first connection.
+        let family = if cidr.contains(':') { "-6" } else { "-4" };
+        assert!(
+            wait_for_route(Duration::from_secs(5), || {
+                let routes = Command::new("ip")
+                    .args([family, "route", "show", "table", "local", "type", "local", "exact", cidr, "dev", "lo"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    routes.status.success(),
+                    "ip route show for {cidr}: {}",
+                    String::from_utf8_lossy(&routes.stderr)
+                );
+                !routes.stdout.is_empty()
+            }),
+            "local route for {cidr} did not appear on lo"
+        );
     }
+}
+
+fn wait_for_route(timeout: Duration, mut present: impl FnMut() -> bool) -> bool {
+    let deadline = Instant::now() + timeout;
+    while !present() {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        std::thread::sleep(remaining.min(Duration::from_millis(10)));
+    }
+    true
+}
+
+#[test]
+fn route_setup_waits_for_publication_and_reports_an_absent_route() {
+    let mut observations = [false, true].into_iter();
+    assert!(wait_for_route(Duration::from_secs(5), || observations.next().unwrap()));
+    assert_eq!(observations.len(), 0);
+    assert!(!wait_for_route(Duration::ZERO, || false));
 }
 
 impl Drop for Fixture {

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Identify the supervisor across CLI invocations without trusting a reused process id. */
 import { readFileSync } from 'node:fs'
+import type { Guarantee } from '../control/src/guarantees.ts'
+
+export type ProcessLimits = Pick<Record<Guarantee, boolean>, 'memory-limit' | 'cpu-limit'>
 
 export function processStart(pid: number): string | undefined {
   try {
