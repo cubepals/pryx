@@ -2,7 +2,7 @@
 /** Verify an opt-in release before executing its controller. Only this trust boundary ships
  * in the stock CLI. The authenticated controller owns all feature and activation policy. */
 import { copyFileSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, rmSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { download, hashFile, releaseBase } from './bundle-download.ts'
@@ -24,12 +24,25 @@ export function labInstalled() {
   }
 }
 
+function privateStage() {
+  // A different account must not rename the private directory after its archive was verified.
+  const parent = lstatSync('/tmp', { throwIfNoEntry: false })
+  if (!parent?.isDirectory() || parent.uid !== 0 || (parent.mode & 0o022 && !(parent.mode & 0o1000)))
+    throw new Error('Experimental verification needs a protected system temporary directory')
+  return mkdtempSync('/tmp/pryx-experimental-')
+}
+
 export async function handoff(fresh: boolean, command: string, args: string[], stock?: unknown) {
   if (fresh && !requestsLab(args))
     throw new Error('Installing the lab requires --experimental or PRYX_EXPERIMENTAL=1')
   if (process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch))
     throw new Error('The lab requires x86_64 or aarch64 Linux')
-  const temp = mkdtempSync(join(tmpdir(), 'pryx-experimental-'))
+  const temp = privateStage()
+  let closed = false
+  const close = () => {
+    if (!closed) rmSync(temp, { recursive: true, force: true })
+    closed = true
+  }
   try {
     let generation: string | undefined
     if (!fresh) {
@@ -64,8 +77,9 @@ export async function handoff(fresh: boolean, command: string, args: string[], s
     if (code.exitCode !== 0)
       throw new Error(code.stderr.toString().trim().slice(-512) || 'Experimental controller unavailable')
     const controller = await import(`data:text/javascript;base64,${code.stdout.toString('base64')}`)
-    return await controller.default({ archive, signature, generation }, command, args, stock)
+    const files = { archive, signature, generation, close, privateStage }
+    return await controller.default(files, command, args, stock)
   } finally {
-    rmSync(temp, { recursive: true, force: true })
+    close()
   }
 }

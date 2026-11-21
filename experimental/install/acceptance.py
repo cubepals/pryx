@@ -199,6 +199,12 @@ echo '{"architecture":"fixture-host"}'
     assert missing["architecture"] == "fixture-host"
     assert missing["experimental"]["installed"] is False
     assert "pryx experimental install --experimental" in missing["experimental"]["action"]
+    image = os.environ.get("PRYX_LAB_TEST_IMAGE")
+    if image:
+        if not native:
+            raise ValueError("the two-account check requires PRYX_LAB_TEST_BINARY")
+        import credential_owner
+        credential_owner.exercise(image, REPO, cli, pub, env["PRYX_RELEASE_BASE_URL"])
     print("passed stock installer and CLI opt-in, preflight, rollback, signature and capability checks")
 
 

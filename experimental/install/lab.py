@@ -130,6 +130,7 @@ def activate(archive, signature, feature):
 
 
 def main():
+    os.umask(0o077)
     if sys.version_info < (3, 8):
         raise ValueError("the lab requires Python 3.8 or later")
     command, *args = sys.argv[1:]
