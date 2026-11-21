@@ -478,6 +478,7 @@ jobs:
             --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/pryx-ci-ca.pem,readonly" \
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
             --mount "type=bind,source=$PWD/deploy/container-acceptance.sh,target=/container-acceptance.sh,readonly" \
+            --mount "type=bind,source=$PWD/deploy/process_oom.py,target=/process_oom.py,readonly" \
             --mount "type=bind,source=$PWD/deploy/local-acceptance.sh,target=/local-acceptance.sh,readonly" \
             --mount "type=bind,source=$PWD/deploy/local-diagnostics.py,target=/local-diagnostics.py,readonly" \
             --mount "type=bind,source=$PWD/deploy/unsupported-acceptance.py,target=/unsupported-acceptance.py,readonly" \
@@ -560,6 +561,7 @@ jobs:
           PRYX_EXPECT_CONTAINER: ${{ matrix.engine == 'podman' && 'on' || 'off' }}
           PRYX_ENGINE_OUTAGE_PROBE: ${{ github.workspace }}/deploy/engine-outage.py
         run: |
+          python3 -m unittest discover -s deploy -p process_oom_test.py
           sudo install -m 644 deploy/local-diagnostics.py /local-diagnostics.py
           python3 -m http.server 9876 --bind 127.0.0.1 --directory host-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
           server=$!
