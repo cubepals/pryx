@@ -79,6 +79,8 @@ export async function doctor(args: string[]) {
     const experimental = await installedLab('capabilities').catch((error) => ({
       installed: false,
       reason: error instanceof Error ? error.message : 'Experimental verification failed',
+      action:
+        'Reinstall with pryx experimental install --experimental and supply --feature with the desired name',
     }))
     if (args.includes('--json')) console.log(JSON.stringify({ ...JSON.parse(output), experimental }))
     else {

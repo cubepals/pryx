@@ -6,15 +6,19 @@ publishes the archive, its detached signature and its selection with one atomic 
 This program does not change the daemon, host configuration, or stock CLI.
 """
 
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import uuid
 import zipfile
 
 FEATURE = "self-check"
@@ -51,29 +55,78 @@ def digest(path):
         return result.digest()
 
 
+def generation_name(archive, signature, selected):
+    fingerprint = hashlib.sha256(digest(archive) + digest(signature) + hashlib.sha256(selected).digest())
+    return "build-" + fingerprint.hexdigest()
+
+
+def recorded_selection(generation, archive, signature):
+    record = protected(generation / "selection", stat.S_ISREG)
+    with record.open("rb") as stream:
+        data = stream.read(257)
+    if len(data) > 256:
+        raise ValueError("invalid installed feature selection")
+    name = generation_name(archive, signature, data)
+    if not re.fullmatch(name + r"(?:-[a-f0-9]{32})?", generation.name):
+        raise ValueError("installed feature selection failed its content check")
+    feature = data.decode("ascii")
+    return selection(["--feature", feature] if feature else [])
+
+
+@contextmanager
+def activation_lock(root):
+    # Readers pin an immutable directory directly. Only writers coordinate pointer changes.
+    directory = os.open(root, os.O_DIRECTORY | os.O_NOFOLLOW | os.O_RDONLY)
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(directory)
+
+
+def matches(path, name, archive_size, feature):
+    if not re.fullmatch(name + r"(?:-[a-f0-9]{32})?", path.name):
+        return False
+    try:
+        generation = protected(path, stat.S_ISDIR)
+        archive = protected(generation / "lab.pyz", stat.S_ISREG)
+        signature = protected(generation / "signature", stat.S_ISREG)
+        return (archive.stat().st_size == archive_size and signature.stat().st_size == 64
+                and recorded_selection(generation, archive, signature) == feature)
+    except (OSError, ValueError):
+        return False
+
+
 def activate(archive, signature, feature):
     root = storage(create=True)
-    with tempfile.TemporaryDirectory(dir=root) as scratch:
+    selected = feature.encode("ascii")
+    name = generation_name(archive, signature, selected)
+    size = archive.stat().st_size
+    with activation_lock(root), tempfile.TemporaryDirectory(dir=root) as scratch:
         scratch = Path(scratch)
-        new = scratch / "generation"
-        new.mkdir(mode=0o700)
-        shutil.copyfile(archive, new / "lab.pyz")
-        shutil.copyfile(signature, new / "signature")
-        (new / "selection").write_text(feature)
-        identity = hashlib.sha256()
-        for name in ("lab.pyz", "signature", "selection"):
-            identity.update(digest(new / name))
-        target = root / f"build-{identity.hexdigest()}"
+        link = root / "active"
         try:
+            active = os.readlink(link)
+        except FileNotFoundError:
+            active = ""
+        if active and "/" not in active and matches(root / active, name, size, feature):
+            return
+        canonical = root / name
+        # An interrupted install may already have prepared a valid destination without switching
+        # the pointer. Reuse that destination on retry, including previous same-content repairs.
+        candidates = [canonical, *sorted(root.glob(f"{name}-*"))]
+        target = next((p for p in candidates if matches(p, name, size, feature)), None)
+        if target is None:
+            new = scratch / "generation"
+            new.mkdir(mode=0o700)
+            shutil.copyfile(archive, new / "lab.pyz")
+            shutil.copyfile(signature, new / "signature")
+            (new / "selection").write_bytes(selected)
+            target = root / f"{name}-{uuid.uuid4().hex}" if os.path.lexists(canonical) else canonical
             new.rename(target)
-        except OSError:
-            protected(target, stat.S_ISDIR)
-            for item in new.iterdir():
-                if digest(protected(target / item.name, stat.S_ISREG)) != digest(item):
-                    raise ValueError("existing lab generation failed its content check")
-        link = scratch / "active"
-        link.symlink_to(target.name)
-        link.replace(root / "active")
+        pointer = scratch / "active"
+        pointer.symlink_to(target.name)
+        pointer.replace(link)
 
 
 def main():
@@ -85,12 +138,13 @@ def main():
         selection(args)
     elif command == "activate" and args:
         activate(archive, Path(args[0]), selection(args[1:]))
-    elif command in ("capabilities", "run") and args:
-        selected = selection(["--feature", args[0]] if args[0] else [])
-        if command == "capabilities" and len(args) == 1:
+    elif command in ("capabilities", "run") and len(args) >= 2:
+        generation = protected(Path(args[0]), stat.S_ISDIR)
+        selected = recorded_selection(generation, archive, Path(args[1]))
+        if command == "capabilities" and len(args) == 2:
             print(json.dumps({FEATURE: {"on": bool(selected),
                   "reason": "explicitly selected" if selected else "feature was not selected"}}))
-        elif command == "run" and args == [FEATURE, FEATURE]:
+        elif command == "run" and args[2:] == [FEATURE] and selected == FEATURE:
             with tempfile.TemporaryDirectory(dir=storage()) as scratch, zipfile.ZipFile(archive) as payload:
                 binary = Path(scratch) / "pryx-lab"
                 binary.write_bytes(payload.read("pryx-lab"))

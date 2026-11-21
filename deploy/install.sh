@@ -45,33 +45,22 @@ if [ -z "$preset" ]; then
   else echo 'Root requires systemd or a container; run the command as an ordinary user' >&2; exit 1
   fi
 fi
-# Only an explicitly requested lab crosses the bootstrap handoff.
-experimental=${PRYX_EXPERIMENTAL:-0}
-lab_feature=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --experimental) experimental=1 ;;
-    --feature) [ -z "$lab_feature" ] || { echo 'supply --feature only once' >&2; exit 1; }
-      [ "$#" -ge 2 ] && [ -n "$2" ] || { echo '--feature needs a name' >&2; exit 1; }
-      lab_feature=$2; shift ;;
-  esac
-  shift
+# Preserve installer arguments only for the explicit lab handoff. The CLI owns their grammar.
+forward=${PRYX_EXPERIMENTAL:-0}
+for arg do
+  case "$arg" in --experimental|--feature) forward=1; break;; esac
 done
-set -- --preset "$preset"
-if [ "$experimental" = 1 ]; then set -- "$@" --experimental; fi
-if [ -n "$lab_feature" ]; then
-  [ "$experimental" = 1 ] || { echo '--feature requires --experimental' >&2; exit 1; }
-  set -- "$@" --feature "$lab_feature"
-fi
+if [ "$forward" = 1 ]; then set -- --installer-arguments "$@"; else set --; fi
 if [ "$preset" = server ] && [ -n "${PRYX_DOMAIN:-}" ]; then
-  set -- "$@" --domain "$PRYX_DOMAIN"
+  set -- --domain "$PRYX_DOMAIN" "$@"
 fi
+set -- --preset "$preset" "$@"
 download SHA256SUMS
 if [ "$preset" = server ]; then
   download "$cli"
   verify "$cli"
   chmod 700 "$temporary/$cli"
-  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/$cli" up "$@" --preflight; fi
+  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/$cli" up --preflight "$@"; fi
   install -m 0755 "$temporary/$cli" /usr/local/bin/pryx
   destination=/usr/local/bin/pryx
 else
@@ -82,7 +71,7 @@ else
   # The initial bootstrap has the same HTTPS trust as this script. The CLI authenticates
   # the complete host bundle with its compiled Ed25519 key before activation.
   tar -xzf "$temporary/$asset" -C "$temporary/unpacked"
-  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/unpacked/bin/pryx" up "$@" --preflight; fi
+  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/unpacked/bin/pryx" up --preflight "$@"; fi
   if [ "$(id -u)" = 0 ]; then bootstrap=/opt/pryx/cli; destination=/usr/local/bin/pryx
   else bootstrap="$HOME/.local/share/pryx-cli"; destination="$HOME/.local/bin/pryx"
   fi
@@ -92,8 +81,6 @@ fi
 if [ "${PRYX_NO_UP:-0}" != 1 ]; then
   # sh -s may be consuming the script from stdin; services never inherit that pipe.
   "$destination" up "$@" </dev/null
-elif [ "$experimental" = 1 ]; then
-  set -- --experimental
-  if [ -n "$lab_feature" ]; then set -- "$@" --feature "$lab_feature"; fi
+elif [ "$forward" = 1 ]; then
   "$destination" experimental install "$@" </dev/null
 fi

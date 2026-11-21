@@ -14,6 +14,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      experimental:
+        description: Include separately signed experimental archives in this new main release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,13 +31,18 @@ jobs:
   version:
     name: Is this version released?
     if: >-
-      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.event == 'push'
-      && github.event.workflow_run.head_repository.full_name == github.repository)
+      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
       new: ${{ steps.version.outputs.new }}
+      lab: ${{ github.event_name == 'workflow_dispatch' && inputs.experimental && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       # The commit CI passed on, or main's head when run by hand.
@@ -53,12 +63,31 @@ jobs:
             echo "new=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Wait for CI on the requested main release
+        if: github.event_name == 'workflow_dispatch' && inputs.experimental && steps.version.outputs.new == 'true'
+        timeout-minutes: 120
+        run: |
+          # A dispatch can reserve the new version while its main CI is running. The ordinary
+          # release waits in the existing concurrency group and later sees the published tag.
+          for attempt in {1..12}; do
+            run=$(gh run list --workflow ci.yml --event push --branch main --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            [ -z "$run" ] || break
+            sleep 5
+          done
+          [ -n "$run" ] || { echo "No main push CI run for this commit"; exit 1; }
+          while :; do
+            status=$(gh run view "$run" --json status,conclusion --jq 'if .status == "completed" then .conclusion else "waiting" end')
+            [ "$status" = waiting ] || break
+            sleep 30
+          done
+          [ "$status" = success ] || { echo "Main CI ended with $status for $SHA"; exit 1; }
+
   # aarch64's programs, signatures, host bundle and image, built on GitHub's standard arm64 runner.
   # The process tool and VM bundles stay x86_64's: pryxd on aarch64 says why those are off.
   arm64:
     name: Build the aarch64 files and image
     needs: version
-    if: needs.version.outputs.new == 'true'
+    if: github.ref == 'refs/heads/main' && needs.version.result == 'success' && needs.version.outputs.new == 'true'
     runs-on: ubuntu-24.04-arm
     environment: release
     permissions:
@@ -132,6 +161,27 @@ jobs:
           cp arm64/pryxd.bootstrap.sig dist/pryxd-linux-arm64.bootstrap.sig
           cp arm64/pryx-bundle-linux-arm64.tar.gz arm64/pryx-bundle-linux-arm64.tar.gz.sig arm64/pryx-bootstrap-linux-arm64.tar.gz dist/
           du -h dist/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Build the optional static arm64 lab archive
+        if: needs.version.outputs.lab == 'true'
+        run: |
+          rustup target add aarch64-unknown-linux-musl
+          sh experimental/install/build-release.sh arm64 "$RUNNER_TEMP/lab-arm64"
+      - name: Sign the optional arm64 lab archive
+        if: needs.version.outputs.lab == 'true'
+        env:
+          RELEASE_KEY: ${{ secrets.PRYXD_RELEASE_KEY }}
+        run: |
+          archive="$RUNNER_TEMP/lab-arm64/pryx-lab-linux-arm64.pyz"
+          printf '%s\n' "$RELEASE_KEY" | python3 -B experimental/install/sign.py "$archive" "$archive.sig" \
+            --key /dev/stdin --public-key release-key.pub --version "$version" --arch arm64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: needs.version.outputs.lab == 'true'
+        with:
+          name: release-experimental-arm64
+          path: |
+            ${{ runner.temp }}/lab-arm64/pryx-lab-linux-arm64.pyz
+            ${{ runner.temp }}/lab-arm64/pryx-lab-linux-arm64.pyz.sig
+          if-no-files-found: error
       - name: Push the aarch64 image
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
@@ -144,10 +194,10 @@ jobs:
 
   release:
     needs: [version, arm64]
-    if: needs.version.outputs.new == 'true'
+    if: github.ref == 'refs/heads/main' && needs.version.result == 'success' && needs.version.outputs.new == 'true'
     runs-on: ubuntu-24.04
-    # The release key is this environment's secret, which only main may use: a run of a workflow
-    # edited on a branch can't read it.
+    # This workflow checks the main ref before either signing job requests the release
+    # environment. Its environment secret supplies the existing signing key.
     environment: release
     permissions:
       contents: write
@@ -285,6 +335,27 @@ jobs:
           (cd dist && sha256sum -- * > SHA256SUMS)
           du -h dist/pryx-*-linux-x64.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Additional host bundle packaging: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+      # Stage the requested assets after the stock manifest is complete and before provenance
+      # and publication. A published immutable release cannot be extended.
+      - name: Build the optional static x64 lab archive
+        if: needs.version.outputs.lab == 'true'
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sh experimental/install/build-release.sh x64 dist
+      - name: Sign the optional x64 lab archive
+        if: needs.version.outputs.lab == 'true'
+        env:
+          RELEASE_KEY: ${{ secrets.PRYXD_RELEASE_KEY }}
+        run: |
+          archive=dist/pryx-lab-linux-x64.pyz
+          printf '%s\n' "$RELEASE_KEY" | python3 -B experimental/install/sign.py "$archive" "$archive.sig" \
+            --key /dev/stdin --public-key release-key.pub --version "$version" --arch x64
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.version.outputs.lab == 'true'
+        with:
+          name: release-experimental-arm64
+          path: dist
+          digest-mismatch: error
       # One index for both machines, under both names; the aarch64 job pushed its half.
       - name: Push the image
         id: push

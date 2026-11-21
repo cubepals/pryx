@@ -25,7 +25,8 @@ try {
   if (group === 'experimental') {
     if (args[0] === 'install')
       await experimentalUp(args.slice(1), async (stock) => {
-        if (stock.length) throw new Error('Unexpected experimental install arguments')
+        if (stock.length && !args.includes('--installer-arguments'))
+          throw new Error('Unexpected experimental install arguments')
       })
     else if (args[0] === 'run' && args.length === 2) await installedLab('run', args.slice(1))
     else throw new Error('usage: pryx experimental run <feature>')

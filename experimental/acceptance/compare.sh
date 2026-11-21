@@ -4,6 +4,7 @@
 set -euo pipefail
 arch=$1
 access_log=$2
+python3 -B -m unittest discover -s experimental/acceptance
 base_commit=35c28a630404d34fcc451528369432a54abba496
 base_tree=$(mktemp -d)
 base_assets=$(mktemp -d)

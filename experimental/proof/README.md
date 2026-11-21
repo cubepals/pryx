@@ -11,7 +11,7 @@ rustup toolchain install nightly-2026-11-01 --profile minimal --component miri,r
 cargo +nightly-2026-11-01 miri test --locked --features experimental
 cargo install --locked cargo-fuzz --version 0.13.2
 cargo +nightly-2026-11-01 fuzz run scan -- -runs=10000 -max_len=65536
-LLVM_MCA=llvm-mca-19 ./report.sh
+LLVM_MCA=llvm-mca-19 sh report.sh
 ```
 
 The reports use LLVM 19.1.7 and OSACA 0.7.1. Both analyze the instructions between the source markers. Each loop iteration reads 16 bytes. LLVM's reciprocal block throughput is 0.8 cycles on Skylake Server and 1.0 on Neoverse N1. OSACA lacks two N1 instruction costs and withholds its final prediction. These static values exclude cache misses, Rust dispatch, setup, branches outside the loop and memory-system limits. Native measurements on matching cores are needed to compare them.

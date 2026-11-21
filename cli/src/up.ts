@@ -19,7 +19,10 @@ import { upPlan, up as upServer } from './up-server.ts'
 export { runInstallCommand, upPlan } from './up-server.ts'
 
 export async function up(args: string[]) {
-  if (!args.includes('--run-installed') && (requestsLab(args) || args.includes('--feature')))
+  if (
+    args.includes('--installer-arguments') ||
+    (!args.includes('--run-installed') && (requestsLab(args) || args.includes('--feature')))
+  )
     return await experimentalUp(args, upPreset)
   return await upPreset(args)
 }

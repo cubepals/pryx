@@ -9,4 +9,5 @@ The paired bootstrap invokes each commit's own installer and CLI with PRYX_NO_UP
 - `compare.sh` builds the reference and invokes both comparisons.
 - `default_install.py` audits the real install log and the native bundle member manifests.
 - `paired_install.py` captures paired default bootstrap requests.
+- `test_default_install.py` exercises the CLI exception, rejected payload and request changes, and missing archives.
 - `README.md` describes this proof.

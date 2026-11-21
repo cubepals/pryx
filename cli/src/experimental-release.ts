@@ -44,9 +44,10 @@ async function fetchLab(files: Files) {
 function invoke(files: Files, args: string[]) {
   const result = Bun.spawnSync(['python3', '-I', files.archive, ...args], {
     stdout: 'pipe',
-    stderr: 'inherit',
+    stderr: 'pipe',
   })
-  if (result.exitCode !== 0) throw new Error('Experimental lab command failed')
+  if (result.exitCode !== 0)
+    throw new Error(result.stderr.toString().trim().slice(-512) || 'Experimental lab command failed')
   return result.stdout.toString()
 }
 
@@ -54,19 +55,28 @@ export async function experimentalUp<T>(
   args: string[],
   base: (args: string[], onReady?: () => void) => Promise<T>,
 ) {
-  const lab: string[] = [],
-    stock: string[] = []
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index] as string
-    if (arg === '--feature') lab.push(arg, args[++index] ?? '')
-    else if (arg !== '--experimental') stock.push(arg)
+  const forwarded = args.indexOf('--installer-arguments')
+  const input = forwarded < 0 ? args : args.slice(forwarded + 1)
+  const stock = forwarded < 0 ? [] : args.slice(0, forwarded)
+  const lab: string[] = []
+  for (let index = 0; index < input.length; index++) {
+    const arg = input[index] as string
+    if (arg === '--feature') lab.push(arg, input[++index] ?? '')
+    else if (forwarded < 0 && arg !== '--experimental') stock.push(arg)
   }
   if (!requestsLab(args)) throw new Error('--feature requires --experimental or PRYX_EXPERIMENTAL=1')
-  // Preflight stays offline. This release exposes one public feature name; its implementation
-  // and execution remain entirely in the signed archive.
-  if (lab.length && (lab.length !== 2 || lab[1] !== 'self-check'))
-    throw new Error('Expected --feature self-check')
-  if (stock.includes('--check') || stock.includes('--preflight')) return await base(stock)
+  // A check can validate the public argument grammar offline. Only a verified lab archive
+  // can tell whether this release actually implements a requested name.
+  if (lab.length && (lab.length !== 2 || !/^[a-z][a-z0-9-]{0,63}$/.test(lab[1] ?? '')))
+    throw new Error('Supply --feature once with a lowercase feature name')
+  if (stock.includes('--check') || stock.includes('--preflight')) {
+    const result = await base(stock)
+    if (lab.length)
+      console.error(
+        `Experimental feature ${lab[1]} is unverified until installation authenticates the archive`,
+      )
+    return result
+  }
   return await staged(fetchLab, async (files) => {
     invoke(files, ['validate', ...lab])
     let activated = false
@@ -91,21 +101,21 @@ export async function installedLab(command: 'capabilities' | 'run', args: string
   }
   const directory = ownedPath(root(), homedir())
   const target = readlinkSync(join(directory, 'active'))
-  if (!/^build-[a-f0-9]{64}$/.test(target)) throw new Error('Invalid experimental installation')
+  if (!/^build-[a-f0-9]{64}(?:-[a-f0-9]{32})?$/.test(target))
+    throw new Error('Invalid experimental installation')
   const member = (name: string, size: number) => {
     const path = ownedPath(join(directory, target, name), homedir())
     const info = lstatSync(path)
     if (!info.isFile() || info.size > size) throw new Error('Invalid experimental installation member')
     return path
   }
-  const selection = readFileSync(member('selection', 256), 'utf8')
   return await staged(
     async (files) => {
       copyFileSync(member('lab.pyz', maxSize), files.archive)
       copyFileSync(member('signature', 64), files.signature)
     },
     async (files) => {
-      const output = invoke(files, [command, selection, ...args])
+      const output = invoke(files, [command, join(directory, target), files.signature, ...args])
       if (command === 'run') {
         process.stdout.write(output)
         return
