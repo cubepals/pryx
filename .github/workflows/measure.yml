@@ -358,6 +358,12 @@ jobs:
           path: scaffold
           sparse-checkout: experimental/proof
           persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 07b4732183b684ab1775951314c3b5d3ae99ba74
+          path: page-kernels
+          sparse-checkout: experimental/pages
+          persist-credentials: false
       - name: Validate native code and report resident throughput
         run: |
           set -euo pipefail
@@ -370,11 +376,17 @@ jobs:
           . "$RUNNER_TEMP/validation-tools/bin/activate"
           pip install -r experimental/validation/requirements.txt osaca==0.7.1
           proof="$GITHUB_WORKSPACE/scaffold/experimental/proof"
+          pages="$GITHUB_WORKSPACE/page-kernels/experimental/pages"
           cd experimental/validation
           lscpu -J > "$out/cpu.json"
           uname -a > "$out/kernel.txt"
           llvm-mca-19 --version > "$out/llvm-version.txt"
           rustc -vV > "$out/rust.txt"
+          cc -Wall -Wextra -Werror -O2 cpu_features.c -o "$out/cpu-features"
+          "$out/cpu-features" > "$out/features-native.txt"
+          valgrind --quiet "$out/cpu-features" > "$out/features-memcheck.txt"
+          python memcheck.py "$pages/Cargo.toml" page-kernels 2>&1 | tee "$out/pages-memcheck.txt"
+          sh ./codegen.sh "$pages/Cargo.toml" page-kernels "$out/pages-codegen"
           python memcheck.py "$proof/Cargo.toml" experimental 2>&1 | tee "$out/memcheck.txt"
           sh ./codegen.sh "$proof/Cargo.toml" experimental "$out/codegen"
           sh ./build.sh "$proof" "$(rustc -vV | awk '/^host:/{print $2}')" "$out/scan.elf"

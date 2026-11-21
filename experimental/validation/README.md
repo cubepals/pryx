@@ -1,6 +1,6 @@
 # Machine-code checks
 
-The optional `validation_lab=true` dispatch in Measure builds the actual E0 scan from signed revision `2121b1ef2fdaf07d5b649264727de0fc10187df4`. It runs its Rust tests under Memcheck, emits generic and native Rust assembly, builds an executable containing the complete release-mode dispatch, and checks symbolic inputs against its return value. The same run samples E0's native L1 hot loop on its pinned CPU with a call-overhead control and a hardware cycle counter when available.
+The optional `validation_lab=true` dispatch in Measure builds the actual E0 scan from signed revision `2121b1ef2fdaf07d5b649264727de0fc10187df4`. It runs both E0 and the A1 crate at `07b4732183b684ab1775951314c3b5d3ae99ba74` under Memcheck, records the visible instruction families with and without instrumentation, emits generic and native Rust assembly for both crates, builds an executable containing the complete release-mode dispatch, and checks symbolic inputs against its return value. The same run samples E0's native L1 hot loop on its pinned CPU with a call-overhead control and a hardware cycle counter when available.
 
 The symbolic input contains one unrestricted octet per byte, for lengths 0 through 64. The checker permits accesses inside the test slice and call stack and reads through the x86 ELF's RIP-relative call/jump slots. It checks all feasible paths return, all input values reach a checked return and no path can disagree with the scalar predicate. An invocation covers one specified pointer residue at a fixed base. Stack placement and CPU dispatch are those of the selected ELF. The proof applies only to the executable whose digest it emits.
 
@@ -26,5 +26,5 @@ For an Arm functional cross-check on x86, install the AArch64 musl standard libr
 | `README.md`, `requirements.txt` | Scope, commands and pinned Python tool APIs |
 | `adapter.rs`, `build.sh` | Build an exported function over the production predicate and emit an ELF |
 | `prove.py` | Symbolically execute that ELF and check bounded access, coverage and return value |
-| `memcheck.py`, `codegen.sh` | Run Cargo integration binaries under Memcheck and compare optimized Rust assembly |
+| `memcheck.py`, `cpu_features.c`, `codegen.sh` | Record ISA coverage, run Cargo integration binaries under Memcheck and compare optimized Rust assembly |
 | `hot_loop.c`, `model.py` | Native PMU and monotonic samples; LLVM scheduling-model comparison |
